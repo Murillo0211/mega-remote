@@ -640,7 +640,7 @@ async function tradePost(uid) {
 
 function vGems() {
   const g = snap.gems; if (!g) return `<div class="card">No gem data.</div>`;
-  return `<div class="card"><h3>Biggest Upgrades Right Now</h3><div class="dim">${g.total} gems. Ranking up needs the game window - remote in and use Open in Game on the Gems tab.</div>${g.top.map(([id, gain, label, need, r, sh], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div></div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
+  return `<div class="card"><h3>Strongest Get Stronger</h3><div class="dim">${g.total} gems. Ranking up needs the game window - remote in and use Open in Game on the Gems tab.</div>${g.top.map(([id, gain, label, need, r, sh, bst], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">${bst ? `base ${bst} · ` : ''}rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div></div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
 }
 function vSet() {
   const s = snap?.set || {};
