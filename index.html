@@ -95,6 +95,7 @@ function listen() {
   if (pair.a) {
     // iPhone Safari's EventSource drops Ably's stream, so read it ourselves with fetch (works on iOS).
     // Ably apps only accept identified clients (error 40161): this phone is "mega-phone".
+    if (store.get('mr-poll', 0)) { es = ablyPoll(); return; }
     es = ablyStream(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=12]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
     return;
   } else {
@@ -106,6 +107,27 @@ function listen() {
 let relayErr = null, relayWhy = '', diagAt = 0;
 // A tiny live-stream reader: fetch + read the body as it arrives, split into SSE events ("data: …"
 // lines) or JSON lines, reconnect after a drop. Returns an object with close() like EventSource.
+// Polling fallback: Ably's message history, only what's new since the last message, every 2 s while
+// the app is visible (the first call takes the last minute, which holds a full update).
+function ablyPoll() {
+  let stopped = false, since = Date.now() - 60000, timer = null, fails = 0;
+  async function once() {
+    if (stopped) return;
+    if (!document.hidden) {
+      try {
+        const r = await fetch(`${ABLY}/channels/${encodeURIComponent(pair.s)}/messages?start=${since}&direction=forwards&limit=100`, { headers: { Authorization: 'Basic ' + btoa(pair.a), 'X-Ably-ClientId': btoa('mega-phone') }, cache: 'no-store' });
+        if (!r.ok) { const t = await r.text().catch(() => ''); let m = t; try { m = JSON.parse(t).error?.message || t; } catch {} throw new Error(`Ably said ${r.status}: ${m}`); }
+        const arr = await r.json();
+        for (const m of arr) { since = Math.max(since, (m.timestamp || 0) + 1); onPart(String(m.data || '')); }
+        fails = 0; relayErr = null; relayWhy = ''; mode = 'poll'; setSub();
+      } catch (e) { if (++fails >= 2) { relayErr = Date.now(); relayWhy = String(e.message || e).slice(0, 200); setSub(); } }
+    }
+    if (!stopped) timer = setTimeout(once, 2000);
+  }
+  once();
+  return { close() { stopped = true; clearTimeout(timer); } };
+}
+let mode = 'stream';
 function ablyStream(url) {
   let stopped = false, ctl = null, tries = 0;
   async function run() {
@@ -128,10 +150,12 @@ function ablyStream(url) {
             else if (line.startsWith('{')) deliver(line);
           }
         }
-      } catch (e) { if (stopped) return; }
+        relayWhy = 'the live stream was closed by the phone or network';
+      } catch (e) { if (stopped) return; if (!relayWhy) relayWhy = `live stream error: ${e.message || e}`; }
       if (stopped) return;
       relayErr = Date.now(); setSub();
-      await new Promise((res) => setTimeout(res, Math.min(10000, 1500 * ++tries)));
+      if (++tries >= 2) { store.set('mr-poll', 1); stopped = true; es = ablyPoll(); render(); return; } // iPhone keeps cutting it: ask every 2 s instead
+      await new Promise((res) => setTimeout(res, 1500));
     }
   }
   run();
@@ -225,7 +249,7 @@ function setSub() {
   relayWhy = relayErr && Date.now() - relayErr < 20000 ? relayWhy : '';
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
   const s = Math.round((Date.now() - Math.max(snap.at, snap.live?.at || 0)) / 1000);
-  el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? '' : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
+  el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? (mode === 'poll' ? ' · every 2 s' : '') : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
 }
 setInterval(setSub, 5000);
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
