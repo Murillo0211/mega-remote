@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.27.0
+// @version      0.27.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.27.0';
+const VERSION = '0.27.1';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -3959,6 +3959,11 @@ const GoalTypes = (() => {
         if (uids.length && uids.join() !== cur.join()) { setChapterTeam(uids); Log.add(`story team: ${pick.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')}`); }
         g.teamAt = now; g.teamFor = ch; g.lead = pick[0]?.id || g.lead; Plan.save();
       }
+      // buddy: x1.3 XP plus a candy every few KOs - the lowest-level team member under the cap gets it,
+      // so the team stays even (the gym is only as easy as your weakest Pokémon)
+      { const team = (S().team || []).slice(0, 6).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).filter((m) => m.level < capOf(m.uid));
+        const bud = team.sort((x, y) => x.level - y.level)[0];
+        if (bud && S().buddy?.uid !== bud.uid) { try { E.call('Game.setBuddy', bud.uid); } catch {} if (S().buddy?.uid === bud.uid) Log.add(`story: made ${name(bud.id)} (Lv ${bud.level}) your buddy - it's the lowest on the team`); } }
       if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
       const looping = !!E.read('Adventure.isLooping', false, ch);
       if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch {} }
