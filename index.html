@@ -251,6 +251,13 @@ let toastT = null;
 function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), 4500); }
 
 // ---- views ----
+// Kinesis follows the tab order you set in Mega on the PC (Mega's Simulate and Settings tabs are 'legends' and 'engine'
+// there; tabs only one side has go at the end)
+const MEGA_TAB = { legends: 'sim', engine: 'set' };
+function tabList() {
+  const o = (snap?.tabs || []).map((k) => MEGA_TAB[k] || k), byK = new Map(TABS);
+  return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))];
+}
 const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
@@ -778,7 +785,7 @@ function vAct() {
 }
 function render() {
   setSub();
-  $('#tabs').innerHTML = pair ? TABS.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
+  $('#tabs').innerHTML = pair ? tabList().map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
   if (!pair && RELAY) { $('#main').innerHTML = `<div class="card"><h3>Waiting for Mega</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and tick <b>Use Mega Relay on this PC</b>. This page pairs itself a few seconds later.</div></div>`; return; }
   if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
