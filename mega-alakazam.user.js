@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.26.3
+// @version      0.27.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.26.3';
+const VERSION = '0.27.0';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -1752,7 +1752,7 @@ Views.plan = (w, ui, esc) => {
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
   h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
+    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -1785,6 +1785,14 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'candy') {
     h += `<button class="btn" data-act="plan-add-candy" ${Plan.hasType('candy') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Runs the Candy Factory once a day as soon as it opens: reads the day's type, picks the six that beat it best, starts the run, and lets it play out. Dailies go ahead of your other goals, like in 4.x.</div></div>`;
+  } else if (ui.addType === 'story') {
+    // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
+    const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch {} return { key: r.key, name: NM[r.key] || r.name, chs }; })
+      .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
+    h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
+    <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
+    h += `<div class="note dim">Plays that region's chapters in order with the Pokémon caught there: the simulator picks the 6 best for each chapter and its gym, and after 2 losses in a row it trains for 30 minutes in the best cleared chapter, then tries again. It stays in that region's chapters (an older chapter would swap your money, bag and team) and sits below your dailies, which take the screen when they're due.</div></div>`;
   } else if (ui.addType === 'region') {
     const regs = (Engine.get('STORY.REGIONS') || []).filter((r) => r && r.key).map((r) => ({ ...r, miss: GoalTypes.regionMissing(r.key).length })).filter((r) => r.miss);
     h += `<select class="sel" data-act="add-reg"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addReg === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'region' && g.reg === r.key) ? 'disabled' : ''}>${esc(r.name || r.key)} · ${r.miss} missing</option>`).join('')}</select>
@@ -2125,6 +2133,7 @@ const UI = (() => {
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-money"]')) { planUi.addMoney = +e.target.value; return; }
       if (e.target.matches('select[data-act="add-item"]')) { planUi.addItem = e.target.value || null; renderBody(true); return; }
+      if (e.target.matches('select[data-act="add-story"]')) { planUi.addStory = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-reg"]')) { planUi.addReg = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select.sel')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
     root.addEventListener('input', (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
@@ -2192,6 +2201,7 @@ const UI = (() => {
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch {} renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -5258,6 +5268,7 @@ const Plan = (() => {
     if (t === 'elite' && st.goals.some((g) => g.type === 'elite' && g.foe === +data.foe && !g.done)) return false;
     if (t === 'league' && st.goals.some((g) => g.type === 'league' && g.reg === data.reg && !g.done)) return false;
     if (t === 'wboss' && st.goals.some((g) => g.type === 'wboss' && !g.done)) return false;
+    if (t === 'story' && st.goals.some((g) => g.type === 'story' && g.region === data.region && !g.done)) return false;
     if (t === 'level' && data.forDex && st.goals.some((g) => g.type === 'level' && g.forDex === +data.forDex && !g.done)) return false;
     const g = newGoal(t, t === 'legend' ? { foe: +data.foe } : t === 'under' ? { from: +data.from || 1 } : t === 'region' ? { reg: data.reg } : t === 'money' ? { target: Math.max(1, Math.round(+data.target || 0)) } : data);
     st.goals.push(g); save(); Log.add(`added to the plan: ${name(g)}`); return true;
@@ -5420,7 +5431,8 @@ const Plan = (() => {
   // "Catch every <name> form" goal - once; if you remove it, Mega won't add it again
   // on a new region's side (Unova) with its League not beaten: add "Beat the Unova League" at the top - once
   function storyGoal() {
-    storyPlace(); // keep it after the dailies, every minute (you may reorder the plan)
+    storyPlace(); // keep it below the dailies, every minute
+    return; // you add "Beat a region's League" yourself from the Plan tab now (any region, future ones too)
     try {
       const link = E.get('Game.S')?.link; if (!link || link.side !== 'to') return;
       const reg = link.to, key = 'mega-storygoal-' + reg;
