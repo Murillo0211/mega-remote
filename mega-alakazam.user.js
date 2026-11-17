@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.23.7
+// @version      0.24.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.23.7';
+const VERSION = '0.24.0';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -1114,7 +1114,7 @@ const Views = (() => {
       h += `<div class="card"><h3>📈 Leveling Chapters</h3><div class="dim" style="font-size:13px">XP per hour = the game's XP formula for each chapter's wild Pokémon x the wins per hour Mega measures while training there. Close calls (within 10%) get a 10-minute check before Mega settles.</div>${r.map((x) => `<div class="row"><span class="k">${x === best ? '⭐ ' : ''}${esc(x.name)} <span class="dim">Lv ${x.top}</span></span><span class="v">${XpChap.fmt(x.xpHr)} XP/h <span class="dim">· ${XpChap.fmt(x.perWin)}/win · ${Math.round(x.rate)} wins/h ${x.learned ? `measured (${x.min} min)` : 'estimated'}</span></span></div>`).join('') || '<div class="dim">No chapters yet.</div>'}</div>`; } catch {}
     { const U = Updater.info, av = Updater.available;
       h += `<div class="card"><h3>⬆ Updates</h3><div class="row"><span class="k">This version</span><span class="v">${esc(VERSION)}</span></div><div class="row"><span class="k">Newest on GitHub</span><span class="v ${U.err ? 'bad' : ''}">${U.err ? 'could not check: ' + esc(U.err) : U.latest ? esc(U.latest) + (av ? ' <span class="ok">· ready</span>' : ' · up to date') : 'checking…'}</span></div>${U.checkedAt ? `<div class="row"><span class="k">Checked</span><span class="v dim">${new Date(U.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></div>` : ''}
-        ${av ? `<button class="btn" data-act="update">⬆ Update to ${esc(av)}</button>` : ''}<button class="btn" data-act="update-check">Check now</button>
+        ${av ? `<button class="btn" data-act="update">New Update ${esc(av)}</button>` : ''}<button class="btn" data-act="update-check">Check now</button>
         <label class="chk" style="margin-top:6px"><input type="checkbox" data-act="update-auto" ${Updater.auto ? 'checked' : ''}> Reload the game by itself to run an update (at a safe moment)</label>
         <label class="chk"><input type="checkbox" data-act="update-continue" ${Updater.autoContinue ? 'checked' : ''}> Press Continue on the title screen after a reload</label>
         <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
@@ -1974,6 +1974,43 @@ const UI = (() => {
     .goal .st{font-size:14px;margin-top:2px}
     select.sel{box-sizing:border-box;width:100%;background:#16122b;border:1px solid #3a3260;border-radius:10px;padding:9px 10px;color:#fff;margin-bottom:10px;font-size:15px}
     code{font:13px ui-monospace,Menlo,Consolas,monospace;color:#c9a8ff}
+    /* ===== Field Device theme: a glossy handheld shell around LCD-style screens. Night = dark screen, Day = paper screen ===== */
+    .wrap.th-night,.wrap.th-day{--shell1:#c4283a;--shell2:#7d1222;--seam:#4a0a14}
+    .th-night .panel,.th-day .panel{border-right:3px solid var(--seam)}
+    .th-night .hd,.th-day .hd{background:linear-gradient(180deg,var(--shell1),var(--shell2));border-bottom:3px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff40,inset 0 -6px 12px #0003}
+    .th-night .hd .t,.th-day .hd .t{background:none;color:#fff;-webkit-background-clip:initial;background-clip:initial;text-shadow:0 1px 0 #0006;letter-spacing:1px}
+    .th-night .hd .fold,.th-day .hd .fold{color:#ffe9ec}
+    .th-night .hd .dot,.th-day .hd .dot{width:13px;height:13px;border:2px solid #ffffffb0;box-sizing:border-box}
+    .th-night .rail,.th-day .rail{background:linear-gradient(180deg,var(--shell1),var(--shell2));border-right:3px solid var(--seam)}
+    .th-night .rail .open,.th-day .rail .open{color:#fff}
+    .th-night .tabs,.th-day .tabs{background:var(--shell2);border-bottom:3px solid var(--seam)}
+    .th-night .tabs button,.th-day .tabs button{background:#00000030;color:#ffdfe3;border:1px solid #ffffff22;box-shadow:inset 0 -2px 0 #0003}
+    .th-night .tabs button:hover,.th-day .tabs button:hover{background:#ffffff26;color:#fff}
+    .th-night .tabs button.on,.th-day .tabs button.on{background:var(--scr);color:var(--ink);border-color:var(--scrEdge);box-shadow:inset 0 0 0 1px var(--scrEdge),0 0 10px var(--glow)}
+    /* night: dark LCD */
+    .wrap.th-night{--scr:#0e1b1d;--scrEdge:#2a5c5a;--card:#12262a;--line:#214448;--ink:#d8fff3;--mute:#86b8ae;--acc:#4fe0bc;--glow:#4fe0bc55;color:var(--ink)}
+    /* day: paper screen */
+    .wrap.th-day{--scr:#f3eddc;--scrEdge:#c8b98f;--card:#fffaf0;--line:#e3d6b6;--ink:#2b2420;--mute:#6f6455;--acc:#0f7a68;--glow:#0f7a6833;color:var(--ink)}
+    .th-night .panel,.th-day .panel{background:var(--scr)}
+    .th-night .body,.th-day .body{background:var(--scr);scrollbar-color:var(--scrEdge) transparent}
+    .th-night .card,.th-day .card{background:var(--card);border:1px solid var(--line);box-shadow:inset 0 0 0 1px #ffffff08,0 1px 0 #0002}
+    .th-night .card h3,.th-day .card h3{color:var(--ink);text-transform:uppercase;font-size:14px;letter-spacing:1.2px;border-bottom:2px solid var(--line);padding-bottom:6px}
+    .th-night .card.folded h3,.th-day .card.folded h3{border-bottom:0;padding-bottom:0}
+    .th-night .row,.th-day .row{border-top:1px dashed var(--line)} .th-night .row .k,.th-day .row .k{color:var(--mute)}
+    .th-night .dim,.th-day .dim{color:var(--mute)}
+    .th-night .note,.th-day .note{background:var(--card);border:1px solid var(--line);color:var(--ink)}
+    .th-night .mon,.th-day .mon{background:var(--scr);border:1px solid var(--line);color:var(--ink)}
+    .th-night .bar,.th-day .bar{background:var(--line)} .th-night .bar i,.th-day .bar i{background:linear-gradient(90deg,var(--acc),#f6c744)}
+    .th-night .btn,.th-day .btn{background:var(--shell2);color:#fff;border:1px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff30,0 2px 0 var(--seam)}
+    .th-night .btn:hover,.th-day .btn:hover{background:var(--shell1)}
+    .th-night .btn.gold,.th-day .btn.gold{background:linear-gradient(180deg,#f5c542,#d4a017);color:#2b1d00;border-color:#9a7410;box-shadow:inset 0 1px 0 #fff8,0 2px 0 #9a7410}
+    .th-night .btn.danger,.th-day .btn.danger{background:#3a3a3a;border-color:#222}
+    .th-night input.q,.th-day input.q,.th-night select.sel,.th-day select.sel{background:var(--card);border:1px solid var(--scrEdge);color:var(--ink)}
+    .th-night label.chk,.th-day label.chk{color:var(--ink)} .th-night code,.th-day code{color:var(--acc)}
+    .th-day .ok{color:#137a3e} .th-day .warn{color:#a8650a} .th-day .bad{color:#b4232c}
+    .th-night .ok{color:#5ef0a0}
+    .th-day .hd .vtip,.th-night .hd .vtip{background:#1d0a0e}
+    .hd .fold.theme{font-size:16px}
   `;
   let host, root, timer;
   const W_MIN = 340, W_MAX = 900, RAIL = 64;
@@ -2165,6 +2202,7 @@ const UI = (() => {
       c.classList.toggle('folded'); if (c.classList.contains('folded')) shut.add(k); else shut.delete(k);
       prefs.foldSet = [...shut]; savePrefs(); return;
     }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch {} return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
     if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch {} return; }
@@ -2188,15 +2226,19 @@ const UI = (() => {
     return ['', 'Connected to the game engine'];
   }
 
+  // theme: Auto (day 7 AM - 7 PM on this PC's clock), Day or Night; the header button cycles them
+  const THEMES = ['auto', 'day', 'night'];
+  const themeNow = () => { const t = prefs.theme || 'auto'; if (t !== 'auto') return t; const h = new Date().getHours(); return h >= 7 && h < 19 ? 'day' : 'night'; };
   function render() {
     const w = World.build();
     const wrap = root.querySelector('.wrap');
+    wrap.classList.remove('th-day', 'th-night'); wrap.classList.add('th-' + themeNow());
     const [cls, tip] = health(w);
     layout();
     if (!prefs.open) { wrap.innerHTML = `<div class="rail" data-act="toggle" title="Open Mega Alakazam v${esc(VERSION)}"><img src="${MEGA_ICON}" width="44" height="47" alt=""><span class="dot ${cls}" title="${esc(tip)}"></span><span class="open">›</span></div>`; return; }
     const z = scale();
     wrap.innerHTML = `<div class="panel" style="width:${Math.round(width() / z)}px;zoom:${z}"><div class="grip" title="Drag to resize"></div>
-      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">MEGA ALAKAZAM</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Opens Tampermonkey's install page for Mega ${esc(Updater.available)} - press Update there, then reload the game">⬆ ${esc(Updater.available)}</button>` : ''}
+      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">MEGA ALAKAZAM</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">New Update ${esc(Updater.available)}</button>` : ''}<button class="fold theme" data-act="theme" title="Theme: ${{ auto: 'Auto (day/night by time)', day: 'Day', night: 'Night' }[prefs.theme || 'auto']} - click to change">${{ auto: '◐', day: '☀', night: '☾' }[prefs.theme || 'auto']}</button>
         <button class="fold" data-act="smaller" title="Smaller text" ${prefs.scaleIdx === 0 ? 'disabled' : ''}>A−</button><button class="fold" data-act="bigger" title="Bigger text">A+</button>
         <button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
       <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}</button>`).join('')}</div>
@@ -5519,7 +5561,7 @@ const Updater = (() => {
     try {
       const r = await fetch(META + '?t=' + Date.now(), { cache: 'no-store' });
       const m = (await r.text()).match(/@version\s+(\S+)/);
-      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`Mega ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch {} try { UI.refresh?.(); } catch {} } } }
+      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch {} try { UI.refresh?.(); } catch {} } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
   }
@@ -5694,7 +5736,7 @@ const Remote = (() => {
     const nm = Object.fromEntries([...ids].map((id) => [id, D[id]?.name || '#' + id]));
     return {
       v: 1, at: Date.now(), ver: VERSION, run: Plan.running, top: Casing.names(Plan.top || ''), old: Plan.oldOn() ? 1 : 0,
-      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), where: Casing.names(where), foes, team, today, money: +S.money || 0, dex, trades, gems,
+      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: +S.money || 0, dex, trades, gems,
       log: (Log.lines || []).slice(-15).map((l) => [l.at, Casing.names(l.text)]),
       set: { berries: Berries.on, idle: Plan.idleOn, alerts: !!Notify.cfg.on },
       gemPick: (() => { try { return (E.get('LegendZones')?.leaguePending?.() || []).map((p) => [p.reg, p.tier]); } catch { return []; } })(),
