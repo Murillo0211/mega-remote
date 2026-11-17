@@ -71,7 +71,7 @@ let pair = store.get('mr-pair', null);
 const ZOOMS = [0.85, 0.95, 1, 1.1, 1.2, 1.35];
 let zoomI = store.get('mr-zoom', 2);
 const applyZoom = () => { document.body.style.zoom = ZOOMS[zoomI]; };
-const pairHash = () => '#pair-' + b64u(new TextEncoder().encode(JSON.stringify({ s: pair.s, c: pair.c, k: pair.k })));
+const pairHash = () => '#pair-' + b64u(new TextEncoder().encode(JSON.stringify({ s: pair.s, c: pair.c, k: pair.k, ...(pair.a ? { a: pair.a } : {}) })));
 if (pair && location.hash !== pairHash()) history.replaceState(null, '', location.pathname + pairHash());
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = (s) => document.querySelector(s);
@@ -86,24 +86,33 @@ const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 
 // ---- status stream ----
 let snap = store.get('mr-snap', null), parts = new Map(), es = null;
+// Two relays: Ably (free, frequent - when the PC has an Ably key, it comes in the pairing as "a")
+// or ntfy.sh. Either way messages are sealed with the pairing key.
+const ABLY = 'https://main.realtime.ably.net';
 function listen() {
   if (!pair) return;
   try { es?.close(); } catch {}
-  es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
-  es.onmessage = async (ev) => {
-    let m; try { m = JSON.parse(ev.data); } catch { return; }
-    if (m.event !== 'message') return;
-    const [tag, id, pos, body] = String(m.message || '').split('|'); if (tag !== 'M1' || !body) return;
+  if (pair.a) {
+    es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=1]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}`);
+    es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onPart(String(m.data || '')); };
+  } else {
+    es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
+    es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m.event === 'message') onPart(String(m.message || '')); };
+  }
+  es.onerror = () => setSub();
+}
+async function onPart(text) {
+  {
+    const [tag, id, pos, body] = text.split('|'); if (tag !== 'M1' || !body) return;
     const [i, n] = pos.split('/').map(Number); const p = parts.get(id) || []; p[i - 1] = body; parts.set(id, p);
     if (p.filter(Boolean).length < n) return; parts.delete(id);
     try { const s = await open(p.join('')); if (!snap || s.at >= snap.at) { snap = s; store.set('mr-snap', s); onSnap(); } } catch {}
-  };
-  es.onerror = () => setSub();
+  }
 }
 // "I'm open": the PC sends live updates (about one a minute) only while this app is open, to stay
 // inside ntfy's free daily limit. Sent on open, every 2 minutes while visible, and by Refresh.
 let lastWatch = 0;
-function watchNow(force) { if (!pair || document.hidden) return; if (!force && Date.now() - lastWatch < 115000) return; lastWatch = Date.now(); cmd('watch', {}, '', null, true); }
+function watchNow(force) { if (!pair || document.hidden) return; if (!force && Date.now() - lastWatch < (pair.a ? 55000 : 115000)) return; lastWatch = Date.now(); cmd('watch', {}, '', null, true); }
 setInterval(() => watchNow(false), 10000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { listen(); watchNow(true); render(); } });
 
@@ -115,8 +124,14 @@ async function cmd(name, args = {}, label = '', cb = null, quiet = false) {
   if (!quiet) { pending.set(id, { label: label || name, at: Date.now(), cb }); toast(`Sending: ${label || name}…`); }
   try {
     const body = await seal({ id, ts: Date.now(), cmd: name, args });
-    const n = Math.ceil(body.length / 3000), mid = rid().slice(0, 6);
-    for (let i = 0; i < n; i++) await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic: pair.c, message: `M1|${mid}|${i + 1}/${n}|${body.slice(i * 3000, (i + 1) * 3000)}`, priority: 1 }) });
+    const size = pair.a ? 50000 : 3000, n = Math.ceil(body.length / size), mid = rid().slice(0, 6);
+    for (let i = 0; i < n; i++) {
+      const msg = `M1|${mid}|${i + 1}/${n}|${body.slice(i * size, (i + 1) * size)}`;
+      const r = pair.a
+        ? await fetch(`${ABLY}/channels/${encodeURIComponent(pair.c)}/messages`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(pair.a), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'm', data: msg }) })
+        : await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic: pair.c, message: msg, priority: 1 }) });
+      if (!r.ok) throw new Error(r.status === 429 ? 'too many messages today - try again later' : 'relay said ' + r.status);
+    }
     if (!quiet) toast(`Sent: ${label || name} - waiting for your PC…`);
   } catch (e) { if (!quiet) toast('Could not send: ' + e.message); pending.delete(id); }
   return id;
@@ -145,7 +160,7 @@ function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
   const s = Math.round((Date.now() - snap.at) / 1000);
-  el.innerHTML = s < 150 ? `<span class="ok">● live</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
+  el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? '' : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
 }
 setInterval(setSub, 5000);
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
