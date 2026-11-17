@@ -124,7 +124,7 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity
 // ---- views ----
 const TABS = [['now', 'Now'], ['plan', 'Plan'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
-const ui = { dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
+const ui = { items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
@@ -166,6 +166,7 @@ function vNow() {
 }
 function vPlan() {
   const s = snap; let h = `<div class="card"><button class="btn ${s.run ? '' : 'gold'}" style="margin:0" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button><div class="dim" style="margin-top:8px">${esc(s.top)}</div></div>`;
+  h += addCard(s);
   const W = { running: ['ok', '●', 'running'], ready: ['ok', '●', 'running'], queued: ['dim', '○', 'next'], wait: ['warn', '◐', 'waiting'], paused: ['dim', '❚❚', 'paused'] };
   s.goals.forEach((g, i) => {
     const [cls, dot, word] = W[g.s] || W.wait;
@@ -180,17 +181,31 @@ function vPlan() {
       </div>${/3 times/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">Try Again</button>` : ''}</div>`;
   });
   if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
-  // add a goal
-  const types = [['legend', 'Catch a legendary'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex']];
-  h += `<div class="card"><h3>Add a Goal</h3><select id="addType">${types.map(([k, l]) => `<option value="${k}" ${ui.addType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
+  h += `<div class="card"><h3>Log</h3>${s.log.slice().reverse().map(([t, x]) => `<div style="margin:4px 0"><span class="dim">${at(t)}</span> ${esc(x)}</div>`).join('')}</div>`;
+  return h;
+}
+function addCard(s) {
+  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex']];
+  let h = `<div class="card"><h3>Add a Goal</h3><select id="addType">${types.map(([k, l]) => `<option value="${k}" ${ui.addType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   if (ui.addType === 'legend') {
     if (!ui.sims) { h += `<button class="btn" data-x="loadSims">Load Legendaries</button>`; }
     else h += `<select id="addVal"><option value="">Choose a legendary…</option>${ui.sims.filter((z) => !z[4]).map((z) => `<option value="${z[0]}" ${+ui.addVal === z[0] ? 'selected' : ''}>${esc(z[1])} · ${esc(z[2])}${z[3] != null ? ' · sim ' + Math.round(z[3] * 100) + '%' : ''}</option>`).join('')}</select>`;
+  } else if (ui.addType === 'item') {
+    if (!ui.items) h += `<button class="btn" data-x="loadItems">Load Rare Items</button>`;
+    else {
+      h += `<select id="addVal"><option value="">Choose an item…</option>${ui.items.map((x) => `<option value="${esc(x.key)}" ${ui.addVal === x.key ? 'selected' : ''} ${x.have >= x.need ? 'disabled' : ''}>${esc(x.name)}${x.have >= x.need ? ' · have it' : x.spots[0] ? ' · ' + Math.round(x.spots[0][3] * 100) + '%' : ''}${x.inPlan ? ' · in plan' : ''}</option>`).join('')}</select>`;
+      const it = ui.items.find((x) => x.key === ui.addVal);
+      if (it) {
+        if (it.uses.length) h += `<div style="margin-top:8px">Used to: ${esc(it.uses.join(', '))}</div>`;
+        if (it.need > 1) h += `<div>You collect up to ${it.need} (have ${it.have}).</div>`;
+        h += it.spots.map(([ch, chap, place, p, blk, skies], k) => `<div style="padding:8px 0;border-top:1px solid var(--line)"><b>${esc(place)}</b> · ${esc(chap)} <span class="dim">ch ${ch}</span> · ${Math.round(p * 1000) / 10}% at its item stop${blk ? `<div class="warn">needs ${esc(blk)}</div>` : ''}${skies ? `<div class="dim">only in ${esc(skies)}</div>` : ''}${it.inPlan ? '' : `<button class="btn ${k ? '' : 'gold'}" data-c="item.add" data-a='{"key":"${esc(it.key)}","ch":${ch}}' data-l="Add ${esc(it.name)}" data-after="items">Add: Hunt Here</button>`}</div>`).join('');
+      }
+    }
+    return h + `<div class="dim" style="margin-top:8px">Mega restarts the chapter until its item stop shows up, and keeps going until the item is yours.</div></div>`;
   } else if (ui.addType === 'money') h += `<select id="addVal">${[1e6, 2e6, 5e6, 1e7, 2e7, 5e7].filter((x) => x > s.money).map((x) => `<option value="${x}" ${+ui.addVal === x ? 'selected' : ''}>Up to ₽${x.toLocaleString()}</option>`).join('')}</select><div class="dim" style="margin-top:6px">You have ₽${s.money.toLocaleString()}.</div>`;
   else if (ui.addType === 'region') h += `<select id="addVal"><option value="">Choose a region…</option>${s.dex.filter((r) => r[1] < r[2]).map((r) => `<option value="${esc(r[3])}" ${ui.addVal === r[3] ? 'selected' : ''}>${esc(r[0])} · ${r[2] - r[1]} missing</option>`).join('')}</select>`;
   h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: add them from the Pokédex tab.</div></div>`;
-  if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
-  h += `<div class="card"><h3>Log</h3>${s.log.slice().reverse().map(([t, x]) => `<div style="margin:4px 0"><span class="dim">${at(t)}</span> ${esc(x)}</div>`).join('')}</div>`;
   return h;
 }
 function vDex() {
@@ -280,7 +295,7 @@ document.addEventListener('click', async (e) => {
   if (t.dataset.c) {
     if (t.dataset.confirm && !await askConfirm(t.dataset.confirm)) return;
     const after = t.dataset.after;
-    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'sims') loadSims(); });
+    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'sims') loadSims(); if (after === 'items') loadItems(); });
     return;
   }
   const x = t.dataset.x;
@@ -288,6 +303,7 @@ document.addEventListener('click', async (e) => {
   if (x === 'dexOpen') openDex(+t.dataset.id);
   if (x === 'dexBack') { ui.dexInfo = null; render(); }
   if (x === 'loadSims') loadSims();
+  if (x === 'loadItems') loadItems();
   if (x === 'runSim') {
     const id = +ui.simPick; ui.simRes[id] = { running: 1 }; render();
     const rq = await cmd('sim.run', { id, asMax: ui.asMax }, 'Run simulator');
@@ -303,7 +319,8 @@ document.addEventListener('click', async (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.id === 'addType') { ui.addType = t.value; ui.addVal = ''; if (t.value === 'legend' && !ui.sims) loadSims(); render(); }
+  if (t.id === 'addType') { ui.addType = t.value; ui.addVal = ''; if (t.value === 'legend' && !ui.sims) loadSims(); if (t.value === 'item' && !ui.items) loadItems(); render(); }
+  if (t.id === 'addVal' && ui.addType === 'item') { ui.addVal = t.value; render(); return; }
   if (t.id === 'addVal') ui.addVal = t.value;
   if (t.id === 'simPick') { ui.simPick = +t.value || null; render(); }
   if (t.id === 'asMax') ui.asMax = t.checked;
@@ -317,6 +334,7 @@ document.addEventListener('input', (e) => {
   qT = setTimeout(() => cmd('dex.search', { q: ui.dexQ }, 'Search', (r, data) => { ui.dexHits = data || []; render(); }), 700);
 });
 function openDex(id) { cmd('dex.info', { id }, 'Look up', (r, data) => { if (data) { ui.dexInfo = data; window.scrollTo(0, 0); render(); } }); }
+function loadItems() { cmd('item.list', {}, 'Load rare items', (r, data) => { ui.items = data || []; render(); }); }
 function loadSims() { cmd('sim.list', {}, 'Load legendaries', (r, data) => { ui.sims = data || []; render(); }); }
 function askConfirm(text) {
   return new Promise((res) => {
