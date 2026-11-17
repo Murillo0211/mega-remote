@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.26.0
+// @version      0.26.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.26.0';
+const VERSION = '0.26.1';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -5427,10 +5427,24 @@ const Plan = (() => {
       if (!Plan.goals.some((g) => g.type === 'story' && !g.done)) {
         const nm = { unova: 'Unova', kalos: 'Kalos' }[reg] || (E.get('STORY')?.REGIONS || []).find((r) => r.key === reg)?.name || reg;
         Plan.add('story', { region: reg, regionName: nm });
-        try { const g = Plan.goals.find((x) => x.type === 'story' && !x.done); if (g) Plan.toTop(g.id); } catch {}
-        Log.add(`added "Beat the ${nm} League" at the top of your plan - it stays in ${nm} chapters; dailies keep running alongside`);
+        Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
+    } catch {}
+    storyPlace();
+  }
+  // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
+  // Boss): they run when due, and the story - always ready - would block them if it were above them
+  function storyPlace() {
+    try {
+      const open = Plan.goals.filter((g) => !g.done), si = open.findIndex((g) => g.type === 'story');
+      if (si < 0) return;
+      const daily = ['raid', 'candy', 'tower', 'wboss'];
+      let last = -1; open.forEach((g, i) => { if (daily.includes(g.type)) last = i; });
+      const want = last < 0 ? 0 : last + (si < last ? 0 : 1);
+      if (si === want) return;
+      const id = open[si].id;
+      for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
     } catch {}
   }
   function formGoals() {
