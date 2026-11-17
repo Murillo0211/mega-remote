@@ -95,13 +95,15 @@ function listen() {
   if (pair.a) {
     // Ably apps only accept identified clients (error 40161): this phone is "mega-phone"
     es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=12]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
-    es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onPart(String(m.data || '')); };
+    es.onmessage = (ev) => { relayErr = null; let m; try { m = JSON.parse(ev.data); } catch { return; } onPart(String(m.data || '')); };
+    es.onopen = () => { relayErr = null; setSub(); };
   } else {
     es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
     es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m.event === 'message') onPart(String(m.message || '')); };
   }
-  es.onerror = () => setSub();
+  es.onerror = () => { relayErr = Date.now(); setSub(); };
 }
+let relayErr = null;
 async function onPart(text) {
   {
     const [tag, id, pos, body] = text.split('|'); if (tag !== 'M1' || !body) return;
@@ -174,6 +176,7 @@ let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
+  if (relayErr && Date.now() - relayErr < 20000) { el.innerHTML = `<span class="bad">● can't reach ${pair.a ? 'Ably' : 'ntfy'}</span> - retrying`; return; }
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
   const s = Math.round((Date.now() - Math.max(snap.at, snap.live?.at || 0)) / 1000);
   el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? '' : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
@@ -373,10 +376,11 @@ function render() {
   if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
-  if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
+  if (!snap) { $('#main').innerHTML = (pair.a ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Paste your Ably key</b><div>Settings → Fast Updates. Until then this phone listens on ntfy, which is blocked for today.</div><button class="btn gold" data-tab="set">Open Settings</button></div>`) + `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
   const V = { now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  const banner = pair.a ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Not on the fast relay yet</b><div>This phone still uses ntfy (slow, and blocked for today). Go to <b>Settings → Fast Updates</b> and paste your Ably key.</div><button class="btn gold" data-tab="set">Open Settings</button></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
-  $('#main').innerHTML = V();
+  $('#main').innerHTML = (tab === 'set' ? '' : banner) + V();
   if (focus === 'dexQ') { const el = $('#dexQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
 }
 
