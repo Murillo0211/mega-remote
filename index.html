@@ -9,7 +9,8 @@
 <meta name="theme-color" content="#120f24">
 <title>Mega Remote</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EM%3C/text%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EM%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
   :root{--bg:#120f24;--card:#1b1633;--line:#2b2450;--txt:#ece9ff;--dim:#9c95c4;--ok:#5ad68a;--warn:#ffb547;--bad:#ff6b6b;--gold:#ffd45e;--acc:#7a5cff}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -186,7 +187,8 @@ const pending = new Map(); // id -> {label, at, cb}
 async function cmd(name, args = {}, label = '', cb = null, quiet = false) {
   if (!pair) return;
   const id = rid();
-  if (!quiet) { pending.set(id, { label: label || name, at: Date.now(), cb }); toast(`Sending: ${label || name}…`); }
+  if (!quiet || cb) pending.set(id, { label: label || name, at: Date.now(), cb, quiet });
+  if (!quiet) toast(`Sending: ${label || name}…`);
   try {
     const body = await seal({ id, ts: Date.now(), cmd: name, args });
     const size = fast() ? 50000 : 3000, n = Math.ceil(body.length / size), mid = rid().slice(0, 6);
@@ -205,7 +207,7 @@ function onSnap() {
   for (const [id, res] of snap.acks || []) {
     const p = pending.get(id); if (!p) continue;
     pending.delete(id);
-    toast(`${/^error/.test(res) ? '⚠' : '✓'} ${p.label}: ${res}`);
+    if (!p.quiet) toast(`${/^error/.test(res) ? '⚠' : '✓'} ${p.label}: ${res}`);
     p.cb?.(res, snap.re?.[id]?.data);
   }
   // replies that arrive later (a sim finishing)
@@ -229,7 +231,7 @@ let toastT = null;
 function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), 4500); }
 
 // ---- views ----
-const TABS = [['now', 'Now'], ['plan', 'Plan'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
+const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
@@ -252,6 +254,7 @@ const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: 
 
 function vNow() {
   const s = snap; let h = '';
+  { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:#5b3fd6;padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
   h += `<div class="card"><div class="flex"><span style="font-size:26px">${s.run ? '🟢' : '⏸️'}</span><div class="grow"><b style="font-size:18px">${s.run ? 'Plan running' : 'Plan paused'}</b><div class="dim">${s.goals.length} goal${s.goals.length === 1 ? '' : 's'} left · Mega ${esc(s.ver)}</div></div></div>
     <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
@@ -428,10 +431,134 @@ function vSet() {
   return `<div class="card"><h3>Mega Settings</h3>
     <label class="chk"><input type="checkbox" data-set="set.berries" ${s.berries ? 'checked' : ''}> Use berries while goals run</label>
     <label class="chk"><input type="checkbox" data-set="set.idle" ${s.idle ? 'checked' : ''}> Level Pokémon when the plan is idle</label></div>
+    ${alertsCard()}
     <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
     <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
     <button class="btn danger" data-x="unpair">Unpair This Phone</button>
     <div class="dim" style="margin-top:8px">The pairing is saved in this page's link, so a bookmark or Share → Add to Home Screen made from here keeps working (make it from this page, not from an old link). Keep the link to yourself: it's the key to your Mega.</div></div>`;
+}
+// ---- alerts on this phone straight from Mega Relay (Web Push - no ntfy) ----
+const push = { st: null, busy: false };
+const standalone = () => window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+async function pushState() {
+  if (!RELAY) return { can: false, why: 'Open Mega Remote from your PC\'s Tailscale address to use these alerts.' };
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return { can: false, why: standalone() ? 'This phone\'s browser can\'t get web alerts (iPhone needs iOS 16.4 or newer).' : 'On iPhone, alerts only work in the Home Screen app: in Safari tap Share → Add to Home Screen, then open Mega from that icon.' };
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  let subs = null; try { subs = (await (await fetch(RELAY + '/push/key', { cache: 'no-store' })).json()).subs; } catch {}
+  return { can: true, perm: Notification.permission, on: !!sub, subs };
+}
+async function refreshPush() { try { push.st = await pushState(); } catch (e) { push.st = { can: false, why: String(e.message || e) }; } render(); }
+function alertsCard() {
+  if (!RELAY) return '';
+  if (!push.st) { setTimeout(refreshPush, 0); return `<div class="card"><h3>🔔 Alerts on This Phone</h3><div class="dim">Checking…</div></div>`; }
+  const P = push.st;
+  return `<div class="card"><h3>🔔 Alerts on This Phone</h3>
+    ${!P.can ? `<div>${esc(P.why)}</div>`
+      : P.on ? `<div class="ok">● On - Mega's alerts come straight from your PC (no ntfy, no daily limit).</div><div class="dim" style="margin-top:4px">${P.subs ?? '?'} phone${P.subs === 1 ? '' : 's'} getting alerts.</div><button class="btn" data-x="pushTest">Send a Test Alert</button><button class="btn" data-x="pushOff">Turn Off on This Phone</button>`
+      : P.perm === 'denied' ? `<div class="warn">Alerts are blocked for this app. iPhone: Settings → Notifications → Mega → Allow Notifications, then come back here.</div>`
+      : `<div>Get Mega's alerts (eggs ready, raids, problems, catches…) straight from your PC - no ntfy and no daily limit. Which alerts you get is still set in Mega's Settings on the PC.</div><button class="btn gold" data-x="pushOn" ${push.busy ? 'disabled' : ''}>${push.busy ? 'Turning On…' : '🔔 Turn On Alerts'}</button>`}
+  </div>`;
+}
+async function pushOn() {
+  push.busy = true; render();
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('alerts weren\'t allowed');
+    const { key } = await (await fetch(RELAY + '/push/key', { cache: 'no-store' })).json();
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) { try { await sub.unsubscribe(); } catch {} }
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+    const r = await fetch(RELAY + '/push/sub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub.toJSON()) });
+    if (!r.ok) throw new Error('your PC said ' + r.status + ' ' + (await r.text()));
+    toast('Alerts are on ✓ - sending a test…'); await pushTest(true);
+  } catch (e) { toast('Could not turn alerts on: ' + (e.message || e)); }
+  push.busy = false; refreshPush();
+}
+async function pushTest(quiet) {
+  try { const r = await (await fetch(RELAY + '/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Mega test alert ✓', body: 'Alerts from your PC work on this phone.', tag: 'test' }) })).json(); if (!quiet || !r.sent) toast(r.sent ? `Test sent to ${r.sent} phone${r.sent === 1 ? '' : 's'}` : 'Test not delivered: ' + (r.err || 'no phones')); }
+  catch (e) { toast('Could not reach your PC: ' + (e.message || e)); }
+}
+async function pushOff() {
+  try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { await fetch(RELAY + '/push/unsub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }); await sub.unsubscribe(); } toast('Alerts off on this phone'); } catch (e) { toast('Could not turn off: ' + (e.message || e)); }
+  refreshPush();
+}
+if (RELAY && 'serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then((r) => { if (r) r.update().catch(() => {}); }).catch(() => {});
+
+// ---- Activity: the whole log, graphs from Mega's history, and "while you were away" ----
+const act = { log: store.get('mr-log', []), hist: null, at: 0, q: '', f: 'all', show: 80, range: store.get('mr-actr', 24), away: null };
+// "away" starts when the app goes to the background; the summary covers everything since then
+document.addEventListener('visibilitychange', () => { if (document.hidden) store.set('mr-away', Date.now()); else loadAct(false); });
+function loadAct(user) {
+  if (!pair || (!user && Date.now() - act.at < 20000)) return;
+  act.at = Date.now();
+  const lastLog = act.log.length ? act.log[act.log.length - 1][0] : 0;
+  cmd('log.all', { since: lastLog }, 'Load the log', (r, data) => { if (Array.isArray(data)) { act.log = [...act.log, ...data].slice(-1000); store.set('mr-log', act.log); render(); } }, !user);
+  cmd('hist', { since: Date.now() - 7 * 86400000 }, 'Load history', (r, data) => { if (data?.rows) { act.hist = data; render(); } }, true);
+}
+setInterval(() => { if (pair && !document.hidden && (tab === 'act' || tab === 'now')) loadAct(false); }, 60000);
+const FILTERS = [['all', 'All'], ['raid', 'Raid'], ['under', 'Underground'], ['legend', 'Legends'], ['phone', 'Phone'], ['err', 'Problems']];
+const FRX = { raid: /raid/i, under: /underground|floor|gem|plate|geode/i, legend: /legend|zone|caught|catch|elite|league/i, phone: /^phone/i, err: /error|could not|refused|failed|stuck|lost/i };
+function chart(title, pts, opt = {}) { // pts: [[t, v]] - a small line chart with min/max, change and rate
+  if (pts.length < 2) return `<div class="card"><h3>${esc(title)}</h3><div class="dim">Not enough history yet - Mega takes a sample every 10 minutes.</div></div>`;
+  const W = 340, H = 120, P = 6, t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+  let lo = Math.min(...pts.map((p) => p[1])), hi = Math.max(...pts.map((p) => p[1]), opt.need || -Infinity); if (hi === lo) { hi += 1; lo -= opt.need ? 0 : 1; }
+  const X = (t) => P + (W - 2 * P) * (t - t0) / Math.max(1, t1 - t0), Y = (v) => H - P - (H - 2 * P) * (v - lo) / (hi - lo);
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
+  const ch = pts[pts.length - 1][1] - pts[0][1], hrs = (t1 - t0) / 3600000, rate = hrs > 0.3 ? ch / hrs : null;
+  const f = opt.fmt || ((v) => Math.round(v).toLocaleString());
+  const goal = opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="#c79a2b" stroke-dasharray="4 4"/>` : '';
+  const eta = opt.need && rate > 0 && pts[pts.length - 1][1] < opt.need ? ` · done in about ${hm((opt.need - pts[pts.length - 1][1]) / rate * 3600000)}` : '';
+  return `<div class="card"><h3>${esc(title)}</h3><div class="flex" style="justify-content:space-between"><b style="font-size:20px">${f(pts[pts.length - 1][1])}${opt.need ? ` <span class="dim" style="font-size:14px">of ${f(opt.need)}</span>` : ''}</b><span class="${ch > 0 ? 'ok' : ch < 0 ? 'warn' : 'dim'}">${ch > 0 ? '+' : ''}${f(ch)}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:#16122b;border-radius:12px">${goal}<path d="${d}" fill="none" stroke="#9c86ff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+    <div class="dim" style="display:flex;justify-content:space-between;font-size:12px"><span>${new Date(t0).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</span><span>now</span></div>
+    ${rate != null && ch ? `<div class="dim" style="margin-top:4px">${rate >= 0 ? '+' : ''}${Math.abs(rate) < 10 && !opt.fmt ? rate.toFixed(1).replace(/\.0$/, '') : f(rate)} per hour${eta}</div>` : ''}</div>`;
+}
+const hm = (ms) => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `${Math.round(m / 1440)} days`; };
+function awayCard() {
+  const since = store.get('mr-away', 0), H = act.hist;
+  if (!since || Date.now() - since < 10 * 60000) return '';
+  const lines = act.log.filter((l) => l[0] > since);
+  let deltas = [];
+  if (H?.rows?.length) {
+    const a = H.rows.find((r) => r[0] >= since) || H.rows[0], b = H.rows[H.rows.length - 1];
+    if (a && b && a !== b) {
+      const d = (i, label, money) => { const v = b[i] - a[i]; if (v) deltas.push(`<b class="${v > 0 ? 'ok' : 'warn'}">${v > 0 ? '+' : ''}${money ? '₽' : ''}${v.toLocaleString()}</b> ${label}`); };
+      d(1, 'money', 1); d(2, 'Pokédex'); d(3, 'shiny'); d(4, 'Lv 100'); d(5, 'levels');
+      for (const [id, v] of Object.entries(b[6] || {})) { const was = a[6]?.[id]; const nm = H.names?.[id]; if (was != null && v !== was && nm) deltas.push(`<b class="ok">${v > was ? '+' : ''}${(v - was).toLocaleString()}</b> ${esc(nm[0])}`); }
+      for (const [id, nm] of Object.entries(H.names || {})) if (nm[3] && a[6]?.[id] != null) deltas.push(`<b class="ok">✓</b> ${esc(nm[0])} done`);
+    }
+  }
+  const key = lines.filter((l) => /caught|won|done|shiny|hatched|started|reached|badge|finished|raid/i.test(l[1])).slice(-8).reverse();
+  return `<div class="card" style="border-color:#5b3fd6"><h3>While You Were Away · ${hm(Date.now() - since)}</h3>
+    ${deltas.length ? `<div style="line-height:1.9">${deltas.join('<br>')}</div>` : '<div class="dim">No changes in the numbers.</div>'}
+    ${key.length ? `<div class="lbl" style="margin-top:10px">HIGHLIGHTS</div>${key.map((l) => `<div style="margin:4px 0"><span class="dim">${at(l[0])}</span> ${esc(l[1])}</div>`).join('')}` : ''}
+    <div class="dim" style="margin-top:8px">${lines.length} log line${lines.length === 1 ? '' : 's'} since then</div><button class="btn" data-x="awayOk">Got It</button></div>`;
+}
+function vAct() {
+  if (!act.at) setTimeout(() => loadAct(false), 0);
+  let h = awayCard();
+  const H = act.hist, cut = Date.now() - act.range * 3600000;
+  h += `<div class="card"><h3>History</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${[[6, '6 h'], [24, '24 h'], [168, '7 days']].map(([v, l]) => `<button class="btn ${act.range === v ? 'gold' : ''}" style="margin:0" data-x="actRange" data-v="${v}">${l}</button>`).join('')}</div>${H ? '' : '<div class="dim" style="margin-top:8px">Loading from your PC…</div>'}</div>`;
+  if (H) {
+    const rows = H.rows.filter((r) => r[0] >= cut), col = (i) => rows.map((r) => [r[0], r[i]]);
+    for (const [id, nm] of Object.entries(H.names || {})) { if (nm[3] || !nm[1]) continue; const pts = rows.filter((r) => r[6]?.[id] != null).map((r) => [r[0], r[6][id]]); if (pts.length >= 2) h += chart(nm[0], pts, { need: nm[1] }); }
+    h += chart('Money', col(1), { fmt: (v) => '₽' + Math.round(v).toLocaleString() });
+    h += chart('Pokédex', col(2));
+    h += chart('Total Levels (All Pokémon)', col(5));
+    h += chart('Shinies', col(3));
+    h += chart('Lv 100 Pokémon', col(4));
+  }
+  // the log
+  const rx = FRX[act.f], q = act.q.trim().toLowerCase();
+  const list = act.log.filter((l) => (!rx || rx.test(l[1])) && (!q || l[1].toLowerCase().includes(q))).reverse();
+  h += `<div class="card"><h3>Log</h3><input type="text" id="actQ" value="${esc(act.q)}" placeholder="Search the log…" autocomplete="off">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">${FILTERS.map(([k, l]) => `<button class="btn ${act.f === k ? 'gold' : ''}" style="margin:0;width:auto;padding:8px 12px;font-size:14px" data-x="actF" data-v="${k}">${l}</button>`).join('')}</div>
+    ${list.length ? list.slice(0, act.show).map((l, i, arr) => { const day = new Date(l[0]).toDateString(), prev = i ? new Date(arr[i - 1][0]).toDateString() : ''; return `${day !== prev ? `<div class="lbl" style="margin-top:10px">${new Date(l[0]).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</div>` : ''}<div style="margin:5px 0;font-size:15px"><span class="dim">${at(l[0])}</span> ${esc(l[1])}</div>`; }).join('') : `<div class="dim">${act.log.length ? 'Nothing matches.' : 'Loading the log…'}</div>`}
+    ${list.length > act.show ? `<button class="btn" data-x="actMore">Show More (${list.length - act.show} older)</button>` : ''}
+    <button class="btn" data-x="actLoad">⟳ Refresh</button></div>`;
+  return h;
 }
 function render() {
   setSub();
@@ -441,11 +568,12 @@ function render() {
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
-  const V = { now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  const V = { act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
   $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
+  if (focus === 'actQ') { const el = $('#actQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'dexQ') { const el = $('#dexQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
 }
 
@@ -462,6 +590,14 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'pushOn') { pushOn(); return; }
+  if (x === 'pushTest') { pushTest(false); return; }
+  if (x === 'pushOff') { if (await askConfirm('Turn off alerts on this phone?')) pushOff(); return; }
+  if (x === 'actRange') { act.range = +t.dataset.v; store.set('mr-actr', act.range); render(); return; }
+  if (x === 'actF') { act.f = t.dataset.v; act.show = 80; render(); return; }
+  if (x === 'actMore') { act.show += 150; render(); return; }
+  if (x === 'actLoad') { loadAct(true); return; }
+  if (x === 'awayOk') { store.set('mr-away', Date.now()); act.away = null; render(); return; }
   if (x === 'pastePair') {
     const v = ($('#pastePair')?.value || '').trim(), i = v.indexOf('#pair-');
     try { const p = JSON.parse(new TextDecoder().decode(unb64u(i >= 0 ? v.slice(i + 6) : v))); if (!(p.s && p.c && p.k)) throw 0; store.set('mr-pair', p); pair = p; ck = null; history.replaceState(null, '', location.pathname + pairHash()); listen(); render(); toast('Paired ✓'); }
@@ -505,6 +641,7 @@ document.addEventListener('change', (e) => {
 });
 let qT = null;
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'actQ') { act.q = e.target.value; act.show = 80; render(); return; }
   if (e.target.id !== 'dexQ') return;
   ui.dexQ = e.target.value.trim(); ui.dexHits = null; clearTimeout(qT);
   if (ui.dexQ.length < 2) { render(); return; }
@@ -526,6 +663,7 @@ function askConfirm(text) {
 }
 applyZoom();
 render();
+setTimeout(() => loadAct(false), 2500);
 if (RELAY) { relayPair().then(() => { if (!pair) setInterval(() => { if (!pair) relayPair(); }, 3000); }); setInterval(relayPair, 60000); }
 listen();
 watchNow(true);
