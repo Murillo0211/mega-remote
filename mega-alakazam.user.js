@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.25.0
+// @version      0.26.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.25.0';
+const VERSION = '0.26.0';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -3889,6 +3889,78 @@ const GoalTypes = (() => {
     },
   };
 
+  // ---- story: beat a new region's gyms and League (Unova) -------------------------------------
+  // A new region is its own side until its League: own money, bag and team, only Pokémon caught there
+  // (Game.sideMons). Mega stays in that region's chapters (opening an older chapter would swap sides),
+  // plays the frontier chapter with the loop off so it moves on, picks the 6 side Pokémon the simulator
+  // rates best against that chapter (its gym leader counts as a whole stop), and when the team keeps
+  // wiping there it trains in the best cleared chapter of the region for 30 minutes, then tries again.
+  const safe = (f, d = null) => { try { const v = f(); return v === undefined ? d : v; } catch { return d; } };
+  const story = {
+    uses: 'screen',
+    label: (g) => `Beat the ${g.regionName || 'Unova'} League`,
+    sprite: (g) => g.lead || 643,
+    check(g) {
+      const ST = E.get('STORY'), reg = g.region || 'unova';
+      if (safe(() => E.read('Game.regionCleared', false, reg))) return { state: 'done', why: 'League beaten - the two sides are linked now' };
+      const chs = safe(() => ST.chaptersOf(reg), []) || [];
+      if (!chs.length) return { state: 'wait', why: 'region not in the game data' };
+      const un = +(S().adv?.unlocked ?? 0);
+      if (un < chs[0]) return { state: 'wait', why: 'region not unlocked yet' };
+      const pend = S().adv?.pending;
+      if (pend) { if (!g.askedPend) { g.askedPend = true; Plan.save(); try { Notify.send('problem', 'Poke\'Catch needs you', 'The game is waiting for a choice in your story run (a gift or a question). Open the game and choose.'); } catch {} } return { state: 'wait', why: 'the game is waiting for you to choose something' }; }
+      g.askedPend = false;
+      const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
+      if (!mons.length) return { state: 'wait', why: 'no Pokémon on this side yet - pick your starter' };
+      return { state: 'ready', why: null };
+    },
+    async step(g) {
+      const ST = E.get('STORY'), a = S().adv || {}, reg = g.region || 'unova';
+      if (a.zone) return 'waiting: inside a legendary zone';
+      const chs = safe(() => ST.chaptersOf(reg), []) || [];
+      const un = +(a.unlocked ?? 0), front = Math.min(un, chs[chs.length - 1]);
+      const deaths = +(a.deaths?.[front] ?? 0);
+      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
+      const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
+      const sp = (m) => Sim.species(m);
+      // stuck: 2 wipes in the frontier chapter since the last try -> train for 30 minutes
+      const now = Date.now();
+      if (!g.trainUntil && deaths - (g.deaths0 || 0) >= 2) {
+        const capped = mons.filter((m) => m.level >= capOf(m.uid)).length;
+        if (capped >= Math.min(6, mons.length)) { g.deaths0 = deaths; Plan.save(); Log.add('story: lost twice, but everyone is at the level cap - trying again with the best team'); }
+        else { g.trainUntil = now + 30 * 60_000; Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name} - training for 30 minutes first`); }
+      }
+      const training = g.trainUntil && now < g.trainUntil;
+      if (g.trainUntil && !training) { g.trainUntil = 0; g.deaths0 = deaths; Plan.save(); Log.add('story: training done - back to the next chapter'); }
+      // where: the frontier chapter (loop off so a win moves on), or the best cleared chapter of the region to train
+      let ch = front;
+      if (training) {
+        const done = chs.filter((c) => c < front);
+        const r = safe(() => XpChap.rank().filter((x) => done.includes(x.ch)), []) || [];
+        ch = r[0]?.ch ?? done[done.length - 1] ?? front;
+      }
+      // team: the 6 side Pokémon the simulator rates best against where we're going (re-picked every 10 min)
+      if (!g.teamAt || now - g.teamAt > 10 * 60_000 || g.teamFor !== ch) {
+        const foes = safe(() => Sim.chapterFoes(front), []) || [];
+        const rated = mons.map((m) => ({ m, s: foes.length ? (Sim.clearScore(m, foes).score || 0) : m.level })).sort((x, y) => y.s - x.s);
+        const pick = []; for (const r of rated) { if (pick.length >= 6) break; if (!pick.some((p) => sp(p) === sp(r.m))) pick.push(r.m); }
+        // training: the lowest-level of the picks get the XP anyway (everyone on the team does) - keep the best team
+        const uids = pick.map((m) => m.uid), cur = (S().team || []).slice(0, 6);
+        if (uids.length && uids.join() !== cur.join()) { setChapterTeam(uids); Log.add(`story team: ${pick.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')}`); }
+        g.teamAt = now; g.teamFor = ch; g.lead = pick[0]?.id || g.lead; Plan.save();
+      }
+      if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
+      const looping = !!E.read('Adventure.isLooping', false, ch);
+      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch {} }
+      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch {} } // the frontier must not loop, or a win wouldn't move on
+      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch {} g.loopOn = null; Plan.save(); }
+      const badges = chs.filter((c) => c < front).length;
+      return training ? `training in ${ST.CHAPTERS[ch]?.name} for ${Math.ceil((g.trainUntil - now) / 60_000)} more min (lost twice at ${ST.CHAPTERS[front]?.name})`
+        : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.deaths0 || 0)} loss${deaths - (g.deaths0 || 0) === 1 ? '' : 'es'} here`;
+    },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch {} },
+  };
+
   // ---- leveling -------------------------------------------------------------------------
   // XP per win = levelXp(enemy level) / XP_WINS_PER_LEVEL x region bonus, and every team member
   // gets it (fighting or not). So: strongest chapter you have unlocked, best region bonus.
@@ -5138,7 +5210,7 @@ const GoalTypes = (() => {
       .sort((a, b) => ((b.rank || 0) > 0) - ((a.rank || 0) > 0) || (!!b.shiny - !!a.shiny) || b.level - a.level)
       .slice(0, n).map((m) => m.uid);
   }
-  return { shinyWays, shinyWild, shinyBreed, ownsShinyId, raidRepick, setChapterTeam, here, idlePick, elite, league, wboss, legend, level, under, wild, special, souls, loot, breed, candy, tower, raid, money, region, hatchMissing, holder, setTeam, bestChapter, reserved, regionMissing, wildChapters };
+  return { story, shinyWays, shinyWild, shinyBreed, ownsShinyId, raidRepick, setChapterTeam, here, idlePick, elite, league, wboss, legend, level, under, wild, special, souls, loot, breed, candy, tower, raid, money, region, hatchMissing, holder, setTeam, bestChapter, reserved, regionMissing, wildChapters };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5346,6 +5418,21 @@ const Plan = (() => {
 
   // weekly-form zones (Deoxys): once its zone is unlocked and a form is still missing, add a
   // "Catch every <name> form" goal - once; if you remove it, Mega won't add it again
+  // on a new region's side (Unova) with its League not beaten: add "Beat the Unova League" at the top - once
+  function storyGoal() {
+    try {
+      const link = E.get('Game.S')?.link; if (!link || link.side !== 'to') return;
+      const reg = link.to, key = 'mega-storygoal-' + reg;
+      if (localStorage.getItem(key) || E.read('Game.regionCleared', false, reg)) return;
+      if (!Plan.goals.some((g) => g.type === 'story' && !g.done)) {
+        const nm = { unova: 'Unova', kalos: 'Kalos' }[reg] || (E.get('STORY')?.REGIONS || []).find((r) => r.key === reg)?.name || reg;
+        Plan.add('story', { region: reg, regionName: nm });
+        try { const g = Plan.goals.find((x) => x.type === 'story' && !x.done); if (g) Plan.toTop(g.id); } catch {}
+        Log.add(`added "Beat the ${nm} League" at the top of your plan - it stays in ${nm} chapters; dailies keep running alongside`);
+      }
+      localStorage.setItem(key, '1');
+    } catch {}
+  }
   function formGoals() {
     try {
       for (const z of Legends.list()) {
@@ -5357,7 +5444,7 @@ const Plan = (() => {
     } catch {}
   }
   function boot() {
-    setTimeout(formGoals, 20_000);
+    setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
     if (timer) return;
     timer = setInterval(tick, 3000); setTimeout(tick, 1500);
     Recorder.onFight((f) => { if (st.goals.some((g) => g.type === 'legend' && g.foe === f.foeId && !g.done)) Log.add(`${E.get('Game.DEX')?.[f.foeId]?.name} fight: ${f.outcome === 'ko' ? 'KO' : f.outcome}`); });
