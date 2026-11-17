@@ -56,11 +56,16 @@ const SPRITE = (id) => `https://pokecatch-online.pages.dev/assets/pokemon/${id}.
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+// The pairing lives in the address (#pair-…) as well as in this browser's storage: on iPhone the
+// ntfy alert's browser, Safari and a Home Screen icon each have their own storage, so a bookmark or
+// Home Screen icon made from this page keeps working wherever it's opened. (The part after # never
+// leaves the phone: browsers don't send it to the server.)
 if (location.hash.startsWith('#pair-')) {
   try { const p = JSON.parse(new TextDecoder().decode(unb64u(location.hash.slice(6)))); if (p.s && p.c && p.k) store.set('mr-pair', p); } catch {}
-  history.replaceState(null, '', location.pathname);
 }
 let pair = store.get('mr-pair', null);
+const pairHash = () => '#pair-' + b64u(new TextEncoder().encode(JSON.stringify({ s: pair.s, c: pair.c, k: pair.k })));
+if (pair && location.hash !== pairHash()) history.replaceState(null, '', location.pathname + pairHash());
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = (s) => document.querySelector(s);
 
@@ -275,12 +280,14 @@ function vSet() {
     <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
     <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
     <button class="btn danger" data-x="unpair">Unpair This Phone</button>
-    <div class="dim" style="margin-top:8px">Tip: Share → Add to Home Screen, and Mega Remote opens like an app.</div></div>`;
+    <div class="dim" style="margin-top:8px">The pairing is saved in this page's link, so a bookmark or Share → Add to Home Screen made from here keeps working (make it from this page, not from an old link). Keep the link to yourself: it's the key to your Mega.</div></div>`;
 }
 function render() {
   setSub();
   $('#tabs').innerHTML = pair ? TABS.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
-  if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b>, switch it on and press <b>Send Setup Link to My Phone</b>. Tap the alert that arrives in the ntfy app - it opens this page already paired.</div></div>`; return; }
+  if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
+    <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
+    <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
   const V = { now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
@@ -299,6 +306,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'pastePair') {
+    const v = ($('#pastePair')?.value || '').trim(), i = v.indexOf('#pair-');
+    try { const p = JSON.parse(new TextDecoder().decode(unb64u(i >= 0 ? v.slice(i + 6) : v))); if (!(p.s && p.c && p.k)) throw 0; store.set('mr-pair', p); pair = p; ck = null; history.replaceState(null, '', location.pathname + pairHash()); listen(); render(); toast('Paired ✓'); }
+    catch { toast('That isn\'t a Mega Remote setup link'); }
+    return;
+  }
   if (x === 'loadDex') cmd('dex.missing', {}, 'Load missing Pokémon', (r, data) => { ui.dex = data || []; render(); });
   if (x === 'dexOpen') openDex(+t.dataset.id);
   if (x === 'dexBack') { ui.dexInfo = null; render(); }
@@ -315,7 +328,7 @@ document.addEventListener('click', async (e) => {
     if ((ty === 'legend' || ty === 'region') && !v) { toast('Choose one first'); return; }
     cmd('goal.add', args, 'Add goal', () => { ui.addVal = ''; if (ty === 'legend') loadSims(); });
   }
-  if (x === 'unpair') { if (await askConfirm('Unpair this phone? You can pair again from Mega\'s Settings.')) { localStorage.clear(); pair = null; snap = null; try { es?.close(); } catch {} render(); } }
+  if (x === 'unpair') { if (await askConfirm('Unpair this phone? You can pair again from Mega\'s Settings.')) { localStorage.clear(); pair = null; snap = null; history.replaceState(null, '', location.pathname); try { es?.close(); } catch {} render(); } }
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
