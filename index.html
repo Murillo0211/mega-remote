@@ -19,7 +19,7 @@
   header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   header .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#5b3fd6,#c79a2b);display:grid;place-items:center;font-weight:900}
   header .t{flex:1}header .t b{font-size:18px;display:block}header .t span{font-size:13px;color:var(--dim)}
-  .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+  .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
   .tabs button{all:unset;text-align:center;padding:10px 2px;border-radius:12px;background:#1f1a38;color:#b7b1d6;font-weight:700;font-size:15px}
   .tabs button.on{background:linear-gradient(90deg,#5b3fd6,#7a5cff);color:#fff}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
@@ -42,6 +42,26 @@
   .toast{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 14px);background:#2c2552;border:1px solid var(--acc);border-radius:14px;padding:12px 14px;font-weight:600;box-shadow:0 8px 30px #000a;transition:opacity .3s}
   .lbl{font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--dim)}
   .big{font-size:22px;font-weight:800}
+  /* PC box */
+  .boxgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+  .bx{position:relative;background:#16122b;border:1px solid #2e2752;border-radius:12px;padding:4px 2px 5px;text-align:center;font-size:12px;line-height:1.15}
+  .bx img{width:52px;height:52px;image-rendering:pixelated;display:block;margin:0 auto}
+  .bx.sel{border-color:#9c86ff;box-shadow:0 0 0 2px #9c86ff55}
+  .bx .tag{position:absolute;top:3px;right:4px;font-size:11px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{all:unset;padding:7px 11px;border-radius:999px;background:#241e44;color:#cfc8f5;font-size:14px;font-weight:600}.chip.on{background:linear-gradient(90deg,#5b3fd6,#7a5cff);color:#fff}
+  .statbar{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;font-size:14px;margin:4px 0}
+  /* iPhone Duo unfolded (and any wide screen): tabs in one row, cards in two columns, PC box with its details beside it */
+  @media (min-width: 600px) {
+    body{padding-left:16px;padding-right:16px}
+    .tabs{grid-template-columns:repeat(9,1fr)}.tabs button{font-size:14px;padding:9px 2px}
+    #main.cols{column-count:2;column-gap:12px}
+    #main.cols>.card{break-inside:avoid;-webkit-column-break-inside:avoid;display:inline-block;width:100%}
+    .boxgrid{grid-template-columns:repeat(auto-fill,minmax(68px,1fr))}
+    .boxwrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+    .boxwrap .side{position:sticky;top:8px}
+    .tmwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+  }
   .zbtn{border:0;border-radius:10px;background:#2c2552;color:#fff;font:800 15px inherit;padding:8px 10px}
   .seg{display:grid;gap:6px;margin-bottom:12px}.seg button{margin:0}
   .pips span{display:inline-block;width:20px;height:8px;border-radius:4px;margin-right:3px;background:#2e2752}.pips .w{background:#5ad68a}.pips .n{background:#ffd45e}
@@ -231,7 +251,7 @@ let toastT = null;
 function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), 4500); }
 
 // ---- views ----
-const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
+const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
@@ -274,14 +294,67 @@ function fightBox(f) {
     ${verdict ? `<div style="margin-top:6px">${verdict}</div>` : ''}
     ${f.k === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}</div>`;
 }
+// ---- PC box: every Pokémon you own ----
+const bx = { data: null, at: 0, loading: false, q: '', sort: store.get('mr-bxs', 'level'), f: 'all', type: '', show: 120, sel: null, info: null };
+const TYPES = ['normal', 'fire', 'water', 'grass', 'electric', 'ice', 'fighting', 'poison', 'ground', 'flying', 'psychic', 'bug', 'rock', 'ghost', 'dragon', 'dark', 'steel', 'fairy'];
+const cap1 = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+function loadBox(user) { bx.loading = true; if (user) render(); cmd('box.list', {}, 'Load your PC box', (r, data) => { bx.loading = false; if (data?.mons) { bx.data = data; bx.at = Date.now(); Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); } render(); }, !user); }
+function openMon(uid) { bx.sel = uid; bx.info = null; render(); cmd('box.info', { uid }, 'Look up', (r, data) => { if (data && bx.sel === uid) { bx.info = data; render(); } }, true); }
+const WHERE = { t: ['On team', '⚔️'], u: ['Underground', '⛏️'], d: ['Day Care', '🥚'] };
+function vBox() {
+  if (!bx.data) { if (!bx.loading) setTimeout(() => loadBox(false), 0); return `<div class="card"><h3>PC Box</h3><div class="dim">Loading your Pokémon from your PC…</div></div>`; }
+  if (Date.now() - bx.at > 5 * 60000 && !bx.loading) setTimeout(() => loadBox(false), 0);
+  const D = bx.data, q = bx.q.trim().toLowerCase();
+  let list = D.mons.filter((m) => {
+    if (q && !(D.nm[m[1]] || '').toLowerCase().includes(q)) return false;
+    if (bx.type && !(D.ty[m[1]] || []).includes(bx.type)) return false;
+    return bx.f === 'all' || (bx.f === 'shiny' && m[4]) || (bx.f === 'l100' && m[2] >= 100) || (bx.f === 'under100' && m[2] < 100) || (bx.f === 'ranked' && m[3]) || (bx.f === 'busy' && /[tud]/.test(m[5]));
+  });
+  const S = { level: (a, b) => b[2] - a[2] || b[3] - a[3] || a[1] - b[1], newest: (a, b) => b[6] - a[6], rank: (a, b) => b[3] - a[3] || b[2] - a[2], name: (a, b) => (D.nm[a[1]] || '').localeCompare(D.nm[b[1]] || '') || b[2] - a[2], dex: (a, b) => (a[1] % 10000) - (b[1] % 10000) || a[1] - b[1] || b[2] - a[2] };
+  list.sort(S[bx.sort] || S.level);
+  const tot = D.mons.length, sh = D.mons.filter((m) => m[4]).length, l1 = D.mons.filter((m) => m[2] >= 100).length, rk = D.mons.filter((m) => m[3]).length;
+  let grid = `<div class="card"><h3>PC Box · ${tot} Pokémon</h3><div class="dim">✨ ${sh} shiny · Lv 100: ${l1} · ★ ranked: ${rk}</div>
+    <input type="text" id="bxQ" value="${esc(bx.q)}" placeholder="Search by name…" autocomplete="off">
+    <div class="chips">${[['all', 'All'], ['shiny', '✨ Shiny'], ['l100', 'Lv 100'], ['under100', 'Under 100'], ['ranked', '★ Ranked'], ['busy', 'Team / Away']].map(([k, l]) => `<button class="chip ${bx.f === k ? 'on' : ''}" data-x="bxF" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="flex" style="gap:8px"><select id="bxSort">${[['level', 'Sort: Level'], ['newest', 'Sort: Newest'], ['rank', 'Sort: Rank'], ['name', 'Sort: Name'], ['dex', 'Sort: Pokédex No.']].map(([k, l]) => `<option value="${k}" ${bx.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <select id="bxType"><option value="">All types</option>${TYPES.map((t) => `<option value="${t}" ${bx.type === t ? 'selected' : ''}>${cap1(t)}</option>`).join('')}</select></div>
+    <div class="dim" style="margin-top:8px">${list.length === tot ? '' : `${list.length} match · `}tap one for details</div>
+    <div class="boxgrid">${list.slice(0, bx.show).map((m) => { const w = WHERE[m[5].replace('b', '')]; return `<div class="bx ${bx.sel === m[0] ? 'sel' : ''}" data-x="bxOpen" data-v="${esc(m[0])}">${w ? `<span class="tag">${w[1]}</span>` : ''}<img src="${SPRITE(m[1])}" loading="lazy" alt=""><div>${esc(D.nm[m[1]] || '#' + m[1])}</div><div class="dim">Lv ${m[2]}${m[3] ? ' ★' + m[3] : ''}${m[4] ? ' ✨' : ''}${/b/.test(m[5]) ? ' 💛' : ''}</div></div>`; }).join('')}</div>
+    ${list.length > bx.show ? `<button class="btn" data-x="bxMore">Show More (${list.length - bx.show})</button>` : ''}
+    <button class="btn" data-x="bxReload">⟳ Refresh</button></div>`;
+  // outside screen: the details open above the box; unfolded: beside it
+  return wideNow() ? `<div class="boxwrap"><div>${grid}</div><div class="side">${boxDetail()}</div></div>` : boxDetail() + grid;
+}
+function boxDetail() {
+  if (!bx.sel) return wideNow() ? `<div class="card"><div class="dim">Tap a Pokémon to see its details here.</div></div>` : '';
+  const I = bx.info;
+  if (!I) return `<div class="card"><div class="dim">Loading…</div></div>`;
+  const names = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'], mx = Math.max(...I.stats, 1);
+  return `<div class="card" id="bxDetail"><div class="flex">${img(I.id, 72)}<div class="grow"><b style="font-size:19px">${esc(I.name)}${I.shiny ? ' ✨' : ''}${I.buddy ? ' 💛' : ''}</b><div class="dim">${esc(I.genus || '')}</div><div>${I.types.map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="bxClose">✕</button></div>
+    ${row('Level', `${I.level}${I.cap > I.level ? ` <span class="dim">(cap ${I.cap})</span>` : ''}`)}
+    ${I.rank ? row('Rank', '★' + I.rank) : ''}
+    ${row('Where', esc(I.where))}
+    ${I.caught ? row('Caught', `${esc(I.caught)}${I.caughtAt ? ` <span class="dim">· ${new Date(I.caughtAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}`) : ''}
+    ${I.ot ? row('From', esc(I.ot)) : ''}
+    <div class="lbl" style="margin-top:10px">STATS</div>
+    ${I.stats.map((v, i) => `<div class="statbar"><span class="dim">${names[i]}</span><div class="bar" style="margin:0"><i style="width:${(100 * v / mx).toFixed(0)}%"></i></div><b style="text-align:right">${v}</b></div>`).join('')}
+    <div class="dim" style="font-size:13px">Base total ${I.base.reduce((a, b) => a + b, 0)}</div>
+    ${I.where === 'On your team' ? '' : I.where === 'In your PC' ? `<button class="btn gold" data-x="bxTeam" data-v="${esc(I.uid)}">⚔️ Add to Team</button>` : ''}
+    ${I.level < I.cap ? (I.lvGoal ? `<div class="dim" style="margin-top:8px">⬆️ Already in your plan to level up.</div>` : `<button class="btn" data-c="box.level" data-a='{"uid":"${esc(I.uid)}"}' data-l="Level ${esc(I.name)}" data-after="boxInfo">⬆️ Level to ${I.cap}</button>`) : ''}
+  </div>`;
+}
+const wideNow = () => matchMedia('(min-width: 600px)').matches;
+matchMedia('(min-width: 600px)').addEventListener?.('change', () => render()); // folding / unfolding the phone
+
 // ---- change your team (the chapter team) ----
 const tm = { data: null, draft: [], slot: 0, q: '', loading: false };
-function loadTeam() { tm.loading = true; cmd('team.get', {}, 'Load your Pokémon', (r, data) => { tm.loading = false; if (data) { tm.data = data; Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); tm.draft = data.team.map((x) => x[0]); tm.slot = Math.min(tm.draft.length, 5); } render(); }); }
+function loadTeam() { tm.loading = true; cmd('team.get', {}, 'Load your Pokémon', (r, data) => { tm.loading = false; if (data) { tm.data = data; Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); tm.draft = data.team.map((x) => x[0]); tm.slot = Math.min(tm.draft.length, 5);
+  if (tm.add && !tm.draft.includes(tm.add)) { if (tm.draft.length < 6) { tm.draft.push(tm.add); tm.add = null; tm.slot = Math.min(tm.draft.length, 5); } else { tm.slot = -1; toast('Tap the slot it should replace'); } } } render(); }, true); }
 function vTeam() {
   if (!tm.data) { if (!tm.loading) loadTeam(); return `<div class="card"><h3>Change Team</h3><div class="dim">Loading your Pokémon from your PC…</div><button class="btn" data-tab="now">← Back</button></div>`; }
   const by = new Map(tm.data.opts.map((x) => [x[0], x])); for (const x of tm.data.team) by.set(x[0], x);
   const card = (x, big) => `${img(x[1], big ? 48 : 40)}<div style="font-size:12px;line-height:1.2">${N(x[1])}</div><div class="dim" style="font-size:11px">Lv ${x[2]}${x[3] ? ' ★' + x[3] : ''}${x[4] ? ' ✨' : ''}</div>`;
-  let h = `<div class="card"><h3>Change Team</h3><div class="dim" style="font-size:13px">Tap a slot, then tap a Pokémon below to put it there. Pokémon in the Underground aren't listed.</div>
+  let h = `<div class="tmwrap"><div class="card"><h3>Change Team</h3><div class="dim" style="font-size:13px">Tap a slot, then tap a Pokémon below to put it there. Pokémon in the Underground aren't listed.</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const x = by.get(tm.draft[i]); return `<div data-x="tmSlot" data-v="${i}" style="padding:6px;border-radius:12px;border:2px solid ${tm.slot === i ? '#9c86ff' : 'var(--line)'};min-height:86px">${x ? card(x, true) + `<div data-x="tmDrop" data-v="${i}" class="dim" style="font-size:12px;margin-top:2px">✕ remove</div>` : '<div class="dim" style="padding-top:26px">empty</div>'}</div>`; }).join('')}</div>
     ${tm.data.busy?.length ? `<div class="warn" style="margin-top:8px">Mega is running ${esc(tm.data.busy.join(', '))} - it may use its own team for that and put yours back after.</div>` : ''}
     <button class="btn gold" data-x="tmSave" ${tm.draft.filter(Boolean).length ? '' : 'disabled'}>Save Team</button><button class="btn" data-x="tmCancel">Cancel</button></div>`;
@@ -289,7 +362,7 @@ function vTeam() {
   const list = tm.data.opts.filter((x) => !tm.draft.includes(x[0]) && (!q || N(x[1]).toLowerCase().includes(q))).slice(0, 90);
   h += `<div class="card"><input type="text" id="tmQ" value="${esc(tm.q)}" placeholder="Search your Pokémon…" autocomplete="off">
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin-top:8px">${list.map((x) => `<div data-x="tmPick" data-v="${esc(x[0])}" style="padding:6px 2px;border-radius:12px;background:#1f1a38">${card(x)}</div>`).join('')}</div>
-    ${list.length ? '' : '<div class="dim">Nothing matches.</div>'}</div>`;
+    ${list.length ? '' : '<div class="dim">Nothing matches.</div>'}</div></div>`;
   return h;
 }
 function vNow() {
@@ -606,16 +679,18 @@ function vAct() {
 function render() {
   setSub();
   $('#tabs').innerHTML = pair ? TABS.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
-  if (!pair && RELAY) { $('#main').innerHTML = `<div class="card"><h3>Waiting for Mega</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b> and tick <b>Use Mega Relay on this PC</b>. This page pairs itself a few seconds later.</div></div>`; return; }
-  if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
+  if (!pair && RELAY) { $('#main').innerHTML = `<div class="card"><h3>Waiting for Mega</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and tick <b>Use Mega Relay on this PC</b>. This page pairs itself a few seconds later.</div></div>`; return; }
+  if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
-  const V = { team: vTeam, act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  const V = { box: vBox, team: vTeam, act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
+  $('#main').className = ['now', 'act', 'plan', 'set', 'gems'].includes(tab) ? 'cols' : '';
   $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
+  if (focus === 'bxQ') { const el = $('#bxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'tmQ') { const el = $('#tmQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'actQ') { const el = $('#actQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'dexQ') { const el = $('#dexQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
@@ -630,14 +705,20 @@ document.addEventListener('click', async (e) => {
   if (t.dataset.c) {
     if (t.dataset.confirm && !await askConfirm(t.dataset.confirm)) return;
     const after = t.dataset.after;
-    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'sims') loadSims(); if (after === 'items') loadItems(); if (after === 'elite') loadElite(); if (after === 'league') loadLeague(); });
+    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'boxInfo' && bx.sel) openMon(bx.sel); if (after === 'sims') loadSims(); if (after === 'items') loadItems(); if (after === 'elite') loadElite(); if (after === 'league') loadLeague(); });
     return;
   }
   const x = t.dataset.x;
+  if (x === 'bxOpen') { openMon(t.dataset.v); if (!wideNow()) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (x === 'bxClose') { bx.sel = null; bx.info = null; render(); return; }
+  if (x === 'bxF') { bx.f = t.dataset.v; bx.show = 120; render(); return; }
+  if (x === 'bxMore') { bx.show += 200; render(); return; }
+  if (x === 'bxReload') { loadBox(true); return; }
+  if (x === 'bxTeam') { tm.data = null; tm.q = ''; tm.add = t.dataset.v; tab = 'team'; window.scrollTo(0, 0); render(); return; }
   if (x === 'teamEdit') { tm.data = null; tm.q = ''; tab = 'team'; window.scrollTo(0, 0); render(); return; }
-  if (x === 'tmSlot') { tm.slot = +t.dataset.v; render(); return; }
+  if (x === 'tmSlot') { if (tm.add) { const d = tm.draft.slice(); d[+t.dataset.v] = tm.add; tm.draft = d; tm.add = null; } tm.slot = +t.dataset.v; render(); return; }
   if (x === 'tmDrop') { e.stopPropagation(); tm.draft[+t.dataset.v] = undefined; tm.draft = [...tm.draft.filter(Boolean)]; tm.slot = Math.min(tm.draft.length, 5); render(); return; }
-  if (x === 'tmPick') { const d = tm.draft.slice(); d[tm.slot] = t.dataset.v; tm.draft = d.filter(Boolean).slice(0, 6); tm.slot = Math.min(tm.draft.length, 5); render(); return; }
+  if (x === 'tmPick') { if (tm.slot < 0) tm.slot = Math.min(tm.draft.length, 5); tm.add = null; const d = tm.draft.slice(); d[tm.slot] = t.dataset.v; tm.draft = d.filter(Boolean).slice(0, 6); tm.slot = Math.min(tm.draft.length, 5); render(); return; }
   if (x === 'tmSave') { cmd('team.set', { uids: tm.draft.filter(Boolean) }, 'Save team', (res) => { if (!/^error/.test(res)) { tab = 'now'; render(); } }); return; }
   if (x === 'tmCancel') { tab = 'now'; render(); return; }
   if (x === 'pushOn') { pushOn(); return; }
@@ -689,8 +770,13 @@ document.addEventListener('change', (e) => {
   if (t.id === 'asMax') ui.asMax = t.checked;
   if (t.dataset.set) cmd(t.dataset.set, { on: t.checked }, t.checked ? 'Turn on' : 'Turn off');
 });
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'bxSort') { bx.sort = e.target.value; store.set('mr-bxs', bx.sort); render(); }
+  if (e.target.id === 'bxType') { bx.type = e.target.value; bx.show = 120; render(); }
+});
 let qT = null;
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'bxQ') { bx.q = e.target.value; bx.show = 120; render(); return; }
   if (e.target.id === 'tmQ') { tm.q = e.target.value; render(); return; }
   if (e.target.id === 'actQ') { act.q = e.target.value; act.show = 80; render(); return; }
   if (e.target.id !== 'dexQ') return;
