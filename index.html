@@ -101,9 +101,21 @@ function listen() {
     es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
     es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m.event === 'message') onPart(String(m.message || '')); };
   }
-  es.onerror = () => { relayErr = Date.now(); setSub(); };
+  es.onerror = () => { relayErr = Date.now(); setSub(); if (pair.a) diagnose(); };
 }
-let relayErr = null;
+let relayErr = null, relayWhy = '', diagAt = 0;
+// ask Ably directly why the live stream failed (wrong key, blocked, …) and show it
+async function diagnose() {
+  if (Date.now() - diagAt < 15000) return; diagAt = Date.now();
+  const url = `${ABLY}/event-stream?channels=${encodeURIComponent(pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`;
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch(url, { signal: ctl.signal, headers: { Accept: 'text/event-stream' } });
+    if (r.ok) { relayWhy = `Ably answers (${r.status}) - the live stream itself was cut; retrying`; try { ctl.abort(); } catch {} }
+    else { const t = await r.text(); let m = t; try { m = JSON.parse(t).error?.message || t; } catch {} relayWhy = `Ably said ${r.status}: ${m}`.slice(0, 200); }
+  } catch (e) { relayWhy = e.name === 'AbortError' ? 'Ably answers - the live stream itself was cut; retrying' : `can't connect to Ably from this phone (${e.message})`; }
+  setSub(); render();
+}
 async function onPart(text) {
   {
     const [tag, id, pos, body] = text.split('|'); if (tag !== 'M1' || !body) return;
@@ -177,6 +189,7 @@ const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (relayErr && Date.now() - relayErr < 20000) { el.innerHTML = `<span class="bad">● can't reach ${pair.a ? 'Ably' : 'ntfy'}</span> - retrying`; return; }
+  relayWhy = relayErr && Date.now() - relayErr < 20000 ? relayWhy : '';
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
   const s = Math.round((Date.now() - Math.max(snap.at, snap.live?.at || 0)) / 1000);
   el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? '' : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
@@ -380,7 +393,8 @@ function render() {
   const V = { now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
   const banner = pair.a ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Not on the fast relay yet</b><div>This phone still uses ntfy (slow, and blocked for today). Go to <b>Settings → Fast Updates</b> and paste your Ably key.</div><button class="btn gold" data-tab="set">Open Settings</button></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
-  $('#main').innerHTML = (tab === 'set' ? '' : banner) + V();
+  const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div><div class="dim" style="margin-top:6px">Your Ably key on this phone ends in …${esc((pair.a || '').slice(-4))}. It must be the same key as in Mega's Settings on the PC.</div></div>` : '';
+  $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
   if (focus === 'dexQ') { const el = $('#dexQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
 }
 
