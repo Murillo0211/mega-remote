@@ -93,10 +93,10 @@ function listen() {
   if (!pair) return;
   try { es?.close(); } catch {}
   if (pair.a) {
-    // Ably apps only accept identified clients (error 40161): this phone is "mega-phone"
-    es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=12]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
-    es.onmessage = (ev) => { relayErr = null; let m; try { m = JSON.parse(ev.data); } catch { return; } onPart(String(m.data || '')); };
-    es.onopen = () => { relayErr = null; setSub(); };
+    // iPhone Safari's EventSource drops Ably's stream, so read it ourselves with fetch (works on iOS).
+    // Ably apps only accept identified clients (error 40161): this phone is "mega-phone".
+    es = ablyStream(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=12]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
+    return;
   } else {
     es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
     es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m.event === 'message') onPart(String(m.message || '')); };
@@ -104,6 +104,39 @@ function listen() {
   es.onerror = () => { relayErr = Date.now(); setSub(); if (pair.a) diagnose(); };
 }
 let relayErr = null, relayWhy = '', diagAt = 0;
+// A tiny live-stream reader: fetch + read the body as it arrives, split into SSE events ("data: …"
+// lines) or JSON lines, reconnect after a drop. Returns an object with close() like EventSource.
+function ablyStream(url) {
+  let stopped = false, ctl = null, tries = 0;
+  async function run() {
+    while (!stopped) {
+      ctl = new AbortController();
+      try {
+        const r = await fetch(url, { signal: ctl.signal, headers: { Accept: 'text/event-stream' }, cache: 'no-store' });
+        if (!r.ok || !r.body) { relayErr = Date.now(); const t = await r.text().catch(() => ''); let m = t; try { m = JSON.parse(t).error?.message || t; } catch {} relayWhy = `Ably said ${r.status}: ${m}`.slice(0, 200); setSub(); render(); throw new Error('bad status'); }
+        relayErr = null; relayWhy = ''; tries = 0; setSub();
+        const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', data = [];
+        const deliver = (txt) => { let m; try { m = JSON.parse(txt); } catch { return; } const d = m.data ?? m; if (d && typeof d === 'object' && 'data' in d) onPart(String(d.data || '')); else if (typeof d === 'string') onPart(d); };
+        for (;;) {
+          const { value, done } = await rd.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) { // line by line: SSE ("data: …" + blank line) or one JSON object per line
+            const line = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1);
+            if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+            else if (line === '') { if (data.length) { deliver(data.join('\n')); data = []; } }
+            else if (line.startsWith('{')) deliver(line);
+          }
+        }
+      } catch (e) { if (stopped) return; }
+      if (stopped) return;
+      relayErr = Date.now(); setSub();
+      await new Promise((res) => setTimeout(res, Math.min(10000, 1500 * ++tries)));
+    }
+  }
+  run();
+  return { close() { stopped = true; try { ctl?.abort(); } catch {} } };
+}
 // ask Ably directly why the live stream failed (wrong key, blocked, …) and show it
 async function diagnose() {
   if (Date.now() - diagAt < 15000) return; diagAt = Date.now();
