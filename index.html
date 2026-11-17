@@ -252,6 +252,27 @@ const pic = (g, n = 48) => (g.sp ? img(g.sp, n) : `<span style="width:${n}px;tex
 const progTxt = (p) => (p ? `${p[3] ? '₽' : ''}${(+p[0]).toLocaleString()} of ${p[3] ? '₽' : ''}${(+p[1]).toLocaleString()}${p[2] ? ' ' + esc(p[2]) : ''}` : '');
 const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+// boss fight numbers: KOs vs wipes today, the catch chance per KO, and how long a catch takes at this pace
+function fightBox(f) {
+  const pct = (x) => (x == null ? '?' : x >= 0.1 ? Math.round(x * 100) + '%' : (x * 100).toFixed(1).replace(/\.0$/, '') + '%');
+  const label = { raid: 'SHINY RAID BOSS', legend: 'LEGENDARY', elite: 'ELITE LEGENDARY', wboss: 'WORLD BOSS' }[f.k] || 'BOSS';
+  const rateCls = f.rate == null ? 'dim' : f.rate >= 0.8 ? 'ok' : f.rate >= 0.5 ? 'warn' : 'bad';
+  // the verdict: how long until it's likely (or certain, with the raid's pity)
+  const best = f.tPity != null && (f.t50 == null || f.tPity < f.t50 * 1.5) ? { t: f.tPity, txt: `guaranteed catch in ${f.left} more KOs` } : f.t50 != null ? { t: f.t50, txt: `50% chance in ${f.n50} KOs` } : null;
+  const verdict = f.fights < 3 ? 'Still measuring - a few more fights for a good estimate.'
+    : f.rate === 0 ? `<b class="bad">No KOs yet today</b> - this team isn't beating it. Worth doing something else or re-running Simulate.`
+    : best ? `${best.t < 2 * 3600000 ? '<b class="ok">Good pace</b>' : best.t < 8 * 3600000 ? '<b class="warn">Slow</b>' : '<b class="bad">Very slow</b>'} - about <b>${hm(best.t)}</b> for a ${best.txt}${f.t90 && !f.pity ? ` (90%: ~${hm(f.t90)})` : ''}.` : '';
+  return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px"><div class="lbl">🥊 ${label} · ${N(f.foe)}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:6px">
+      <div><div class="big ok" style="font-size:22px">${f.kos}</div><div class="dim" style="font-size:12px">KOs today</div></div>
+      <div><div class="big" style="font-size:22px">${f.wipes}</div><div class="dim" style="font-size:12px">wipes</div></div>
+      <div><div class="big ${rateCls}" style="font-size:22px">${f.rate == null ? '-' : Math.round(f.rate * 100) + '%'}</div><div class="dim" style="font-size:12px">KO rate</div></div>
+    </div>
+    ${row('Catch chance per KO', pct(f.chance))}
+    ${f.pity ? row('Tries toward the guarantee', `${f.tries} of ${f.pity}`) : row('Capture tries so far', f.tries)}
+    ${f.per ? row('Time per fight', hm(f.per)) : ''}
+    ${verdict ? `<div style="margin-top:6px">${verdict}</div>` : ''}</div>`;
+}
 function vNow() {
   const s = snap; let h = '';
   { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:#5b3fd6;padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
@@ -269,7 +290,8 @@ function vNow() {
   const L = s.live && Date.now() - s.live.at < 15000 ? s.live : null;
   if (s.where) h += `<div class="dim" style="margin-top:6px">📍 ${esc(s.where)}${L?.node ? ` <b style="color:var(--txt)">· stop ${L.node[0]} of ${L.node[1]}</b>` : ''}${!L && s.foes.length ? ' · fighting ' + esc(s.foes.join(', ')) : ''}</div>`;
   if (L?.foes?.length) h += `<div style="margin-top:8px"><div class="lbl">⚔️ BATTLE</div>${L.foes.map(([id, lv, c, mx]) => `<div class="flex" style="margin-top:4px">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${N(id)} <span class="dim">Lv ${lv}</span></b><span>${c.toLocaleString()} / ${mx.toLocaleString()}</span></div><div class="bar" style="margin-top:3px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;background:linear-gradient(90deg,#ff6b6b,#ffb547)"></i></div></div></div>`).join('')}</div>`;
-  if (L?.team?.length) h += `<div style="margin-top:8px"><div class="lbl">YOUR TEAM</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx]) => `<div>${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%"></i></div><div class="dim" style="font-size:11px">${c}/${mx}</div></div>`).join('')}</div></div>`;
+  if (L?.team?.length) { const allies = L.team.filter((t) => t[4]).length; h += `<div style="margin-top:8px"><div class="lbl">${allies ? `FIGHTING · YOURS + ${allies} ALLIES` : 'FIGHTING'}</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx, ally]) => `<div style="${ally ? 'opacity:.75' : ''}">${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;${c <= 0 ? '' : ''}"></i></div><div class="dim" style="font-size:11px">${c}/${mx}</div>${ally ? `<div class="dim" style="font-size:10px;line-height:1.1">${esc(ally.split(' ').pop())}</div>` : ''}</div>`).join('')}</div></div>`; }
+  if (L?.fight) h += fightBox(L.fight);
   h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
   if (bg.length) h += `<div class="card"><h3>Running Alongside</h3>${bg.map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${esc(g.n || g.y)}</div></div></div>`).join('')}</div>`;
