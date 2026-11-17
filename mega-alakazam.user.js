@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.24.1
+// @version      0.24.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.24.1';
+const VERSION = '0.24.2';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -2839,7 +2839,7 @@ Views.now = (w, esc, fmtIn) => {
       h += `<div class="card"><h3>🥚 Day Care</h3><div class="dim">Incubator ${dc.used} of ${dc.max || '?'}${dc.full ? ' · full - hatch one to make room' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : dc.mons.length ? ' · no egg coming (these can\'t breed)' : ''}</div>`;
       for (const e of dc.eggs) {
         const pct = e.ready ? 1 : 1 - e.left / Math.max(1, e.hatchAt - e.laidAt);
-        h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img src="${E.sprite(e.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px;${e.ready ? '' : 'filter:brightness(.35)'}"><div style="flex:1;min-width:0"><b>${nm(e.id)}</b>${e.shinyParent ? ' <span title="shiny parent - better shiny odds">✨</span>' : ''}
+        h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img src="${E.sprite(e.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px;${e.ready ? '' : 'filter:grayscale(1);opacity:.5'}"><div style="flex:1;min-width:0"><b>${nm(e.id)}</b>${e.shinyParent ? ' <span title="shiny parent - better shiny odds">✨</span>' : ''}
           <div class="${e.ready ? 'ok' : 'dim'}">${e.ready ? '● ready to hatch' : `${DayCare.left(e.left)} left · hatches ${at2(e.hatchAt)}`}</div>${e.ready ? '' : bar(pct)}</div>${e.ready ? `<button class="btn sm gold" style="width:auto;padding:10px 14px;margin:0" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">🐣 Hatch</button>` : ''}</div>`;
       }
       if (dc.eggs.filter((e) => e.ready).length > 1) h += `<button class="btn gold" data-act="m-egg-hatch" data-uid="">🐣 Hatch All Ready (${dc.eggs.filter((e) => e.ready).length})</button>`;
