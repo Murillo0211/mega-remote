@@ -41,11 +41,14 @@
   .toast{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 14px);background:#2c2552;border:1px solid var(--acc);border-radius:14px;padding:12px 14px;font-weight:600;box-shadow:0 8px 30px #000a;transition:opacity .3s}
   .lbl{font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--dim)}
   .big{font-size:22px;font-weight:800}
+  .zbtn{border:0;border-radius:10px;background:#2c2552;color:#fff;font:800 15px inherit;padding:8px 10px}
+  .seg{display:grid;gap:6px;margin-bottom:12px}.seg button{margin:0}
+  .pips span{display:inline-block;width:20px;height:8px;border-radius:4px;margin-right:3px;background:#2e2752}.pips .w{background:#5ad68a}.pips .n{background:#ffd45e}
   .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:800;background:#2c2552}
 </style>
 </head>
 <body>
-<header><div class="logo">M</div><div class="t"><b>Mega Remote</b><span id="sub">connecting…</span></div></header>
+<header><div class="logo">M</div><div class="t"><b>Mega Remote</b><span id="sub">connecting…</span></div><button class="zbtn" data-z="-1">A−</button><button class="zbtn" data-z="1">A+</button></header>
 <div class="tabs" id="tabs"></div>
 <main id="main"></main>
 <div class="toast" id="toast" style="opacity:0;pointer-events:none"></div>
@@ -64,6 +67,10 @@ if (location.hash.startsWith('#pair-')) {
   try { const p = JSON.parse(new TextDecoder().decode(unb64u(location.hash.slice(6)))); if (p.s && p.c && p.k) store.set('mr-pair', p); } catch {}
 }
 let pair = store.get('mr-pair', null);
+// text size (A− / A+), remembered on this phone
+const ZOOMS = [0.85, 0.95, 1, 1.1, 1.2, 1.35];
+let zoomI = store.get('mr-zoom', 2);
+const applyZoom = () => { document.body.style.zoom = ZOOMS[zoomI]; };
 const pairHash = () => '#pair-' + b64u(new TextEncoder().encode(JSON.stringify({ s: pair.s, c: pair.c, k: pair.k })));
 if (pair && location.hash !== pairHash()) history.replaceState(null, '', location.pathname + pairHash());
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -129,7 +136,7 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity
 // ---- views ----
 const TABS = [['now', 'Now'], ['plan', 'Plan'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
-const ui = { items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
+const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
@@ -140,7 +147,7 @@ setInterval(setSub, 5000);
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const bar = (p) => `<div class="bar"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
 const img = (id, n = 52) => `<img class="sp" src="${SPRITE(id)}" width="${n}" height="${n}" loading="lazy">`;
-const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️' };
+const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍' };
 const N = (id) => esc(snap?.nm?.[id] || '#' + id);
 const pic = (g, n = 48) => (g.sp ? img(g.sp, n) : `<span style="width:${n}px;text-align:center;font-size:${Math.round(n * .55)}px;flex:none">${ICON[g.t] || '🎯'}</span>`);
 const progTxt = (p) => (p ? `${p[3] ? '₽' : ''}${(+p[0]).toLocaleString()} of ${p[3] ? '₽' : ''}${(+p[1]).toLocaleString()}${p[2] ? ' ' + esc(p[2]) : ''}` : '');
@@ -151,7 +158,8 @@ function vNow() {
   h += `<div class="card"><div class="flex"><span style="font-size:26px">${s.run ? '🟢' : '⏸️'}</span><div class="grow"><b style="font-size:18px">${s.run ? 'Plan running' : 'Plan paused'}</b><div class="dim">${s.goals.length} goal${s.goals.length === 1 ? '' : 's'} left · Mega ${esc(s.ver)}</div></div></div>
     <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
-  for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
+  for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
+  if ((s.gemPick || []).length) probs.push(`Pick your Legendary gem in the game: Elite League ${s.gemPick.map(([r, t]) => `${esc(r)} tier ${t}`).join(', ')} (needs the PC).`);
   if (probs.length) h += `<div class="card" style="border-color:#c0392b"><h3>⚠️ Needs You</h3>${probs.map((p) => `<div class="warn">${p}</div>`).join('')}</div>`;
   const scr = s.goals.find((g) => !g.bg && g.s === 'running');
   h += `<div class="card"><h3>Today</h3><div class="lbl">WORKING ON NOW${!scr && s.idle ? ' · IDLE' : ''}</div>`;
@@ -183,7 +191,7 @@ function vPlan() {
         <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>↓ Down</button>
         <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? '▶ Resume' : '❚❚ Pause'}</button>
         <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">✕ Remove</button>
-      </div>${/3 times/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">Try Again</button>` : ''}</div>`;
+      </div>${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
   });
   if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
   if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
@@ -191,7 +199,7 @@ function vPlan() {
   return h;
 }
 function addCard(s) {
-  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex']];
+  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['wboss', 'World Boss (every edition)'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex']];
   let h = `<div class="card"><h3>Add a Goal</h3><select id="addType">${types.map(([k, l]) => `<option value="${k}" ${ui.addType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   if (ui.addType === 'legend') {
     if (!ui.sims) { h += `<button class="btn" data-x="loadSims">Load Legendaries</button>`; }
@@ -210,7 +218,8 @@ function addCard(s) {
     return h + `<div class="dim" style="margin-top:8px">Mega restarts the chapter until its item stop shows up, and keeps going until the item is yours.</div></div>`;
   } else if (ui.addType === 'money') h += `<select id="addVal">${[1e6, 2e6, 5e6, 1e7, 2e7, 5e7].filter((x) => x > s.money).map((x) => `<option value="${x}" ${+ui.addVal === x ? 'selected' : ''}>Up to ₽${x.toLocaleString()}</option>`).join('')}</select><div class="dim" style="margin-top:6px">You have ₽${s.money.toLocaleString()}.</div>`;
   else if (ui.addType === 'region') h += `<select id="addVal"><option value="">Choose a region…</option>${s.dex.filter((r) => r[1] < r[2]).map((r) => `<option value="${esc(r[3])}" ${ui.addVal === r[3] ? 'selected' : ''}>${esc(r[0])} · ${r[2] - r[1]} missing</option>`).join('')}</select>`;
-  h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: add them from the Pokédex tab.</div></div>`;
+  if (ui.addType === 'wboss') h += `<div class="dim" style="margin-top:8px">Each edition: uses your 3 daily attacks while the shield is up, then catches it during the 24-hour window.</div>`;
+  h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: from the Pokédex tab. Elite tiers and the Elite League: from Simulate.</div></div>`;
   return h;
 }
 function vDex() {
@@ -244,6 +253,41 @@ function vDex() {
   return h + `<div class="dim">Green border = can be caught right now. Tap one for every way to get it.</div>`;
 }
 function vSim() {
+  const M = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'League']];
+  const bar = `<div class="seg" style="grid-template-columns:repeat(3,1fr)">${M.map(([k, l]) => `<button class="btn sm ${ui.simMode === k ? 'gold' : ''}" data-sm="${k}">${l}</button>`).join('')}</div>`;
+  if (ui.simMode === 'elite') return bar + vElite();
+  if (ui.simMode === 'league') return bar + vLeague();
+  return bar + vLegend();
+}
+const pips = (best, next) => `<span class="pips">${[1, 2, 3, 4, 5].map((t) => `<span class="${t <= best ? 'w' : t === next ? 'n' : ''}"></span>`).join('')}</span>`;
+function vElite() {
+  if (!ui.elite) return `<button class="btn gold" data-x="loadElite">Load Elite Legendaries</button>`;
+  const beaten = ui.elite.reduce((t, r) => t + r[3], 0);
+  let h = `<div class="card"><h3>Elite Legendaries</h3><div>${ui.elite.length} legendaries · ${beaten} of ${ui.elite.length * 5} tiers beaten</div><div class="dim" style="margin-top:6px">Knock it out (no catching). Tiers 1, 2 and 4 give a Legendary gem of its type, 3 and 5 a frame.</div></div>`;
+  for (const [id, foe, nm, best, next, reward, gem, ok, ko, inPlan, users] of ui.elite) {
+    const run = ui.eliteRes[`${id}:${next}`];
+    h += `<div class="card"><div class="flex">${img(foe, 52)}<div class="grow"><b>${esc(nm)}</b><div>${pips(best, next)} <span class="dim">${best}/5</span></div>
+      ${next ? `<div style="font-size:14px">Tier ${next} → ${reward === 'gem' ? `<span class="ok">${esc(gem)} gem</span>` : 'a frame'}${ok ? '' : ' <span class="warn">· not open now</span>'}</div>` : '<div class="ok">All tiers ✔</div>'}</div></div>
+      ${users?.length ? `<div class="dim" style="font-size:13px;margin-top:4px">Its gem ranks up: ${esc(users.join(', '))}</div>` : ''}
+      ${next ? `${run?.running ? `<div style="margin-top:8px">Simulating on your PC…</div>` : run?.ko != null ? `<div style="margin-top:8px">Best team: <b>${Math.round(run.ko * 100)}%</b> KO</div>` : ko != null ? `<div style="margin-top:8px">Last sim: <b>${Math.round(ko * 100)}%</b> KO</div>` : ''}
+      <div class="tools" style="grid-template-columns:1fr 1fr"><button class="btn sm" data-x="eliteSim" data-id="${id}" data-tier="${next}" ${run?.running ? 'disabled' : ''}>Simulate Tier ${next}</button>
+      <button class="btn sm ${inPlan ? '' : 'gold'}" data-c="goal.add" data-a='{"type":"elite","foe":${id}}' data-l="Add elite ${esc(nm)}" data-after="elite" ${inPlan ? 'disabled' : ''}>${inPlan ? 'In Your Plan' : 'Add: Beat Tiers'}</button></div>` : ''}</div>`;
+  }
+  return h;
+}
+function vLeague() {
+  if (!ui.league) return `<button class="btn gold" data-x="loadLeague">Load Elite League</button>`;
+  let h = `<div class="card"><h3>Elite League</h3><div>${ui.league.reduce((t, r) => t + r[2], 0)} of ${ui.league.length * 5} tiers won</div><div class="dim" style="margin-top:6px">Each region's Elite Four + Champion again, tiers 1-5. Every tier gives a Legendary gem you pick in the game; 3 and 5 also a frame. Mega fights with your strongest six and steps back after 10 losses at one tier.</div></div>`;
+  for (const [key, nm, best, next, frame, types, pending, members, inPlan] of ui.league) {
+    h += `<div class="card"><div style="display:flex;justify-content:space-between"><b>${esc(nm)} League</b><span>${pips(best, next)}</span></div>
+      ${pending?.length ? `<div class="warn">⚠ Tier ${pending.join(', ')} won - pick your gem in the game</div>` : ''}
+      ${next ? `<div style="margin-top:4px">Next: tier ${next} → ${frame ? 'a frame + ' : ''}<span class="ok">a Legendary gem</span> (${esc(types.join(', '))})</div>` : '<div class="ok">All tiers ✔</div>'}
+      <div class="dim" style="font-size:13px;margin-top:4px">${esc(members.join(' · '))}</div>
+      ${next ? `<button class="btn ${inPlan ? '' : 'gold'}" data-c="goal.add" data-a='{"type":"league","reg":"${esc(key)}"}' data-l="Add ${esc(nm)} Elite League" data-after="league" ${inPlan ? 'disabled' : ''}>${inPlan ? 'In Your Plan' : 'Add: Win Its Tiers'}</button>` : ''}</div>`;
+  }
+  return h;
+}
+function vLegend() {
   let h = '';
   if (!ui.sims) return `<button class="btn gold" data-x="loadSims">Load Legendaries</button>`;
   h += `<div class="card"><h3>Simulate a Legendary</h3><select id="simPick"><option value="">Choose…</option>${ui.sims.map((z) => `<option value="${z[0]}" ${+ui.simPick === z[0] ? 'selected' : ''}>${esc(z[1])} · ${esc(z[2])}${z[3] != null ? ' · last ' + Math.round(z[3] * 100) + '%' : ''}${z[4] ? ' · in plan' : ''}</option>`).join('')}</select>
@@ -259,7 +303,7 @@ function vSim() {
         ${z && !z[4] ? `<button class="btn gold" data-c="goal.add" data-a='{"type":"legend","foe":${r.id}}' data-l="Add ${esc(z[1])} to plan" data-after="sims">Add to Plan</button>` : '<div class="ok" style="margin-top:8px">In your plan.</div>'}</div>`;
     }
   }
-  return h + `<div class="dim">Elite tiers will be simulated here once that's built.</div>`;
+  return h;
 }
 function vTrades() {
   const s = snap; if (!s.trades) return `<div class="card">Trades haven't been read yet.</div>`;
@@ -297,12 +341,14 @@ function render() {
 
 // ---- input ----
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-tab],[data-c],[data-x]'); if (!t) return;
+  const z = e.target.closest('[data-z]'); if (z) { zoomI = Math.max(0, Math.min(ZOOMS.length - 1, zoomI + +z.dataset.z)); store.set('mr-zoom', zoomI); applyZoom(); return; }
+  const t = e.target.closest('[data-tab],[data-c],[data-x],[data-sm]'); if (!t) return;
+  if (t.dataset.sm) { ui.simMode = t.dataset.sm; store.set('mr-sm', ui.simMode); if (ui.simMode === 'elite' && !ui.elite) loadElite(); if (ui.simMode === 'league' && !ui.league) loadLeague(); render(); return; }
   if (t.dataset.tab) { tab = t.dataset.tab; store.set('mr-tab', tab); window.scrollTo(0, 0); render(); return; }
   if (t.dataset.c) {
     if (t.dataset.confirm && !await askConfirm(t.dataset.confirm)) return;
     const after = t.dataset.after;
-    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'sims') loadSims(); if (after === 'items') loadItems(); });
+    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'sims') loadSims(); if (after === 'items') loadItems(); if (after === 'elite') loadElite(); if (after === 'league') loadLeague(); });
     return;
   }
   const x = t.dataset.x;
@@ -317,6 +363,13 @@ document.addEventListener('click', async (e) => {
   if (x === 'dexBack') { ui.dexInfo = null; render(); }
   if (x === 'loadSims') loadSims();
   if (x === 'loadItems') loadItems();
+  if (x === 'loadElite') loadElite();
+  if (x === 'loadLeague') loadLeague();
+  if (x === 'eliteSim') {
+    const id = +t.dataset.id, tier = +t.dataset.tier, k = `${id}:${tier}`; ui.eliteRes[k] = { running: 1 }; render();
+    const rq = await cmd('elite.sim', { id, tier }, 'Simulate elite tier');
+    watch.set(rq, (d) => { if (d && !d.running) { ui.eliteRes[k] = d; render(); return true; } return false; });
+  }
   if (x === 'runSim') {
     const id = +ui.simPick; ui.simRes[id] = { running: 1 }; render();
     const rq = await cmd('sim.run', { id, asMax: ui.asMax }, 'Run simulator');
@@ -347,6 +400,8 @@ document.addEventListener('input', (e) => {
   qT = setTimeout(() => cmd('dex.search', { q: ui.dexQ }, 'Search', (r, data) => { ui.dexHits = data || []; render(); }), 700);
 });
 function openDex(id) { cmd('dex.info', { id }, 'Look up', (r, data) => { if (data) { ui.dexInfo = data; window.scrollTo(0, 0); render(); } }); }
+function loadElite() { cmd('elite.list', {}, 'Load elite legendaries', (r, data) => { ui.elite = data || []; render(); }); }
+function loadLeague() { cmd('league.list', {}, 'Load Elite League', (r, data) => { ui.league = data || []; render(); }); }
 function loadItems() { cmd('item.list', {}, 'Load rare items', (r, data) => { ui.items = data || []; render(); }); }
 function loadSims() { cmd('sim.list', {}, 'Load legendaries', (r, data) => { ui.sims = data || []; render(); }); }
 function askConfirm(text) {
@@ -358,6 +413,7 @@ function askConfirm(text) {
     document.body.appendChild(d);
   });
 }
+applyZoom();
 render();
 listen();
 </script>
