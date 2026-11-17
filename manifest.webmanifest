@@ -1,6 +1,6 @@
 {
-  "name": "Mega Remote",
-  "short_name": "Mega",
+  "name": "Kinesis",
+  "short_name": "Kinesis",
   "description": "Mega Alakazam on your phone",
   "start_url": "./",
   "scope": "./",

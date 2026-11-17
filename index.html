@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mega Remote">
+<meta name="apple-mobile-web-app-title" content="Kinesis">
 <meta name="theme-color" content="#120f24">
-<title>Mega Remote</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EM%3C/text%3E%3C/svg%3E">
+<title>Kinesis</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EK%3C/text%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -49,7 +49,7 @@
 </style>
 </head>
 <body>
-<header><div class="logo">M</div><div class="t"><b>Mega Remote</b><span id="sub">connecting…</span></div><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button><button class="zbtn" data-z="-1">A−</button><button class="zbtn" data-z="1">A+</button></header>
+<header><div class="logo">K</div><div class="t"><b>Kinesis</b><span id="sub">connecting…</span></div><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button><button class="zbtn" data-z="-1">A−</button><button class="zbtn" data-z="1">A+</button></header>
 <div class="tabs" id="tabs"></div>
 <main id="main"></main>
 <div class="toast" id="toast" style="opacity:0;pointer-events:none"></div>
@@ -463,7 +463,7 @@ function vSet() {
 const push = { st: null, busy: false };
 const standalone = () => window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
 async function pushState() {
-  if (!RELAY) return { can: false, why: 'Open Mega Remote from your PC\'s Tailscale address to use these alerts.' };
+  if (!RELAY) return { can: false, why: 'Open Kinesis from your PC\'s Tailscale address to use these alerts.' };
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return { can: false, why: standalone() ? 'This phone\'s browser can\'t get web alerts (iPhone needs iOS 16.4 or newer).' : 'On iPhone, alerts only work in the Home Screen app: in Safari tap Share → Add to Home Screen, then open Mega from that icon.' };
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = reg ? await reg.pushManager.getSubscription() : null;
@@ -499,7 +499,7 @@ async function pushOn() {
   push.busy = false; refreshPush();
 }
 async function pushTest(quiet) {
-  try { const r = await (await fetch(RELAY + '/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Mega test alert ✓', body: 'Alerts from your PC work on this phone.', tag: 'test' }) })).json(); if (!quiet || !r.sent) toast(r.sent ? `Test sent to ${r.sent} phone${r.sent === 1 ? '' : 's'}` : 'Test not delivered: ' + (r.err || 'no phones')); }
+  try { const r = await (await fetch(RELAY + '/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Kinesis test alert ✓', body: 'Alerts from your PC work on this phone.', tag: 'test' }) })).json(); if (!quiet || !r.sent) toast(r.sent ? `Test sent to ${r.sent} phone${r.sent === 1 ? '' : 's'}` : 'Test not delivered: ' + (r.err || 'no phones')); }
   catch (e) { toast('Could not reach your PC: ' + (e.message || e)); }
 }
 async function pushOff() {
@@ -623,7 +623,7 @@ document.addEventListener('click', async (e) => {
   if (x === 'pastePair') {
     const v = ($('#pastePair')?.value || '').trim(), i = v.indexOf('#pair-');
     try { const p = JSON.parse(new TextDecoder().decode(unb64u(i >= 0 ? v.slice(i + 6) : v))); if (!(p.s && p.c && p.k)) throw 0; store.set('mr-pair', p); pair = p; ck = null; history.replaceState(null, '', location.pathname + pairHash()); listen(); render(); toast('Paired ✓'); }
-    catch { toast('That isn\'t a Mega Remote setup link'); }
+    catch { toast('That isn\'t a Kinesis setup link'); }
     return;
   }
   if (x === 'refresh') { lastWatch = 0; watchNow(true); toast('Asked your PC for an update…'); return; }
