@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.26.2
+// @version      0.26.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.26.2';
+const VERSION = '0.26.3';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -5442,8 +5442,8 @@ const Plan = (() => {
       if (si < 0) return;
       const daily = ['raid', 'candy', 'tower', 'wboss'];
       let last = -1; open.forEach((g, i) => { if (daily.includes(g.type)) last = i; });
-      const want = last < 0 ? 0 : last + (si < last ? 0 : 1);
-      if (si === want) return;
+      if (si > last) return; // already below every daily (wherever you put it) - leave it
+      const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
     } catch {}
