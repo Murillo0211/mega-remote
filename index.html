@@ -93,7 +93,8 @@ function listen() {
   if (!pair) return;
   try { es?.close(); } catch {}
   if (pair.a) {
-    es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=1]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}`);
+    // Ably apps only accept identified clients (error 40161): this phone is "mega-phone"
+    es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=1]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
     es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onPart(String(m.data || '')); };
   } else {
     es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
@@ -128,7 +129,7 @@ async function cmd(name, args = {}, label = '', cb = null, quiet = false) {
     for (let i = 0; i < n; i++) {
       const msg = `M1|${mid}|${i + 1}/${n}|${body.slice(i * size, (i + 1) * size)}`;
       const r = pair.a
-        ? await fetch(`${ABLY}/channels/${encodeURIComponent(pair.c)}/messages`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(pair.a), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'm', data: msg }) })
+        ? await fetch(`${ABLY}/channels/${encodeURIComponent(pair.c)}/messages`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(pair.a), 'Content-Type': 'application/json', 'X-Ably-ClientId': btoa('mega-phone') }, body: JSON.stringify({ name: 'm', data: msg }) })
         : await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic: pair.c, message: msg, priority: 1 }) });
       if (!r.ok) throw new Error(r.status === 429 ? 'too many messages today - try again later' : 'relay said ' + r.status);
     }
