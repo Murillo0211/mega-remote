@@ -94,7 +94,7 @@ function listen() {
   try { es?.close(); } catch {}
   if (pair.a) {
     // Ably apps only accept identified clients (error 40161): this phone is "mega-phone"
-    es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=1]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
+    es = new EventSource(`${ABLY}/event-stream?channels=${encodeURIComponent('[?rewind=12]' + pair.s)}&v=1.2&key=${encodeURIComponent(pair.a)}&clientId=mega-phone`);
     es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onPart(String(m.data || '')); };
   } else {
     es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
@@ -107,7 +107,11 @@ async function onPart(text) {
     const [tag, id, pos, body] = text.split('|'); if (tag !== 'M1' || !body) return;
     const [i, n] = pos.split('/').map(Number); const p = parts.get(id) || []; p[i - 1] = body; parts.set(id, p);
     if (p.filter(Boolean).length < n) return; parts.delete(id);
-    try { const s = await open(p.join('')); if (!snap || s.at >= snap.at) { snap = s; store.set('mr-snap', s); onSnap(); } } catch {}
+    try {
+      const s = await open(p.join(''));
+      if (s.k === 'tick') { mergeTick(s); return; }
+      if (!snap || s.at >= snap.at) { const live = snap?.live; snap = s; if (live && live.at > s.at) snap.live = live; store.set('mr-snap', s); onSnap(); }
+    } catch {}
   }
 }
 // "I'm open": the PC sends live updates (about one a minute) only while this app is open, to stay
@@ -149,6 +153,17 @@ function onSnap() {
   render();
 }
 const watch = new Map();
+// live ticks (every 2 s while this app is open): just the numbers that move, merged into the last full update
+let lastPaint = 0;
+function mergeTick(t) {
+  if (!snap || t.at < (snap.live?.at || 0)) return;
+  snap.live = t; snap.top = t.top; snap.money = t.money; Object.assign(snap.nm || (snap.nm = {}), t.nm || {});
+  for (const [id, line, pr] of t.goals || []) { const g = snap.goals.find((x) => x.id === id); if (g) { g.n = line; if (pr) g.p = pr; if (g.s !== 'paused') g.s = 'running'; } }
+  if (t.idle != null && snap.idle) snap.idle.l = t.idle;
+  // don't rebuild the page under the thumb more than twice a second, and only on the live tabs
+  if (['now', 'plan'].includes(tab) && Date.now() - lastPaint > 500 && !document.activeElement?.matches?.('input,select')) { lastPaint = Date.now(); render(); }
+  else setSub();
+}
 for (const [id, p] of pending) if (Date.now() - p.at > 120000) pending.delete(id);
 let toastT = null;
 function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), 4500); }
@@ -160,7 +175,7 @@ const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
-  const s = Math.round((Date.now() - snap.at) / 1000);
+  const s = Math.round((Date.now() - Math.max(snap.at, snap.live?.at || 0)) / 1000);
   el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? '' : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
 }
 setInterval(setSub, 5000);
@@ -186,7 +201,10 @@ function vNow() {
   if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}`;
   else if (s.idle) h += `<div class="flex" style="margin-top:6px">${s.idle.u[0] ? img(s.idle.u[0][0], 60) : '<span style="font-size:34px">💤</span>'}<div class="grow"><b style="font-size:17px">${s.idle.u.length ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</b><div>${s.idle.u.map((m) => `${N(m[0])}${m[3] ? ' ✨' : ''}${m[2] ? ' ★' + m[2] : ''} <b>Lv ${m[1]}</b>`).join(' · ')}</div></div></div><div class="dim" style="margin-top:6px">${esc(s.idle.l)}</div>`;
   else h += `<div style="margin-top:6px">${s.run ? 'Nothing can run right this minute.' : 'Nothing - the plan is paused.'}</div>`;
-  if (s.where) h += `<div class="dim" style="margin-top:6px">📍 ${esc(s.where)}${s.foes.length ? ' · fighting ' + esc(s.foes.join(', ')) : ''}</div>`;
+  const L = s.live && Date.now() - s.live.at < 15000 ? s.live : null;
+  if (s.where) h += `<div class="dim" style="margin-top:6px">📍 ${esc(s.where)}${L?.node ? ` <b style="color:var(--txt)">· stop ${L.node[0]} of ${L.node[1]}</b>` : ''}${!L && s.foes.length ? ' · fighting ' + esc(s.foes.join(', ')) : ''}</div>`;
+  if (L?.foes?.length) h += `<div style="margin-top:8px"><div class="lbl">⚔️ BATTLE</div>${L.foes.map(([id, lv, c, mx]) => `<div class="flex" style="margin-top:4px">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${N(id)} <span class="dim">Lv ${lv}</span></b><span>${c.toLocaleString()} / ${mx.toLocaleString()}</span></div><div class="bar" style="margin-top:3px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;background:linear-gradient(90deg,#ff6b6b,#ffb547)"></i></div></div></div>`).join('')}</div>`;
+  if (L?.team?.length) h += `<div style="margin-top:8px"><div class="lbl">YOUR TEAM</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx]) => `<div>${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%"></i></div><div class="dim" style="font-size:11px">${c}/${mx}</div></div>`).join('')}</div></div>`;
   h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
   if (bg.length) h += `<div class="card"><h3>Running Alongside</h3>${bg.map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${esc(g.n || g.y)}</div></div></div>`).join('')}</div>`;
