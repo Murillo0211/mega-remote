@@ -270,6 +270,13 @@ function vNow() {
   h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
   if (bg.length) h += `<div class="card"><h3>Running Alongside</h3>${bg.map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${esc(g.n || g.y)}</div></div></div>`).join('')}</div>`;
+  // Day Care: eggs in the incubator, counting down on this phone between updates
+  if (s.dc && (s.dc.u || s.dc.m.length)) {
+    const since = Date.now() - s.at, hm = (ms) => { const m = Math.ceil(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`; };
+    h += `<div class="card"><h3>🥚 Day Care</h3><div class="dim">Incubator ${s.dc.u} of ${s.dc.x || '?'}${s.dc.f ? ' · full - hatch one to make room' : s.dc.n != null ? ` · next egg in ${hm(Math.max(0, s.dc.n - since))}` : ''}</div>`
+      + s.dc.e.map(([id, left, ready, spar, dur]) => { const l = Math.max(0, left - since), rd = ready || l <= 0; return `<div class="flex" style="margin:8px 0"><span style="${rd ? '' : 'filter:brightness(.35)'}">${img(id, 44)}</span><div class="grow"><b>${N(id)}</b>${spar ? ' ✨' : ''}<div class="${rd ? 'ok' : 'dim'}">${rd ? '● ready to hatch' : `${hm(l)} left · hatches ${new Date(Date.now() + l).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}</div>${rd ? '' : bar(1 - l / Math.max(1, dur || 21600000))}</div></div>`; }).join('')
+      + (s.dc.m.length ? `<div class="dim" style="margin-top:6px">Staying there: ${s.dc.m.map(([id, lv, sh]) => `${N(id)}${sh ? ' ✨' : ''} Lv ${lv}`).join(', ')}</div>` : '') + `</div>`;
+  }
   const next = s.goals.filter((g) => g !== scr && !g.bg && !(g.s === 'wait' && /\b(locked|closed)\b/i.test(g.y)));
   if (next.length) h += `<div class="card"><h3>Up Next</h3>${next.slice(0, 5).map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${g.s === 'paused' ? '❚❚ paused' : g.s === 'queued' ? '○ after the one above' : '◐ ' + esc(g.y || g.s)}</div></div></div>`).join('')}</div>`;
   if (s.trades) { const sp = s.trades.t.filter((t) => t[6] === 'spare'); h += `<div class="card"><h3>Trades</h3>${s.trades.t.length ? `${s.trades.t.length} Pokémon you're missing are on the board${sp.length ? ` · <span class="ok">${sp.length} for a spare</span>` : ' · none for a spare right now'}` : 'Nothing you\'re missing on the board.'}</div>`; }
