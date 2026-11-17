@@ -48,7 +48,7 @@
 </style>
 </head>
 <body>
-<header><div class="logo">M</div><div class="t"><b>Mega Remote</b><span id="sub">connecting…</span></div><button class="zbtn" data-z="-1">A−</button><button class="zbtn" data-z="1">A+</button></header>
+<header><div class="logo">M</div><div class="t"><b>Mega Remote</b><span id="sub">connecting…</span></div><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button><button class="zbtn" data-z="-1">A−</button><button class="zbtn" data-z="1">A+</button></header>
 <div class="tabs" id="tabs"></div>
 <main id="main"></main>
 <div class="toast" id="toast" style="opacity:0;pointer-events:none"></div>
@@ -100,21 +100,25 @@ function listen() {
   };
   es.onerror = () => setSub();
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { listen(); render(); } });
+// "I'm open": the PC sends live updates (about one a minute) only while this app is open, to stay
+// inside ntfy's free daily limit. Sent on open, every 2 minutes while visible, and by Refresh.
+let lastWatch = 0;
+function watchNow(force) { if (!pair || document.hidden) return; if (!force && Date.now() - lastWatch < 115000) return; lastWatch = Date.now(); cmd('watch', {}, '', null, true); }
+setInterval(() => watchNow(false), 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { listen(); watchNow(true); render(); } });
 
 // ---- commands ----
 const pending = new Map(); // id -> {label, at, cb}
-async function cmd(name, args = {}, label = '', cb = null) {
+async function cmd(name, args = {}, label = '', cb = null, quiet = false) {
   if (!pair) return;
   const id = rid();
-  pending.set(id, { label: label || name, at: Date.now(), cb });
-  toast(`Sending: ${label || name}…`);
+  if (!quiet) { pending.set(id, { label: label || name, at: Date.now(), cb }); toast(`Sending: ${label || name}…`); }
   try {
     const body = await seal({ id, ts: Date.now(), cmd: name, args });
     const n = Math.ceil(body.length / 3000), mid = rid().slice(0, 6);
     for (let i = 0; i < n; i++) await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic: pair.c, message: `M1|${mid}|${i + 1}/${n}|${body.slice(i * 3000, (i + 1) * 3000)}`, priority: 1 }) });
-    toast(`Sent: ${label || name} - waiting for your PC…`);
-  } catch (e) { toast('Could not send: ' + e.message); pending.delete(id); }
+    if (!quiet) toast(`Sent: ${label || name} - waiting for your PC…`);
+  } catch (e) { if (!quiet) toast('Could not send: ' + e.message); pending.delete(id); }
   return id;
 }
 function onSnap() {
@@ -141,7 +145,7 @@ function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
   const s = Math.round((Date.now() - snap.at) / 1000);
-  el.innerHTML = s < 90 ? `<span class="ok">● live</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> - is the PC on?`;
+  el.innerHTML = s < 150 ? `<span class="ok">● live</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
 }
 setInterval(setSub, 5000);
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
@@ -358,6 +362,7 @@ document.addEventListener('click', async (e) => {
     catch { toast('That isn\'t a Mega Remote setup link'); }
     return;
   }
+  if (x === 'refresh') { lastWatch = 0; watchNow(true); toast('Asked your PC for an update…'); return; }
   if (x === 'loadDex') cmd('dex.missing', {}, 'Load missing Pokémon', (r, data) => { ui.dex = data || []; render(); });
   if (x === 'dexOpen') openDex(+t.dataset.id);
   if (x === 'dexBack') { ui.dexInfo = null; render(); }
@@ -416,6 +421,7 @@ function askConfirm(text) {
 applyZoom();
 render();
 listen();
+watchNow(true);
 </script>
 </body>
 </html>
