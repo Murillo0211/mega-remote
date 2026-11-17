@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.24.2
+// @version      0.25.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.24.2';
+const VERSION = '0.25.0';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -402,9 +402,13 @@ const Sim = (() => {
   function zoneOf(foeId, tier = 0) {
     const LZ = G().LegendZones, z = LZ.get(foeId);
     if (!z) return null;
-    const base = { id: foeId, foe: foeId, hp: z.hp, power: z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true };
-    // the strength the game really used the last time you fought it (Calib keeps it from the Recorder)
-    let obs = null; try { obs = Calib.observed(foeId, tier); } catch {}
+    // weekly forms (Deoxys): fight this week's form with its own stats and strength
+    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch {} }
+    const fk = form && form !== foeId ? (z.formKnobs || {})[form] : null;
+    const base = { id: foeId, foe: fk ? form : foeId, hp: fk?.hp ?? z.hp, power: fk?.power ?? z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true };
+    // the strength the game really used the last time you fought it (Calib keeps it from the Recorder);
+    // not for a new form - those fights were against a different form
+    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch {} }
     if (!tier) return obs ? { ...base, hp: obs.hp, power: obs.power, observed: true } : base;
     const EL = C().ELITE || {};
     let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch {}
@@ -1279,11 +1283,22 @@ const Legends = (() => {
 
   function list() {
     const zs = E.get('LegendZones.ZONES') || [];
+    const DX = E.get('Game.DEX') || {}, owns = (id) => !!safe(() => E.read('Game.owns', false, id), false);
     return zs.map((z) => {
       const p = safe(() => LZ().progress(z));
+      // weekly forms (Deoxys at Birth Island): the game offers one form you don't own each week, picked at the
+      // weekly reset (LegendZones.foe = this week's); each form has its own strength (formKnobs)
+      let forms = null, form = null, allForms = null, kn = null;
+      if (Array.isArray(z.forms) && z.forms.length) {
+        forms = z.forms.map((id) => ({ id, name: DX[id]?.name || '#' + id, owned: owns(id) }));
+        allForms = forms.every((f) => f.owned);
+        form = allForms ? null : safe(() => +LZ().foe(z), null) || null;
+        kn = form && form !== z.id ? (z.formKnobs || {})[form] || null : null;
+      }
       return {
-        id: z.id, name: E.get('Game.DEX')?.[z.id]?.name || '#' + z.id, region: z.region, place: z.zone || z.at,
-        level: z.level, hp: z.hp, power: z.power, burst: z.burst, weather: z.weather || null,
+        id: z.id, name: DX[z.id]?.name || '#' + z.id, region: z.region, place: z.zone || z.at,
+        level: z.level, hp: kn?.hp ?? z.hp, power: kn?.power ?? z.power, burst: z.burst, weather: z.weather || null,
+        forms, form, formName: form ? DX[form]?.name || null : null, allForms,
         state: safe(() => LZ().state(z), 'locked'), when: safe(() => LZ().whenText(z)),
         progress: p ? { text: p.text, have: p.have, need: p.need, braille: !!p.braille, lines: (p.lines || []).map((l) => ({ text: l.text, have: l.have, need: l.need })) } : null,
       };
@@ -1645,6 +1660,11 @@ Views.legends = (w, ui, esc) => {
     h += `<div class="card"><h3>${esc(sel.name)} <span class="dim">Lv ${sel.level}</span></h3>
       <div class="row"><span class="k">Zone</span><span class="v">${label[sel.state] || esc(sel.state)}</span></div>
       <div class="row"><span class="k">When</span><span class="v">${esc(sel.when || '?')}</span></div>`;
+    if (sel.forms) {
+      h += `<div class="row"><span class="k">This week</span><span class="v">${sel.allForms ? '<span class="ok">every form caught</span>' : sel.form ? `${esc(sel.formName || name(sel.form))}${Engine.read('Game.owns', false, sel.form) ? ' <span class="ok">· caught</span>' : ''}` : '?'}</span></div>`;
+      h += `<div class="grid" style="margin-top:6px">${sel.forms.map((f) => `<div class="mon ${f.owned ? '' : 'unk'}"><img src="${Engine.sprite(f.id)}" alt="">${esc(f.name.replace(/^.*\(|\)$/g, '') || f.name)}<br><span class="${f.owned ? 'ok' : 'dim'}">${f.owned ? '✓ caught' : sel.form === f.id ? 'this week' : 'later'}</span></div>`).join('')}</div>`;
+      h += `<div class="note dim" style="margin-top:8px">One form you don't own appears each week, at the weekly reset (Sunday 4 PM). The game picks it at random from the ones you're missing.</div>`;
+    }
     if (sel.progress) {
       h += `<div class="row"><span class="k">Unlock</span><span class="v">${sel.progress.have >= sel.progress.need ? '<span class="ok">done</span>' : `${sel.progress.have}/${sel.progress.need}`}</span></div>`;
       if (sel.progress.text) h += `<div class="note">${esc(sel.progress.text)}</div>`;
@@ -3804,12 +3824,26 @@ const GoalTypes = (() => {
 
   const legend = {
     uses: 'screen',
-    label: (g) => `Catch ${name(g.foe)}`,
-    sprite: (g) => g.foe,
+    label: (g) => g.forms ? `Catch every ${name(g.foe)} form` : `Catch ${name(g.foe)}`,
+    sprite: (g) => g.formNow || g.foe,
     check(g) {
       const z = Legends.get(g.foe);
       if (!z) return { state: 'wait', why: 'not in the game data' };
-      if (z.state === 'done' || E.read('Game.owns', false, g.foe)) return { state: 'done', why: 'caught' };
+      if (z.forms) {
+        // weekly forms: done when you own every form; otherwise hunt this week's, then wait for the reset
+        if (!g.forms) { g.forms = true; Plan.save(); }
+        if (z.allForms) return { state: 'done', why: `every form caught (${z.forms.length})` };
+        const left = z.forms.filter((f) => !f.owned).map((f) => f.name.replace(/^.*\(|\)$/g, '')).join(', ');
+        if (z.form && g.formNow !== z.form) {
+          const first = g.formNow == null; g.formNow = z.form; Plan.save();
+          Legends.dropSim(g.foe); // last week's team was built for another form
+          if (!E.read('Game.owns', false, z.form)) {
+            Log.add(`${z.formName} is at ${z.place || 'its zone'} this week - still missing: ${left}`);
+            if (!first) try { Notify.send('win', `${z.formName} is here this week`, `New weekly form at ${z.place || 'its zone'}. Mega will hunt it. Still missing: ${left}.`); } catch {}
+          }
+        }
+        if (!z.form || E.read('Game.owns', false, z.form)) return { state: 'wait', why: `this week's form is caught - a new one comes at the weekly reset (Sunday 4 PM). Still missing: ${left}` };
+      } else if (z.state === 'done' || E.read('Game.owns', false, g.foe)) return { state: 'done', why: 'caught' };
       if (z.state === 'closed') return { state: 'wait', why: `zone closed right now (${z.when || 'time window'})` };
       if (z.state !== 'open') return { state: 'wait', why: `locked - ${z.progress?.text || 'requirement missing'}` };
       if (pending.has(g.foe)) return { state: 'wait', why: 'finding the best team…' };
@@ -3836,8 +3870,8 @@ const GoalTypes = (() => {
         } else if (zt.length < 6) { autoTeam(id); return 'finding the best team…'; }
         return (await ctx.enter(id)) ? `entered ${name(id)}'s zone` : `entering ${name(id)}'s zone…`;
       }
-      const b = S().adv?.battle;
-      const vs = b && (b.enemies || []).some((e) => +e.id === id);
+      const b = S().adv?.battle, form = g.forms ? g.formNow : null;
+      const vs = b && (b.enemies || []).some((e) => +e.id === id || (form && +e.id === form));
       // already inside, but with a different team than planned (a new search, or the game dropped
       // someone): switch between fights - set the team, then leave and re-enter (re-entering heals)
       const sim = Legends.sims()[id], zt = E.read('Game.zoneTeam', [], id) || [];
@@ -3849,9 +3883,9 @@ const GoalTypes = (() => {
         await ctx.enter(id, true);
         return `switched to the planned team (${sim.uids.length} Pokémon) and re-entered`;
       }
-      const tries = +(S().legTries?.[id] ?? 0);
-      const berry = Berries.keep('capture', `catching ${name(id)}`);
-      return `${vs ? 'fighting' : 'in the zone'} · ${tries} capture tr${tries === 1 ? 'y' : 'ies'} so far${berry}`;
+      const tries = +(S().legTries?.[form || id] ?? 0);
+      const berry = Berries.keep('capture', `catching ${name(form || id)}`);
+      return `${form ? name(form) + ' · ' : ''}${vs ? 'fighting' : 'in the zone'} · ${tries} capture tr${tries === 1 ? 'y' : 'ies'} so far${berry}`;
     },
   };
 
@@ -5310,7 +5344,20 @@ const Plan = (() => {
   function retry(id) { const g0 = st.goals.find((x) => x.id === id); if (g0 && ['elite', 'league'].includes(g0.type)) { g0.force = true; g0.lost = {}; save(); }
     const g = g0; if (g && g.type === 'legend' && failsFor === g.foe) { fails = 0; lastEnter = 0; } tick(); }
 
+  // weekly-form zones (Deoxys): once its zone is unlocked and a form is still missing, add a
+  // "Catch every <name> form" goal - once; if you remove it, Mega won't add it again
+  function formGoals() {
+    try {
+      for (const z of Legends.list()) {
+        if (!z.forms || z.allForms || z.state === 'locked' || z.state === 'sealed') continue;
+        const key = 'mega-formgoal-' + z.id; if (localStorage.getItem(key)) continue;
+        if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
+        localStorage.setItem(key, '1');
+      }
+    } catch {}
+  }
   function boot() {
+    setTimeout(formGoals, 20_000);
     if (timer) return;
     timer = setInterval(tick, 3000); setTimeout(tick, 1500);
     Recorder.onFight((f) => { if (st.goals.some((g) => g.type === 'legend' && g.foe === f.foeId && !g.done)) Log.add(`${E.get('Game.DEX')?.[f.foeId]?.name} fight: ${f.outcome === 'ko' ? 'KO' : f.outcome}`); });
