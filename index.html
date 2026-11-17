@@ -554,13 +554,90 @@ function vLegend() {
   }
   return h;
 }
-function vTrades() {
-  const s = snap; if (!s.trades) return `<div class="card">Trades haven't been read yet.</div>`;
-  const T = s.trades.t; let h = `<div class="card"><h3>Trade Board</h3><div>${T.length} Pokémon you're missing are on the board · checked ${at(s.trades.at)}</div><button class="btn" data-c="trades.refresh" data-l="Refresh trades">Refresh Now</button><div class="dim" style="margin-top:8px">Accepting needs the game window: remote in and use Open in Game in Mega.</div></div>`;
-  const TAG = { spare: ['ok', '✓ spare'], last: ['warn', 'your last'], busy: ['warn', 'in use'], none: ['dim', 'need it'] };
-  if (T.length) h += `<div class="grid">${T.map(([id, sh, n, can, nw, to, best]) => { const [c, t] = TAG[best] || TAG.none; return `<div class="mon" ${best === 'spare' ? 'style="border-color:#2f8f5b"' : ''}><img src="${SPRITE(id)}" loading="lazy">${sh ? '✨' : ''}${N(id)}<div style="font-size:12px">${n} offers</div><div style="font-size:12px"><span class="${can ? 'ok' : 'dim'}">${can} can do</span> · <span class="dim">${n - can} can't</span></div>${nw ? '<div class="ok" style="font-weight:800;font-size:12px">NEW</div>' : to ? `<div class="ok" style="font-size:12px">→ ${N(to)} NEW</div>` : ''}<div class="${c}" style="font-size:12px">${t}</div></div>`; }).join('')}</div>`;
+// ---- Trades: the board, each species' offers with what you'd give and pay, accept and post ----
+// Nothing trades unless you tap Trade / Post here AND confirm the summary; Mega then makes the same
+// taps in the game on your PC and checks the game's own confirmation matches before the last tap.
+const tr = { sel: null, data: null, loading: false, give: {}, mode: null, want: null, wq: '', hits: null, opts: null, friends: false };
+function openTrades(id, sh) { tr.sel = { id, sh }; tr.data = null; tr.give = {}; if (!wideNow()) window.scrollTo({ top: 0, behavior: 'smooth' }); render(); loadOffers(); }
+function loadOffers() { if (!tr.sel) return; tr.loading = true; cmd('trade.offers', { id: tr.sel.id, shiny: !!tr.sel.sh }, 'Load offers', (r, data) => { tr.loading = false; if (data) { tr.data = data; Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); } render(); }, true); }
+const until1 = (t) => { const m = Math.max(0, Math.round((t - Date.now()) / 60000)); return m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)} h` : `${Math.round(m / 1440)} days`; };
+function offerList() {
+  if (!tr.sel) return wideNow() ? `<div class="card"><div class="dim">Tap a Pokémon on the board to see its offers and trade.</div></div>` : '';
+  const D = tr.data, o = D?.o, { id, sh } = tr.sel;
+  let h = `<div class="card"><div class="flex">${img(id, 64)}<div class="grow"><b style="font-size:19px">${sh ? '✨ ' : ''}${N(id)}</b>${o ? `<div class="dim">${o.list.length} offer${o.list.length === 1 ? '' : 's'}${o.newGet ? ' · <span class="ok">new for your Pokédex</span>' : o.newTo ? ` · becomes ${N(o.to)} (new)` : ''}</div>` : ''}</div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="trClose">✕</button></div></div>`;
+  if (!D) return h + `<div class="card dim">Loading offers from your PC…</div>`;
+  if (!o) return h + `<div class="card dim">This one isn't on the board any more. Tap ⟳ Refresh.</div>`;
+  for (const x of o.list) {
+    const opts = x.give, pick = tr.give[x.tid] ?? 0, g = opts[pick];
+    h += `<div class="card"><div class="flex"><div class="grow"><b>${esc(x.who)}</b><div class="dim">gives ${sh ? 'a shiny ' : ''}${N(id)}${x.lv ? ` Lv ${x.lv}` : ''}${x.egg ? ' (egg)' : ''} · ⏳ ${until1(x.until)}</div></div><div style="text-align:center">${img(x.want, 44)}<div class="dim" style="font-size:12px">wants ${N(x.want)}</div></div></div>
+      ${opts.length ? `<div class="lbl" style="margin-top:8px">YOU'D GIVE</div><div class="chips">${opts.slice(0, 8).map((m, i) => `<button class="chip ${i === pick ? 'on' : ''}" data-x="trGive" data-v="${esc(x.tid)}" data-i="${i}">${N(m.id)} Lv ${m.lv}${m.shiny ? ' ✨' : ''}${m.rank ? ' ★' + m.rank : ''}${m.team ? ' ⚔️' : ''}</button>`).join('')}</div>
+        ${row('Fee', x.fee ? `₽${x.fee.toLocaleString()}` : 'none')}${x.kind === 'last' ? `<div class="warn" style="font-size:14px">This is your only ${N(x.want)}.</div>` : ''}
+        <button class="btn gold" data-x="trAccept" data-v="${esc(x.tid)}">⇄ Trade</button>`
+      : `<div class="dim" style="margin-top:6px">You have no ${N(x.want)} free to give${x.kind === 'busy' ? ' (yours are in use)' : ''}.</div>`}</div>`;
+  }
   return h;
 }
+function postView() {
+  let h = `<div class="card"><div class="flex"><b class="grow" style="font-size:19px">Post a Trade</b><button class="btn sm" style="width:auto;padding:8px 12px" data-x="trPostX">✕</button></div>`;
+  if (snap.myTrade) return h + `<div class="warn" style="margin-top:8px">You already have an offer posted: your ${N(snap.myTrade.give?.id)}${snap.myTrade.give ? ' Lv ' + snap.myTrade.give.lv : ''} for ${N(snap.myTrade.want)}. The game allows one at a time.</div></div>`;
+  if (!tr.want) {
+    h += `<div class="dim" style="margin-top:6px">Step 1: the Pokémon you want.</div><input type="text" id="trQ" value="${esc(tr.wq)}" placeholder="Search a species…" autocomplete="off">`;
+    if (tr.hits) h += `<div class="boxgrid">${tr.hits.slice(0, 40).map(([id, n, r]) => `<div class="bx" data-x="trWant" data-v="${id}"><img src="${SPRITE(id)}" loading="lazy" alt=""><div>${esc(n)}</div><div class="${r ? 'dim' : 'ok'}">${r ? 'have it' : 'new'}</div></div>`).join('') || '<div class="dim">No match.</div>'}</div>`;
+    return h + `</div>`;
+  }
+  h += `<div class="flex" style="margin-top:8px">${img(tr.want, 48)}<div class="grow">You want <b>${N(tr.want)}</b></div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="trWantX">Change</button></div>`;
+  if (!tr.opts) return h + `<div class="dim">Loading your Pokémon of the same rarity…</div></div>`;
+  if (!tr.opts.length) return h + `<div class="warn" style="margin-top:8px">You have nothing of the same rarity free to offer for ${N(tr.want)}.</div></div>`;
+  h += `<div class="dim" style="margin-top:8px">Step 2: the Pokémon you offer (same rarity). It leaves your PC while the offer is live (3 days).</div>
+    <div class="boxgrid">${tr.opts.slice(0, 120).map((m) => `<div class="bx" data-x="trOffer" data-v="${esc(m.uid)}"><img src="${SPRITE(m.id)}" loading="lazy" alt=""><div>${N(m.id)}</div><div class="dim">Lv ${m.lv}${m.rank ? ' ★' + m.rank : ''}${m.team ? ' ⚔️' : ''}</div></div>`).join('')}</div>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" id="trFriends" ${tr.friends ? 'checked' : ''}> Friends only</label></div>`;
+  return h;
+}
+function vTrades() {
+  const s = snap; if (!s.trades) return `<div class="card">Trades haven't been read yet.</div>`;
+  const T = s.trades.t;
+  if (tr.mode === 'post') return postView();
+  let h = `<div class="card"><h3>Trade Board</h3><div>${T.length} Pokémon you're missing are on the board · checked ${at(s.trades.at)}</div>
+    ${s.myTrade ? `<div class="ok" style="margin-top:6px">Your offer: ${N(s.myTrade.give?.id)}${s.myTrade.give ? ' Lv ' + s.myTrade.give.lv : ''} for ${N(s.myTrade.want)}${s.myTrade.until ? ` · ⏳ ${until1(s.myTrade.until)}` : ''}</div>` : ''}
+    <div class="flex" style="gap:8px"><button class="btn" data-c="trades.refresh" data-l="Refresh trades">⟳ Refresh</button><button class="btn gold" data-x="trPost">＋ Post a Trade</button></div></div>`;
+  const TAG = { spare: ['ok', '✓ spare'], last: ['warn', 'your last'], busy: ['warn', 'in use'], none: ['dim', 'need it'] };
+  if (T.length) h += `<div class="card"><div class="boxgrid">${T.map(([id, sh, n, can, nw, to, best]) => { const [c, t] = TAG[best] || TAG.none; return `<div class="bx ${tr.sel?.id === id && !!tr.sel?.sh === !!sh ? 'sel' : ''}" data-x="trOpen" data-v="${id}" data-sh="${sh ? 1 : 0}" ${best === 'spare' ? 'style="border-color:#2f8f5b"' : ''}>${sh ? '<span class="tag">✨</span>' : ''}<img src="${SPRITE(id)}" loading="lazy" alt=""><div>${N(id)}</div><div class="dim">${n} offer${n === 1 ? '' : 's'}</div><div><span class="${can ? 'ok' : 'dim'}">${can} can do</span></div>${nw ? '<div class="ok" style="font-weight:800">NEW</div>' : to ? `<div class="ok">→ ${N(to)}</div>` : ''}<div class="${c}">${t}</div></div>`; }).join('')}</div></div>`;
+  const det = offerList();
+  return wideNow() ? `<div class="boxwrap"><div>${h}</div><div class="side">${det}</div></div>` : det + h;
+}
+// a confirmation sheet with the full summary (the only way a trade is sent)
+function confirmSheet(html, okLabel) {
+  return new Promise((res) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:9;padding:16px';
+    d.innerHTML = `<div class="card" style="max-width:440px;width:100%;max-height:90vh;overflow:auto">${html}<button class="btn gold" data-ok>${okLabel}</button><button class="btn" data-no>Cancel</button></div>`;
+    d.onclick = (e) => { if (e.target.closest('[data-ok]')) { d.remove(); res(true); } else if (e.target.closest('[data-no]') || e.target === d) { d.remove(); res(false); } };
+    document.body.appendChild(d);
+  });
+}
+async function tradeAccept(tid) {
+  const o = tr.data?.o, x = o?.list.find((y) => y.tid === tid); if (!x) return;
+  const g = x.give[tr.give[tid] ?? 0]; if (!g) return;
+  const after = (tr.data.money || 0) - (x.fee || 0);
+  const html = `<h3>Trade with ${esc(x.who)}?</h3>
+    <div class="flex" style="justify-content:space-around;text-align:center;margin:8px 0"><div>${img(g.id, 64)}<div class="lbl">YOU GIVE</div><b>${N(g.id)} Lv ${g.lv}${g.shiny ? ' ✨' : ''}</b></div><div style="font-size:26px">⇄</div><div>${img(o.id, 64)}<div class="lbl">YOU GET</div><b>${o.shiny ? '✨ ' : ''}${N(o.id)}${x.lv ? ' Lv ' + x.lv : ''}</b></div></div>
+    ${row('Fee', x.fee ? `₽${x.fee.toLocaleString()}` : 'none')}${row('Your money after', `₽${after.toLocaleString()}`)}
+    ${g.rank ? `<div class="warn">Your ${N(g.id)} is rank ★${g.rank}: the rank does not go with it.</div>` : ''}${g.team ? `<div class="warn">It's on your team.</div>` : ''}${x.kind === 'last' ? `<div class="warn">It's your only ${N(g.id)}.</div>` : ''}${after < 0 ? `<div class="bad">Not enough money for the fee.</div>` : ''}
+    <div class="dim" style="font-size:13px;margin-top:8px">Mega makes the trade in the game on your PC and checks the game's own confirmation matches this before the last tap. A trade can't be undone.</div>`;
+  if (after < 0 || !await confirmSheet(html, '⇄ Trade')) return;
+  cmd('trade.accept', { ok: true, id: o.id, shiny: o.shiny, tid: x.tid, who: x.who, want: x.want, give: g.uid, fee: x.fee || 0 }, `Trade with ${x.who}`, () => { loadOffers(); });
+}
+async function tradePost(uid) {
+  const m = tr.opts.find((y) => y.uid === uid); if (!m) return;
+  const html = `<h3>Post this trade?</h3>
+    <div class="flex" style="justify-content:space-around;text-align:center;margin:8px 0"><div>${img(m.id, 64)}<div class="lbl">YOU OFFER</div><b>${N(m.id)} Lv ${m.lv}</b></div><div style="font-size:26px">⇄</div><div>${img(tr.want, 64)}<div class="lbl">YOU WANT</div><b>${N(tr.want)}</b></div></div>
+    ${row('While it\'s live', `your ${N(m.id)} leaves your PC (3 days)`)}${row('Who sees it', tr.friends ? 'friends only' : 'everyone')}
+    ${m.rank ? `<div class="warn">Your ${N(m.id)} is rank ★${m.rank}: the rank does not go with it if it's traded.</div>` : ''}${m.team ? `<div class="warn">It's on your team.</div>` : ''}
+    <div class="dim" style="font-size:13px;margin-top:8px">Mega posts it in the game on your PC and checks the game's confirmation names this Pokémon before the last tap.</div>`;
+  if (!await confirmSheet(html, '＋ Post Trade')) return;
+  cmd('trade.post', { ok: true, want: tr.want, give: m.uid, friends: tr.friends }, 'Post trade', (res) => { if (/^posted/.test(res)) { tr.mode = null; tr.want = null; tr.opts = null; render(); } });
+}
+
 function vGems() {
   const g = snap.gems; if (!g) return `<div class="card">No gem data.</div>`;
   return `<div class="card"><h3>Biggest Upgrades Right Now</h3><div class="dim">${g.total} gems. Ranking up needs the game window - remote in and use Open in Game on the Gems tab.</div>${g.top.map(([id, gain, label, need, r, sh], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div></div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
@@ -713,6 +790,7 @@ function render() {
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
   $('#main').className = ['now', 'act', 'plan', 'set', 'gems'].includes(tab) ? 'cols' : '';
   $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
+  if (focus === 'trQ') { const el = $('#trQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'dxQ') { const el = $('#dxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'bxQ') { const el = $('#bxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'tmQ') { const el = $('#tmQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
@@ -733,6 +811,15 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'trOpen') { openTrades(+t.dataset.v, t.dataset.sh === '1'); return; }
+  if (x === 'trClose') { tr.sel = null; tr.data = null; render(); return; }
+  if (x === 'trGive') { tr.give[t.dataset.v] = +t.dataset.i; render(); return; }
+  if (x === 'trAccept') { tradeAccept(t.dataset.v); return; }
+  if (x === 'trPost') { tr.mode = 'post'; tr.want = null; tr.opts = null; tr.hits = null; tr.wq = ''; window.scrollTo(0, 0); render(); return; }
+  if (x === 'trPostX') { tr.mode = null; render(); return; }
+  if (x === 'trWant') { tr.want = +t.dataset.v; tr.opts = null; render(); cmd('trade.postopts', { want: tr.want }, 'Load your Pokémon', (r, data) => { if (data) { tr.opts = data.opts || []; Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); } render(); }, true); return; }
+  if (x === 'trWantX') { tr.want = null; tr.opts = null; render(); return; }
+  if (x === 'trOffer') { tradePost(t.dataset.v); return; }
   if (x === 'bxOpen') { openMon(t.dataset.v); if (!wideNow()) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (x === 'bxClose') { bx.sel = null; bx.info = null; render(); return; }
   if (x === 'bxF') { bx.f = t.dataset.v; bx.show = 120; render(); return; }
@@ -790,6 +877,7 @@ document.addEventListener('click', async (e) => {
   if (x === 'unpair') { if (await askConfirm('Unpair this phone? You can pair again from Mega\'s Settings.')) { localStorage.clear(); pair = null; snap = null; history.replaceState(null, '', location.pathname); try { es?.close(); } catch {} render(); } }
 });
 document.addEventListener('change', (e) => {
+  if (e.target.id === 'trFriends') { tr.friends = e.target.checked; }
   const t = e.target;
   if (t.id === 'addType') { ui.addType = t.value; ui.addVal = ''; if (t.value === 'legend' && !ui.sims) loadSims(); if (t.value === 'item' && !ui.items) loadItems(); render(); }
   if (t.id === 'addVal' && ui.addType === 'item') { ui.addVal = t.value; render(); return; }
@@ -804,6 +892,7 @@ document.addEventListener('change', (e) => {
 });
 let qT = null;
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'trQ') { tr.wq = e.target.value; clearTimeout(qT); if (tr.wq.trim().length < 2) { tr.hits = null; render(); return; } qT = setTimeout(() => cmd('dex.search', { q: tr.wq.trim() }, 'Search', (r, data) => { tr.hits = data || []; render(); }, true), 600); render(); return; }
   if (e.target.id === 'dxQ') { dx.q = e.target.value; dx.show = 200; render(); return; }
   if (e.target.id === 'bxQ') { bx.q = e.target.value; bx.show = 120; render(); return; }
   if (e.target.id === 'tmQ') { tm.q = e.target.value; render(); return; }
