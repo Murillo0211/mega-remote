@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
-  :root{--bg:#120f24;--card:#1b1633;--line:#2b2450;--txt:#ece9ff;--dim:#9c95c4;--ok:#5ad68a;--warn:#ffb547;--bad:#ff6b6b;--gold:#ffd45e;--acc:#7a5cff}
+  :root{--bg:#120f24;--card:#1b1633;--line:#2b2450;--txt:#ece9ff;--dim:#9c95c4;--ok:#5ad68a;--warn:#ffb547;--bad:#ff6b6b;--gold:#ffd45e;--acc:#7a5cff;--well:#16122b}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif}
   body{padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 24px)}
@@ -33,18 +33,18 @@
   .tools{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
   .bar{height:8px;background:#2a2450;border-radius:6px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#5ad68a,#7a5cff)}
   .flex{display:flex;gap:12px;align-items:center}.grow{flex:1;min-width:0}
-  img.sp{image-rendering:pixelated;background:#16122b;border-radius:12px;flex:none}
+  img.sp{image-rendering:pixelated;background:var(--well);border-radius:12px;flex:none}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
-  .mon{background:#16122b;border:1px solid #2e2752;border-radius:12px;padding:6px 4px;text-align:center;font-size:13px}.mon img{width:60px;height:60px;image-rendering:pixelated;display:block;margin:0 auto}
+  .mon{background:var(--well);border:1px solid #2e2752;border-radius:12px;padding:6px 4px;text-align:center;font-size:13px}.mon img{width:60px;height:60px;image-rendering:pixelated;display:block;margin:0 auto}
   .mon.now{border-color:var(--ok)}
-  select,input[type=text],input[type=search]{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#16122b;color:var(--txt);font:16px inherit;margin-top:8px}
+  select,input[type=text],input[type=search]{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--well);color:var(--txt);font:16px inherit;margin-top:8px}
   label.chk{display:flex;gap:10px;align-items:center;padding:8px 0;font-size:16px}label.chk input{width:22px;height:22px}
   .toast{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 14px);background:#2c2552;border:1px solid var(--acc);border-radius:14px;padding:12px 14px;font-weight:600;box-shadow:0 8px 30px #000a;transition:opacity .3s}
   .lbl{font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--dim)}
   .big{font-size:22px;font-weight:800}
   /* PC box */
   .boxgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
-  .bx{position:relative;background:#16122b;border:1px solid #2e2752;border-radius:12px;padding:4px 2px 5px;text-align:center;font-size:12px;line-height:1.15}
+  .bx{position:relative;background:var(--well);border:1px solid #2e2752;border-radius:12px;padding:4px 2px 5px;text-align:center;font-size:12px;line-height:1.15}
   .bx img{width:52px;height:52px;image-rendering:pixelated;display:block;margin:0 auto}
   .bx.sel{border-color:#9c86ff;box-shadow:0 0 0 2px #9c86ff55}
   .bx .tag{position:absolute;top:3px;right:4px;font-size:11px}
@@ -388,7 +388,7 @@ function vTeam() {
   const q = tm.q.trim().toLowerCase();
   const list = tm.data.opts.filter((x) => !tm.draft.includes(x[0]) && (!q || N(x[1]).toLowerCase().includes(q))).slice(0, 90);
   h += `<div class="card"><input type="text" id="tmQ" value="${esc(tm.q)}" placeholder="Search your Pokémon…" autocomplete="off">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin-top:8px">${list.map((x) => `<div data-x="tmPick" data-v="${esc(x[0])}" style="padding:6px 2px;border-radius:12px;background:#1f1a38">${card(x)}</div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin-top:8px">${list.map((x) => `<div data-x="tmPick" data-v="${esc(x[0])}" style="padding:6px 2px;border-radius:12px;background:var(--well)">${card(x)}</div>`).join('')}</div>
     ${list.length ? '' : '<div class="dim">Nothing matches.</div>'}</div></div>`;
   return h;
 }
@@ -756,7 +756,7 @@ function chart(title, pts, opt = {}) { // pts: [[t, v]] - a small line chart wit
   const goal = opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="#c79a2b" stroke-dasharray="4 4"/>` : '';
   const eta = opt.need && rate > 0 && pts[pts.length - 1][1] < opt.need ? ` · done in about ${hm((opt.need - pts[pts.length - 1][1]) / rate * 3600000)}` : '';
   return `<div class="card"><h3>${esc(title)}</h3><div class="flex" style="justify-content:space-between"><b style="font-size:20px">${f(pts[pts.length - 1][1])}${opt.need ? ` <span class="dim" style="font-size:14px">of ${f(opt.need)}</span>` : ''}</b><span class="${ch > 0 ? 'ok' : ch < 0 ? 'warn' : 'dim'}">${ch > 0 ? '+' : ''}${f(ch)}</span></div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:#16122b;border-radius:12px">${goal}<path d="${d}" fill="none" stroke="#9c86ff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:var(--well);border-radius:12px">${goal}<path d="${d}" fill="none" stroke="#9c86ff" stroke-width="2.5" stroke-linejoin="round"/></svg>
     <div class="dim" style="display:flex;justify-content:space-between;font-size:12px"><span>${new Date(t0).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</span><span>now</span></div>
     ${rate != null && ch ? `<div class="dim" style="margin-top:4px">${rate >= 0 ? '+' : ''}${Math.abs(rate) < 10 && !opt.fmt ? rate.toFixed(1).replace(/\.0$/, '') : f(rate)} per hour${eta}</div>` : ''}</div>`;
 }
