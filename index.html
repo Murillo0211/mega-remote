@@ -67,6 +67,20 @@ if (location.hash.startsWith('#pair-')) {
   try { const p = JSON.parse(new TextDecoder().decode(unb64u(location.hash.slice(6)))); if (p.s && p.c && p.k) store.set('mr-pair', p); } catch {}
 }
 let pair = store.get('mr-pair', null);
+// Mega Relay mode: this page was opened from Jimmy's PC (its Tailscale address), not GitHub. Then
+// everything goes through the PC - no outside relay, no message limits - and pairing is automatic.
+const RELAY = /github\.io$/.test(location.hostname) || location.protocol === 'file:' ? null : location.origin;
+const fast = () => !!(RELAY || pair?.a);
+async function relayPair() {
+  try {
+    const r = await fetch(RELAY + '/pair', { cache: 'no-store' }); if (!r.ok) return false;
+    const p = await r.json(); if (!(p.s && p.c && p.k)) return false;
+    const changed = !pair || pair.k !== p.k || pair.s !== p.s || pair.c !== p.c;
+    pair = { s: p.s, c: p.c, k: p.k }; store.set('mr-pair', pair);
+    if (changed) { ck = null; parts.clear?.(); listen(); render(); lastWatch = 0; watchNow(true); }
+    return true;
+  } catch { return false; }
+}
 // text size (A− / A+), remembered on this phone
 const ZOOMS = [0.85, 0.95, 1, 1.1, 1.2, 1.35];
 let zoomI = store.get('mr-zoom', 2);
@@ -92,6 +106,7 @@ const ABLY = 'https://main.realtime.ably.net';
 function listen() {
   if (!pair) return;
   try { es?.close(); } catch {}
+  if (RELAY) { es = store.get('mr-poll', 0) ? relayPoll() : relayStream(); return; }
   if (pair.a) {
     // iPhone Safari's EventSource drops Ably's stream, so read it ourselves with fetch (works on iOS).
     // Ably apps only accept identified clients (error 40161): this phone is "mega-phone".
@@ -128,6 +143,55 @@ function ablyPoll() {
   return { close() { stopped = true; clearTimeout(timer); } };
 }
 let mode = 'stream';
+// Mega Relay (on the PC): live stream of {t, d} events; if the phone keeps cutting it, ask every 1 s.
+function relayStream() {
+  let stopped = false, ctl = null, tries = 0;
+  async function run() {
+    while (!stopped) {
+      ctl = new AbortController();
+      try {
+        const r = await fetch(`${RELAY}/sub/${encodeURIComponent(pair.s)}?rewind=12`, { signal: ctl.signal, headers: { Accept: 'text/event-stream' }, cache: 'no-store' });
+        if (!r.ok || !r.body) { relayWhy = `your PC said ${r.status}`; throw new Error('bad status'); }
+        relayErr = null; relayWhy = ''; tries = 0; mode = 'stream'; setSub();
+        const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', data = [];
+        for (;;) {
+          const { value, done } = await rd.read(); if (done) break;
+          buf += dec.decode(value, { stream: true }); let i;
+          while ((i = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1);
+            if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+            else if (line === '' && data.length) { try { const m = JSON.parse(data.join('\n')); lastT = Math.max(lastT, m.t || 0); onPart(String(m.d || '')); } catch {} data = []; }
+          }
+        }
+        relayWhy = 'the live stream was closed by the phone or network';
+      } catch (e) { if (stopped) return; if (!relayWhy) relayWhy = `can't reach your PC (${e.message || e}) - is Mega Relay running and Tailscale on?`; }
+      if (stopped) return;
+      relayErr = Date.now(); setSub();
+      if (++tries >= 3) { store.set('mr-poll', 1); stopped = true; es = relayPoll(); render(); return; }
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+  }
+  run();
+  return { close() { stopped = true; try { ctl?.abort(); } catch {} } };
+}
+let lastT = 0;
+function relayPoll() {
+  let stopped = false, timer = null, fails = 0, since = lastT || Date.now() - 60000;
+  async function once() {
+    if (stopped) return;
+    if (!document.hidden) {
+      try {
+        const r = await fetch(`${RELAY}/recent/${encodeURIComponent(pair.s)}?since=${since}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error(`your PC said ${r.status}`);
+        for (const m of await r.json()) { since = Math.max(since, m.t); lastT = since; onPart(String(m.d || '')); }
+        fails = 0; relayErr = null; relayWhy = ''; mode = 'poll'; setSub();
+      } catch (e) { if (++fails >= 2) { relayErr = Date.now(); relayWhy = `can't reach your PC (${e.message || e}) - is Mega Relay running and Tailscale on?`; setSub(); } }
+    }
+    if (!stopped) timer = setTimeout(once, 1000);
+  }
+  once();
+  return { close() { stopped = true; clearTimeout(timer); } };
+}
 function ablyStream(url) {
   let stopped = false, ctl = null, tries = 0;
   async function run() {
@@ -188,9 +252,9 @@ async function onPart(text) {
 // "I'm open": the PC sends live updates (about one a minute) only while this app is open, to stay
 // inside ntfy's free daily limit. Sent on open, every 2 minutes while visible, and by Refresh.
 let lastWatch = 0;
-function watchNow(force) { if (!pair || document.hidden) return; if (!force && Date.now() - lastWatch < (pair.a ? 55000 : 115000)) return; lastWatch = Date.now(); cmd('watch', {}, '', null, true); }
+function watchNow(force) { if (!pair || document.hidden) return; if (!force && Date.now() - lastWatch < (fast() ? 55000 : 115000)) return; lastWatch = Date.now(); cmd('watch', {}, '', null, true); }
 setInterval(() => watchNow(false), 10000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { listen(); watchNow(true); render(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (RELAY) relayPair(); listen(); watchNow(true); render(); } });
 
 // ---- commands ----
 const pending = new Map(); // id -> {label, at, cb}
@@ -200,13 +264,15 @@ async function cmd(name, args = {}, label = '', cb = null, quiet = false) {
   if (!quiet) { pending.set(id, { label: label || name, at: Date.now(), cb }); toast(`Sending: ${label || name}…`); }
   try {
     const body = await seal({ id, ts: Date.now(), cmd: name, args });
-    const size = pair.a ? 50000 : 3000, n = Math.ceil(body.length / size), mid = rid().slice(0, 6);
+    const size = fast() ? 50000 : 3000, n = Math.ceil(body.length / size), mid = rid().slice(0, 6);
     for (let i = 0; i < n; i++) {
       const msg = `M1|${mid}|${i + 1}/${n}|${body.slice(i * size, (i + 1) * size)}`;
-      const r = pair.a
+      const r = RELAY
+        ? await fetch(`${RELAY}/pub/${encodeURIComponent(pair.c)}`, { method: 'POST', body: msg })
+        : pair.a
         ? await fetch(`${ABLY}/channels/${encodeURIComponent(pair.c)}/messages`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(pair.a), 'Content-Type': 'application/json', 'X-Ably-ClientId': btoa('mega-phone') }, body: JSON.stringify({ name: 'm', data: msg }) })
         : await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic: pair.c, message: msg, priority: 1 }) });
-      if (!r.ok) throw new Error(r.status === 429 ? 'too many messages today - try again later' : 'relay said ' + r.status);
+      if (!r.ok) throw new Error(RELAY ? 'your PC said ' + r.status : r.status === 429 ? 'too many messages today - try again later' : 'relay said ' + r.status);
     }
     if (!quiet) toast(`Sent: ${label || name} - waiting for your PC…`);
   } catch (e) { if (!quiet) toast('Could not send: ' + e.message); pending.delete(id); }
@@ -245,11 +311,11 @@ let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
-  if (relayErr && Date.now() - relayErr < 20000) { el.innerHTML = `<span class="bad">● can't reach ${pair.a ? 'Ably' : 'ntfy'}</span> - retrying`; return; }
+  if (relayErr && Date.now() - relayErr < 20000) { el.innerHTML = `<span class="bad">● can't reach ${RELAY ? 'your PC' : pair.a ? 'Ably' : 'ntfy'}</span> - retrying`; return; }
   relayWhy = relayErr && Date.now() - relayErr < 20000 ? relayWhy : '';
   if (!snap) { el.textContent = 'waiting for your PC…'; return; }
   const s = Math.round((Date.now() - Math.max(snap.at, snap.live?.at || 0)) / 1000);
-  el.innerHTML = s < (pair.a ? 60 : 150) ? `<span class="ok">● live${pair.a ? (mode === 'poll' ? ' · every 2 s' : '') : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
+  el.innerHTML = s < (fast() ? 60 : 150) ? `<span class="ok">● live${RELAY ? ' from your PC' + (mode === 'poll' ? ' · every 1 s' : '') : pair.a ? (mode === 'poll' ? ' · every 2 s' : '') : ' (slow relay)'}</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> · tap ⟳`;
 }
 setInterval(setSub, 5000);
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
@@ -443,6 +509,7 @@ function vSet() {
 function render() {
   setSub();
   $('#tabs').innerHTML = pair ? TABS.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
+  if (!pair && RELAY) { $('#main').innerHTML = `<div class="card"><h3>Waiting for Mega</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b> and tick <b>Use Mega Relay on this PC</b>. This page pairs itself a few seconds later.</div></div>`; return; }
   if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
@@ -550,6 +617,7 @@ function askConfirm(text) {
 }
 applyZoom();
 render();
+if (RELAY) { relayPair().then(() => { if (!pair) setInterval(() => { if (!pair) relayPair(); }, 3000); }); setInterval(relayPair, 60000); }
 listen();
 watchNow(true);
 </script>
