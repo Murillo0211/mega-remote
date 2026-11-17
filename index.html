@@ -266,7 +266,7 @@ setInterval(setSub, 5000);
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const bar = (p) => `<div class="bar"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
 const img = (id, n = 52) => `<img class="sp" src="${SPRITE(id)}" width="${n}" height="${n}" loading="lazy">`;
-const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍' };
+const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' };
 const N = (id) => esc(snap?.nm?.[id] || '#' + id);
 const pic = (g, n = 48) => (g.sp ? img(g.sp, n) : `<span style="width:${n}px;text-align:center;font-size:${Math.round(n * .55)}px;flex:none">${ICON[g.t] || '🎯'}</span>`);
 const progTxt = (p) => (p ? `${p[3] ? '₽' : ''}${(+p[0]).toLocaleString()} of ${p[3] ? '₽' : ''}${(+p[1]).toLocaleString()}${p[2] ? ' ' + esc(p[2]) : ''}` : '');
@@ -448,12 +448,24 @@ function addCard(s) {
   h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: from the Pokédex tab. Elite tiers and the Elite League: from Simulate.</div></div>`;
   return h;
 }
-function vDex() {
-  let h = `<input type="search" id="dexQ" placeholder="Search any Pokémon…" value="${esc(ui.dexQ)}">`;
-  if (ui.dexInfo) {
-    const d = ui.dexInfo;
-    h = `<button class="btn" style="margin-top:0" data-x="dexBack">‹ Back to the Pokédex</button><div class="card" style="margin-top:12px"><div class="flex">${img(d.id, 88)}<div class="grow"><b style="font-size:20px">${esc(d.name)}</b><div class="dim">${esc((d.types || []).join(' / '))}</div><div>${d.reg ? '<span class="ok">registered</span>' : '<span class="bad">not registered</span>'}${d.owned ? ` · you own ${d.owned}` : ''}</div>${d.now ? `<div class="ok">● ${esc(d.now)}</div>` : ''}</div></div></div>`;
-    if (!d.reg) {
+// ---- Pokédex: every Pokémon of your open regions, with shiny hunting ----
+const dx = { all: null, at: 0, loading: false, reg: store.get('mr-dxr', null), f: 'all', q: '', show: 200 };
+function loadDexAll(user) { dx.loading = true; cmd('dex.all', {}, 'Load the Pokédex', (r, data) => { dx.loading = false; if (data?.regs) { dx.all = data; dx.at = Date.now(); Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); if (!dx.reg || !data.regs.some((x) => x[1] === dx.reg)) dx.reg = data.regs[data.regs.length - 1]?.[1]; } render(); }, !user); }
+function dexDetail(d) {
+  let h = `<div class="card" id="dxDetail"><div class="flex">${img(d.id, 80)}<div class="grow"><b style="font-size:20px">${esc(d.name)}</b><div class="dim">${esc((d.types || []).map(cap1).join(' / '))}</div><div>${d.reg ? '<span class="ok">registered</span>' : '<span class="warn">not registered yet</span>'}${d.owned ? ` · you own ${d.owned}` : ''}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="dexBack">✕</button></div></div>`;
+  // shiny
+  const sh = d.shiny || { ways: [] };
+  h += `<div class="card"><h3>✨ Shiny ${esc(d.name)}</h3>`;
+  if (sh.owned) h += `<div class="ok">You have a shiny one.</div>`;
+  else if (sh.hunt) h += `<div class="ok">🎯 Already hunting: ${esc(sh.hunt)}</div><div class="dim" style="margin-top:4px">Progress is on the Plan tab.</div>`;
+  else if (!sh.ways.length) h += `<div class="dim">No way for Mega to hunt this one yet: it isn't in the wild anywhere you can go, and you have no shiny from its family to breed.</div>`;
+  else sh.ways.forEach(([way, text, hours], i) => {
+    h += `<div style="${i ? 'border-top:1px solid var(--line);margin-top:10px;padding-top:10px' : ''}">${sh.ways.length > 1 ? `<div class="lbl">${i ? 'OR' : 'FASTEST'}${hours ? ` · ABOUT ${hm(hours * 3600000).toUpperCase()}` : ''}</div>` : hours ? `<div class="lbl">ABOUT ${hm(hours * 3600000).toUpperCase()}</div>` : ''}<div>${esc(text)}</div>
+      ${way === 'raid' ? `<button class="btn" data-c="shiny.add" data-a='{"id":${d.id},"way":${i}}' data-l="Make sure the Shiny Raid goal is on" data-after="dexHunt">Use the Shiny Raid</button>` : `<button class="btn ${i ? '' : 'gold'}" data-c="shiny.add" data-a='{"id":${d.id},"way":${i}}' data-l="Hunt a shiny ${esc(d.name)}" data-after="dexHunt">✨ Hunt Shiny</button>`}</div>`;
+  });
+  if (!sh.owned && sh.ways.length) h += `<div class="dim" style="font-size:13px;margin-top:10px">Times are rough averages - shinies are luck. Non-shiny catches and hatches stay in your PC (Mega never releases).</div>`;
+  h += `</div>`;
+  if (!d.reg) {
       h += `<div class="card"><h3>${d.ways.length > 1 ? 'Ways to Get It' : 'Best Way to Get It'}</h3>${d.plan ? `<div class="ok" style="margin-bottom:8px">Already in your plan: ${esc(d.plan)}</div>` : ''}`;
       const AUTO = ['legend', 'wild', 'evolve', 'special', 'loot', 'breed'];
       d.ways.forEach(([k, t], i) => {
@@ -467,16 +479,27 @@ function vDex() {
         h += `</div>`;
       });
       h += `</div>`;
-    }
-    return h;
   }
-  if (ui.dexQ.length >= 2) {
-    if (!ui.dexHits) return h + `<div class="card dim">Searching on your PC…</div>`;
-    return h + `<div class="grid" style="margin-top:10px">${ui.dexHits.map(([id, n, r]) => `<div class="mon" data-x="dexOpen" data-id="${id}"><img src="${SPRITE(id)}" loading="lazy">${esc(n)}<div class="${r ? 'ok' : 'dim'}">${r ? '✓' : 'missing'}</div></div>`).join('') || '<div class="dim">No match.</div>'}</div>`;
-  }
-  if (!ui.dex) return h + `<button class="btn gold" data-x="loadDex">Load Missing Pokémon</button>`;
-  for (const [name, , list] of ui.dex) h += `<div class="card" style="margin-top:12px"><h3>${esc(name)} <span class="dim">${list.length} missing</span></h3>${list.length ? `<div class="grid">${list.map(([id, n, now]) => `<div class="mon ${now ? 'now' : ''}" data-x="dexOpen" data-id="${id}"><img src="${SPRITE(id)}" loading="lazy">${esc(n)}</div>`).join('')}</div>` : '<div class="ok">Complete.</div>'}</div>`;
-  return h + `<div class="dim">Green border = can be caught right now. Tap one for every way to get it.</div>`;
+  return h;
+}
+function vDex() {
+  if (!dx.all) { if (!dx.loading) setTimeout(() => loadDexAll(false), 0); return `<div class="card"><h3>Pokédex</h3><div class="dim">Loading your Pokédex from your PC…</div></div>`; }
+  if (Date.now() - dx.at > 5 * 60000 && !dx.loading) setTimeout(() => loadDexAll(false), 0);
+  const A = dx.all, R = A.regs.find((x) => x[1] === dx.reg) || A.regs[0], q = dx.q.trim().toLowerCase();
+  const pool = q ? A.regs.flatMap((x) => x[2]).filter((v, i, arr) => arr.findIndex((y) => y[0] === v[0]) === i) : R[2];
+  const list = pool.filter(([id, reg, own, shiny, hunt]) => (!q || (A.nm[id] || '').toLowerCase().includes(q)) && (dx.f === 'all' || (dx.f === 'missing' && !reg) || (dx.f === 'noshiny' && !shiny) || (dx.f === 'shiny' && shiny) || (dx.f === 'hunt' && hunt)));
+  const cnt = (f) => R[2].filter(f).length;
+  let grid = `<div class="card"><h3>Pokédex</h3>
+    <div class="chips">${A.regs.map(([n, k, l]) => `<button class="chip ${R[1] === k && !q ? 'on' : ''}" data-x="dxReg" data-v="${k}">${esc(n)} ${l.filter((x) => x[1]).length}/${l.length}</button>`).join('')}</div>
+    <div class="dim" style="margin-top:8px">${esc(R[0])}: ${cnt((x) => x[1])} of ${R[2].length} registered · ✨ ${cnt((x) => x[3])} shiny</div>
+    <input type="text" id="dxQ" value="${esc(dx.q)}" placeholder="Search every region…" autocomplete="off">
+    <div class="chips">${[['all', 'All'], ['missing', 'Missing'], ['noshiny', 'No Shiny Yet'], ['shiny', '✨ Have Shiny'], ['hunt', '🎯 Hunting']].map(([k, l]) => `<button class="chip ${dx.f === k ? 'on' : ''}" data-x="dxF" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="boxgrid">${list.slice(0, dx.show).map(([id, reg, own, shiny, hunt]) => `<div class="bx ${ui.dexInfo?.id === id ? 'sel' : ''}" data-x="dexOpen" data-id="${id}">${shiny ? '<span class="tag">✨</span>' : hunt ? '<span class="tag">🎯</span>' : ''}<img src="${SPRITE(id)}" loading="lazy" alt="" style="${reg ? '' : 'filter:brightness(0);opacity:.45'}"><div class="${reg ? '' : 'dim'}">${esc(A.nm[id] || '#' + id)}</div><div class="dim">#${id % 10000}</div></div>`).join('') || '<div class="dim">Nothing here.</div>'}</div>
+    ${list.length > dx.show ? `<button class="btn" data-x="dxMore">Show More (${list.length - dx.show})</button>` : ''}
+    <div class="dim" style="font-size:13px;margin-top:8px">Dark = not registered yet · ✨ = you have a shiny · 🎯 = Mega is hunting its shiny. Tap one for ways to get it and to hunt a shiny.</div>
+    <button class="btn" data-x="dxReload">⟳ Refresh</button></div>`;
+  const det = ui.dexInfo ? dexDetail(ui.dexInfo) : wideNow() ? `<div class="card"><div class="dim">Tap a Pokémon to see how to get it, or to hunt a shiny one.</div></div>` : '';
+  return wideNow() ? `<div class="boxwrap"><div>${grid}</div><div class="side">${det}</div></div>` : det + grid;
 }
 function vSim() {
   const M = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'League']];
@@ -690,6 +713,7 @@ function render() {
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
   $('#main').className = ['now', 'act', 'plan', 'set', 'gems'].includes(tab) ? 'cols' : '';
   $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
+  if (focus === 'dxQ') { const el = $('#dxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'bxQ') { const el = $('#bxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'tmQ') { const el = $('#tmQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'actQ') { const el = $('#actQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
@@ -705,7 +729,7 @@ document.addEventListener('click', async (e) => {
   if (t.dataset.c) {
     if (t.dataset.confirm && !await askConfirm(t.dataset.confirm)) return;
     const after = t.dataset.after;
-    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'boxInfo' && bx.sel) openMon(bx.sel); if (after === 'sims') loadSims(); if (after === 'items') loadItems(); if (after === 'elite') loadElite(); if (after === 'league') loadLeague(); });
+    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'boxInfo' && bx.sel) openMon(bx.sel); if (after === 'dexHunt') { if (ui.dexInfo) openDex(ui.dexInfo.id); loadDexAll(false); } if (after === 'sims') loadSims(); if (after === 'items') loadItems(); if (after === 'elite') loadElite(); if (after === 'league') loadLeague(); });
     return;
   }
   const x = t.dataset.x;
@@ -737,7 +761,11 @@ document.addEventListener('click', async (e) => {
   }
   if (x === 'refresh') { lastWatch = 0; watchNow(true); toast('Asked your PC for an update…'); return; }
   if (x === 'loadDex') cmd('dex.missing', {}, 'Load missing Pokémon', (r, data) => { ui.dex = data || []; render(); });
-  if (x === 'dexOpen') openDex(+t.dataset.id);
+  if (x === 'dexOpen') { openDex(+t.dataset.id); return; }
+  if (x === 'dxReg') { dx.reg = t.dataset.v; dx.q = ''; dx.show = 200; store.set('mr-dxr', dx.reg); render(); return; }
+  if (x === 'dxF') { dx.f = t.dataset.v; dx.show = 200; render(); return; }
+  if (x === 'dxMore') { dx.show += 300; render(); return; }
+  if (x === 'dxReload') { loadDexAll(true); return; }
   if (x === 'dexBack') { ui.dexInfo = null; render(); }
   if (x === 'loadSims') loadSims();
   if (x === 'loadItems') loadItems();
@@ -776,6 +804,7 @@ document.addEventListener('change', (e) => {
 });
 let qT = null;
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'dxQ') { dx.q = e.target.value; dx.show = 200; render(); return; }
   if (e.target.id === 'bxQ') { bx.q = e.target.value; bx.show = 120; render(); return; }
   if (e.target.id === 'tmQ') { tm.q = e.target.value; render(); return; }
   if (e.target.id === 'actQ') { act.q = e.target.value; act.show = 80; render(); return; }
@@ -784,7 +813,7 @@ document.addEventListener('input', (e) => {
   if (ui.dexQ.length < 2) { render(); return; }
   qT = setTimeout(() => cmd('dex.search', { q: ui.dexQ }, 'Search', (r, data) => { ui.dexHits = data || []; render(); }), 700);
 });
-function openDex(id) { cmd('dex.info', { id }, 'Look up', (r, data) => { if (data) { ui.dexInfo = data; window.scrollTo(0, 0); render(); } }); }
+function openDex(id) { cmd('dex.info', { id }, 'Look up', (r, data) => { if (data) { ui.dexInfo = data; if (!wideNow()) window.scrollTo({ top: 0, behavior: 'smooth' }); render(); } }, true); }
 function loadElite() { cmd('elite.list', {}, 'Load elite legendaries', (r, data) => { ui.elite = data || []; render(); }); }
 function loadLeague() { cmd('league.list', {}, 'Load Elite League', (r, data) => { ui.league = data || []; render(); }); }
 function loadItems() { cmd('item.list', {}, 'Load rare items', (r, data) => { ui.items = data || []; render(); }); }
