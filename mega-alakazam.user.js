@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.23.6
+// @version      0.23.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,28 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.23.6';
+const VERSION = '0.23.7';
+// ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
+// Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
+// newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
+// (this copy keeps going), and one that fails to come up 3 times is never tried again.
+if ((() => {
+  try {
+    if (window.__MEGA_HOT) return false; // this IS the downloaded copy
+    const v = localStorage.getItem('mega-next-ver'), P = (x) => String(x).split('.').map((n) => +n || 0);
+    const newer = (a, b) => { const x = P(a), y = P(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+    if (!v || !newer(v, VERSION)) { if (v) { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } return false; }
+    if (localStorage.getItem('mega-next-bad') === v) return false;
+    const tries = +(localStorage.getItem('mega-next-try') || 0);
+    if (tries >= 3) { localStorage.setItem('mega-next-bad', v); return false; }
+    const code = localStorage.getItem('mega-next-code'); if (!code) return false;
+    localStorage.setItem('mega-next-try', String(tries + 1));
+    window.__MEGA_HOT = v;
+    const s = document.createElement('script'); s.textContent = code; (document.head || document.documentElement).appendChild(s); s.remove();
+    if (window.__MEGA_HOT_OK === v) return true;
+    window.__MEGA_HOT = null; return false; // it crashed while loading: run this copy instead
+  } catch { return false; }
+})()) return;
 
 // Mega Alakazam sprite supplied by Jimmy (2026-11-15), white background removed, 96 px wide
 const MEGA_ICON = 'data:image/png;base64,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';
@@ -1094,8 +1115,10 @@ const Views = (() => {
     { const U = Updater.info, av = Updater.available;
       h += `<div class="card"><h3>⬆ Updates</h3><div class="row"><span class="k">This version</span><span class="v">${esc(VERSION)}</span></div><div class="row"><span class="k">Newest on GitHub</span><span class="v ${U.err ? 'bad' : ''}">${U.err ? 'could not check: ' + esc(U.err) : U.latest ? esc(U.latest) + (av ? ' <span class="ok">· ready</span>' : ' · up to date') : 'checking…'}</span></div>${U.checkedAt ? `<div class="row"><span class="k">Checked</span><span class="v dim">${new Date(U.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></div>` : ''}
         ${av ? `<button class="btn" data-act="update">⬆ Update to ${esc(av)}</button>` : ''}<button class="btn" data-act="update-check">Check now</button>
-        <label class="chk" style="margin-top:6px"><input type="checkbox" data-act="update-auto" ${Updater.auto ? 'checked' : ''}> Reload the game by itself to pick up an update (at a safe moment)</label>
-        <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes. Hands-off: set Tampermonkey to update by itself (Tampermonkey → Settings → Script Update → Check Interval → the shortest it offers), and Mega reloads the game once it sees the new version - not during a zone, raid, tower or league. Or click Update to install it right away.</div></div>`; }
+        <label class="chk" style="margin-top:6px"><input type="checkbox" data-act="update-auto" ${Updater.auto ? 'checked' : ''}> Reload the game by itself to run an update (at a safe moment)</label>
+        <label class="chk"><input type="checkbox" data-act="update-continue" ${Updater.autoContinue ? 'checked' : ''}> Press Continue on the title screen after a reload</label>
+        <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
+        <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes and downloads a new version by itself; it runs the next time the game reloads (Mega reloads it at a safe moment - not during a zone, raid, tower or league - or use Reload Game on Kinesis). A version that fails to start is skipped and this one keeps running. "Install in Tampermonkey too" makes it permanent there (optional - Tampermonkey also catches up by itself).</div></div>`; }
     h += `<div class="card"><h3>🗂️ Tabs</h3><div class="dim" style="font-size:13px">Drag a tab at the top onto another to move it. Your order is saved.</div><button class="btn" data-act="tabs-reset" style="margin-top:6px">Reset tab order</button></div>`;
     { const ci = Calib.info, names = { raid: 'Shiny Raids', elite: 'Elite tiers', zone: 'Legendary zones' };
       const rows = Object.entries(names).map(([k, l]) => { const c = ci[k]; return `<div class="row"><span class="k">${l}</span><span class="v">${c ? `off by ${Math.round(c.errAfter * 100)} pts <span class="dim">(was ${Math.round(c.errBefore * 100)}) · ${c.n} fights · ${new Date(c.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>` : '<span class="dim">not enough fights yet (needs 12)</span>'}</span></div>`; }).join('');
@@ -2143,6 +2166,8 @@ const UI = (() => {
       prefs.foldSet = [...shut]; savePrefs(); return;
     }
     if (act === 'update') { Updater.install(); return; }
+    if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch {} return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
     if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch {} return; }
@@ -5472,14 +5497,29 @@ const History = (() => {
 const Updater = (() => {
   const BASE = 'https://raw.githubusercontent.com/Murillo0211/mega-remote/main/';
   const META = BASE + 'mega-alakazam.meta.js', SCRIPT = BASE + 'mega-alakazam.user.js';
-  let latest = null, checkedAt = 0, err = null;
+  let latest = null, checkedAt = 0, err = null, got = null;
+  try { const v = localStorage.getItem('mega-next-ver'); if (v && localStorage.getItem('mega-next-code')) got = v; } catch {}
+  // download the new version itself, so a plain reload runs it (see the header). Kept only if it's
+  // really that version, and only while the page's storage has room - the game save always comes first.
+  async function download(v) {
+    if (got === v) return true;
+    try {
+      const r = await fetch(SCRIPT + '?t=' + Date.now(), { cache: 'no-store' }); const code = await r.text();
+      if (!r.ok || code.length < 100_000 || !new RegExp('@version\\s+' + v.replace(/\./g, '\\.') + '\\s').test(code) || !code.includes('window.__MEGA_HOT_OK')) return false;
+      let used = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^mega-next-/.test(k)) used += k.length + (localStorage.getItem(k) || '').length; }
+      if (used + code.length > 1_800_000) { err = 'not enough room in the page storage to keep the update'; return false; }
+      localStorage.setItem('mega-next-code', code); localStorage.setItem('mega-next-ver', v);
+      localStorage.setItem('mega-next-try', '0'); localStorage.removeItem('mega-next-bad');
+      got = v; return true;
+    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch {} err = 'could not keep the update: ' + (e?.message || e); return false; }
+  }
   const parts = (v) => String(v).split('.').map((x) => +x || 0);
   const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   async function check() {
     try {
       const r = await fetch(META + '?t=' + Date.now(), { cache: 'no-store' });
       const m = (await r.text()).match(/@version\s+(\S+)/);
-      if (m) { const was = latest; latest = m[1]; err = null; if (latest !== was && newer(latest, VERSION)) { try { Log.add(`Mega ${latest} is ready - click "⬆ Update" at the top`); } catch {} try { UI.refresh?.(); } catch {} } }
+      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`Mega ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch {} try { UI.refresh?.(); } catch {} } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
   }
@@ -5499,7 +5539,7 @@ const Updater = (() => {
     } catch { return false; }
   }
   function autoReload() {
-    const v = Updater.available; if (!v || autoOn() === false) return;
+    const v = Updater.available; if (!v || got !== v || autoOn() === false) return;
     const m = memo(), r = m[v] || { tries: 0, at: 0 };
     if (r.tries >= 4 || Date.now() - r.at < 30 * 60_000 || !safe()) return;
     m[v] = { tries: r.tries + 1, at: Date.now() }; keep(m);
@@ -5514,16 +5554,42 @@ const Updater = (() => {
     if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch {} }
   }
   const E = Engine;
-  function boot() { setTimeout(afterLoad, 5_000); setTimeout(check, 15_000); setInterval(check, 10 * 60_000); setInterval(autoReload, 60_000); }
+  // After a reload the game waits on its title screen: press its own Continue button (only that one,
+  // only on the title screen). "Two saves found" is never touched - it sends a Needs You alert instead.
+  const contOn = () => { try { return JSON.parse(localStorage.getItem('mega-auto-continue') ?? 'true'); } catch { return true; } };
+  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch {} }
+  function autoContinue() {
+    const t0 = Date.now(); let pressed = false, warned = false;
+    const tick = () => {
+      if (Date.now() - t0 > 120_000) return;
+      try {
+        const txt = document.body?.innerText || '';
+        if (/two saves|deux sauvegardes/i.test(txt)) {
+          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch {} }
+          return setTimeout(tick, 2000);
+        }
+        if (!pressed && contOn() && document.body?.classList.contains('titled')) {
+          const b = [...document.querySelectorAll('.title-fx .ti-go')].find((x) => /^\s*(continue|continuer)\s*$/i.test(x.textContent || ''));
+          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch {} }
+        }
+        if (pressed && !document.body?.classList.contains('titled')) return;
+      } catch {}
+      setTimeout(tick, 700);
+    };
+    setTimeout(tick, 1500);
+  }
+  function boot() {
+    autoContinue(); setTimeout(afterLoad, 5_000); setTimeout(check, 15_000); setInterval(check, 10 * 60_000); setInterval(autoReload, 60_000); }
   // after you click Update: Tampermonkey's page opens in a new tab; when you come back to the game tab
   // (you pressed Update there), Mega reloads the game so the new version runs
   function install() {
+    if (got && got === latest) { reloadNow(`reloading the game to run Mega ${latest}`); return; }
     try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch {}
     const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back); reloadNow(`reloading the game to run Mega ${latest}`); };
     setTimeout(() => { document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); }, 800);
   }
   function reloadNow(why) { try { Log.add(why || 'reloading the game'); } catch {} try { E.call('Game.save'); } catch {} setTimeout(() => location.reload(), 1500); }
-  return { boot, check, install, reloadNow, setAuto, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
+  return { boot, check, install, reloadNow, setAuto, setContinue, get autoContinue() { return contOn() !== false; }, get downloaded() { return got; }, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5992,4 +6058,6 @@ start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
 window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log };
+// self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
+if (window.__MEGA_HOT === VERSION) { window.__MEGA_HOT_OK = VERSION; setTimeout(() => { try { localStorage.setItem('mega-next-try', '0'); } catch {} }, 60_000); }
 })();
