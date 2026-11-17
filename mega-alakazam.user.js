@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.24.0
+// @version      0.24.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.24.0';
+const VERSION = '0.24.1';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -1809,7 +1809,7 @@ const DexView = (() => {
     const stateTxt = h.registered ? '<span class="ok">registered</span>' : `<span class="bad">not registered</span>${h.state && h.state !== 'unknown' ? ` <span class="dim">(${esc(h.state)})</span>` : ''}`;
     let o = `<button class="btn sm" data-act="dexback" style="margin:0 0 10px">‹ Back to the Pokédex</button>`;
     o += `<div class="card"><div style="display:flex;gap:14px;align-items:center">
-      <img src="${Engine.sprite(id)}" width="96" height="96" style="image-rendering:pixelated;background:#16122b;border-radius:14px;flex:none">
+      <img src="${Engine.sprite(id)}" width="96" height="96" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:14px;flex:none">
       <div style="flex:1"><div style="font-size:20px;font-weight:800">${esc(h.name)}</div>
       <div class="dim">#${D[id]?.num ?? id} · ${h.types.map(esc).join(' / ')}${h.legendary ? ' · legendary' : h.mythical ? ' · mythical' : ''}</div>
       <div style="margin-top:4px">${stateTxt}${h.owned ? ` · you own ${h.owned}` : ''}</div>${!h.registered && DexInfo.availableNow(id) ? `<div class="ok" style="margin-top:4px">● ${esc(DexInfo.availableNow(id))}</div>` : ''}</div></div></div>`;
@@ -1988,9 +1988,9 @@ const UI = (() => {
     .th-night .tabs button:hover,.th-day .tabs button:hover{background:#ffffff26;color:#fff}
     .th-night .tabs button.on,.th-day .tabs button.on{background:var(--scr);color:var(--ink);border-color:var(--scrEdge);box-shadow:inset 0 0 0 1px var(--scrEdge),0 0 10px var(--glow)}
     /* night: dark LCD */
-    .wrap.th-night{--scr:#0e1b1d;--scrEdge:#2a5c5a;--card:#12262a;--line:#214448;--ink:#d8fff3;--mute:#86b8ae;--acc:#4fe0bc;--glow:#4fe0bc55;color:var(--ink)}
+    .wrap.th-night{--well:#0a1517;--scr:#0e1b1d;--scrEdge:#2a5c5a;--card:#12262a;--line:#214448;--ink:#d8fff3;--mute:#86b8ae;--acc:#4fe0bc;--glow:#4fe0bc55;color:var(--ink)}
     /* day: paper screen */
-    .wrap.th-day{--scr:#f3eddc;--scrEdge:#c8b98f;--card:#fffaf0;--line:#e3d6b6;--ink:#2b2420;--mute:#6f6455;--acc:#0f7a68;--glow:#0f7a6833;color:var(--ink)}
+    .wrap.th-day{--well:#ebe2c8;--scr:#f3eddc;--scrEdge:#c8b98f;--card:#fffaf0;--line:#e3d6b6;--ink:#2b2420;--mute:#6f6455;--acc:#0f7a68;--glow:#0f7a6833;color:var(--ink)}
     .th-night .panel,.th-day .panel{background:var(--scr)}
     .th-night .body,.th-day .body{background:var(--scr);scrollbar-color:var(--scrEdge) transparent}
     .th-night .card,.th-day .card{background:var(--card);border:1px solid var(--line);box-shadow:inset 0 0 0 1px #ffffff08,0 1px 0 #0002}
@@ -2652,7 +2652,7 @@ const Trades = (() => {
 })();
 
 Views.trades = (esc) => {
-  const d = Trades.data, nm = (id) => esc(Trades.name(id)), sp = (id) => `<img src="${Engine.sprite(id)}" width="56" height="56" style="image-rendering:pixelated;background:#16122b;border-radius:12px;flex:none">`;
+  const d = Trades.data, nm = (id) => esc(Trades.name(id)), sp = (id) => `<img src="${Engine.sprite(id)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:12px;flex:none">`;
   const ago = (t) => { const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
   let o = `<div class="card"><h3>Trade Board</h3>
     <div class="dim">Pokémon you don't own on the board. Tap one for its offers.</div>
@@ -2721,7 +2721,7 @@ Views.now = (w, esc, fmtIn) => {
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const bar = (p) => `<div class="bar" style="margin-top:8px"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
   const icon = (g) => ({ under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
-  const pic = (g, size = 52) => { const sp = GoalTypes[g.type]?.sprite?.(g); return sp ? `<img src="${E.sprite(sp)}" width="${size}" height="${size}" style="image-rendering:pixelated;flex:none;background:#16122b;border-radius:12px">` : `<span style="width:${size}px;text-align:center;font-size:${Math.round(size * 0.55)}px;flex:none">${icon(g)}</span>`; };
+  const pic = (g, size = 52) => { const sp = GoalTypes[g.type]?.sprite?.(g); return sp ? `<img src="${E.sprite(sp)}" width="${size}" height="${size}" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px">` : `<span style="width:${size}px;text-align:center;font-size:${Math.round(size * 0.55)}px;flex:none">${icon(g)}</span>`; };
   // progress: the goal's own numbers if it has them, else "x/y" read from its status line
   const prog = (g, L) => {
     const pc = (Views.__nowProg ||= new Map()), c = pc.get(g.id);
@@ -2770,7 +2770,7 @@ Views.now = (w, esc, fmtIn) => {
   } else if (Plan.running && Plan.idle) {
     const I = Plan.idle, g = I.goal, lead = g?.uids?.[0] ? E.read('Game.getMon', null, g.uids[0]) : null;
     h += `<div class="card"><h3>Today</h3><div class="dim" style="font-size:13px;font-weight:700;letter-spacing:.04em">WORKING ON NOW · IDLE</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">
-      ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:#16122b;border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
+      ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
       <div style="flex:1;min-width:0"><div style="font-size:17px;font-weight:800">${g ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</div>
       ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${m.rank ? ' ★' + m.rank : ''}${m.shiny ? ' ✨' : ''} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
       ${I.line ? `<div class="dim" style="margin-top:8px">${esc(I.line)}</div>` : ''}
@@ -2839,7 +2839,7 @@ Views.now = (w, esc, fmtIn) => {
       h += `<div class="card"><h3>🥚 Day Care</h3><div class="dim">Incubator ${dc.used} of ${dc.max || '?'}${dc.full ? ' · full - hatch one to make room' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : dc.mons.length ? ' · no egg coming (these can\'t breed)' : ''}</div>`;
       for (const e of dc.eggs) {
         const pct = e.ready ? 1 : 1 - e.left / Math.max(1, e.hatchAt - e.laidAt);
-        h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img src="${E.sprite(e.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none;background:#16122b;border-radius:12px;${e.ready ? '' : 'filter:brightness(.35)'}"><div style="flex:1;min-width:0"><b>${nm(e.id)}</b>${e.shinyParent ? ' <span title="shiny parent - better shiny odds">✨</span>' : ''}
+        h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img src="${E.sprite(e.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px;${e.ready ? '' : 'filter:brightness(.35)'}"><div style="flex:1;min-width:0"><b>${nm(e.id)}</b>${e.shinyParent ? ' <span title="shiny parent - better shiny odds">✨</span>' : ''}
           <div class="${e.ready ? 'ok' : 'dim'}">${e.ready ? '● ready to hatch' : `${DayCare.left(e.left)} left · hatches ${at2(e.hatchAt)}`}</div>${e.ready ? '' : bar(pct)}</div>${e.ready ? `<button class="btn sm gold" style="width:auto;padding:10px 14px;margin:0" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">🐣 Hatch</button>` : ''}</div>`;
       }
       if (dc.eggs.filter((e) => e.ready).length > 1) h += `<button class="btn gold" data-act="m-egg-hatch" data-uid="">🐣 Hatch All Ready (${dc.eggs.filter((e) => e.ready).length})</button>`;
@@ -3029,7 +3029,7 @@ Views.elite = (esc) => {
   for (const r of d.rows) {
     const pips = d.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? '#5ad68a' : t === r.next ? '#ffd45e' : '#2e2752'}"></span>`).join('');
     h += `<div class="card"><div style="display:flex;gap:12px;align-items:center">
-      <img src="${Engine.sprite(r.foe)}" width="56" height="56" style="image-rendering:pixelated;background:#16122b;border-radius:12px;flex:none">
+      <img src="${Engine.sprite(r.foe)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:12px;flex:none">
       <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:800">${nm(r.foe)}${r.foe !== r.id ? ` <span class="dim" style="font-size:13px">(this week's form)</span>` : ''}</div>
       <div style="margin:4px 0">${pips} <span class="dim">${r.best}/${d.tiers.length}</span></div>
       ${r.next ? `<div>Next: <b>Tier ${r.next}</b> → ${r.reward === 'gem' ? `<span class="ok">${esc(EliteInfo.gemLabel(r.gem))} gem</span>` : 'a frame'}${r.open && r.can ? '' : ` <span class="warn">· ${r.open ? 'locked for now (recent loss)' : 'zone closed now'}</span>`}</div>` : '<div class="ok">All tiers beaten ✔</div>'}
@@ -3292,7 +3292,7 @@ const Mirror = (() => {
     tm: { draft: null, slot: 0, q: '', add: null },
   };
   const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-  const sp = (id, n = 52, dark = false) => `<img src="${E.sprite(id)}" width="${n}" height="${n}" style="image-rendering:pixelated;background:#16122b;border-radius:12px;flex:none;${dark ? 'filter:brightness(0);opacity:.45' : ''}">`;
+  const sp = (id, n = 52, dark = false) => `<img src="${E.sprite(id)}" width="${n}" height="${n}" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:12px;flex:none;${dark ? 'filter:brightness(0);opacity:.45' : ''}">`;
   const hm = (ms) => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `${Math.round(m / 1440)} days`; };
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const cap1 = (w) => String(w || '').charAt(0).toUpperCase() + String(w || '').slice(1);
@@ -3314,7 +3314,7 @@ const Mirror = (() => {
     const ch = pts[pts.length - 1][1] - pts[0][1], hrs = (t1 - t0) / 3.6e6, rate = hrs > 0.3 ? ch / hrs : null, f = opt.fmt || ((v) => Math.round(v).toLocaleString());
     const eta = opt.need && rate > 0 && pts[pts.length - 1][1] < opt.need ? ` · done in about ${hm((opt.need - pts[pts.length - 1][1]) / rate * 3.6e6)}` : '';
     return `<div class="card"><h3>${esc(title)}</h3><div style="display:flex;justify-content:space-between"><b style="font-size:19px">${f(pts[pts.length - 1][1])}${opt.need ? ` <span class="dim" style="font-size:14px">of ${f(opt.need)}</span>` : ''}</b><span class="${ch > 0 ? 'ok' : ch < 0 ? 'warn' : 'dim'}">${ch > 0 ? '+' : ''}${f(ch)}</span></div>
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:#16122b;border-radius:12px">${opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="#c79a2b" stroke-dasharray="4 4"/>` : ''}<path d="${d}" fill="none" stroke="#9c86ff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:var(--well,#16122b);border-radius:12px">${opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="#c79a2b" stroke-dasharray="4 4"/>` : ''}<path d="${d}" fill="none" stroke="#9c86ff" stroke-width="2.5" stroke-linejoin="round"/></svg>
       ${rate != null && ch ? `<div class="dim">${rate >= 0 ? '+' : ''}${Math.abs(rate) < 10 && !opt.fmt ? rate.toFixed(1).replace(/\.0$/, '') : f(rate)} per hour${eta}</div>` : ''}</div>`;
   }
   // ---- Activity tab ----
