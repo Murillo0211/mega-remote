@@ -433,7 +433,7 @@ function vSet() {
     <label class="chk"><input type="checkbox" data-set="set.berries" ${s.berries ? 'checked' : ''}> Use berries while goals run</label>
     <label class="chk"><input type="checkbox" data-set="set.idle" ${s.idle ? 'checked' : ''}> Level Pokémon when the plan is idle</label></div>
     <div class="card"><h3>Fast Updates (Ably)</h3><div>${pair?.a ? '<span class="ok">● Using Ably</span> - live updates every ~15 s while this app is open.' : 'Using ntfy (slow, limited per day). Paste the same free Ably API key you saved in Mega\'s Settings on the PC:'}</div>
-      <div class="dim" style="font-size:13px;margin-top:6px">Copy it with the copy button on ably.com (API Keys tab) - capitals matter, so don't type it.</div><input type="text" id="ablyKey" autocorrect="off" placeholder="${pair?.a ? 'paste a new key to replace it' : 'xxxxxx.xxxxxx:xxxxxxxxxxxx'}" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="dim" style="font-size:13px;margin-top:6px">Copy it with the copy button on ably.com (API Keys tab) - capitals matter, so don't type it.</div><button class="btn gold" data-x="pasteAbly">📋 Paste Key from Clipboard</button><div class="dim" style="font-size:13px;margin-top:8px">Or paste it here:</div><textarea id="ablyKey" rows="2" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#16122b;color:var(--txt);font:15px ui-monospace,Menlo,monospace;margin-top:6px" placeholder="xxxxxx.xxxxxx:xxxxxxxxxxxx"></textarea>
       <button class="btn gold" data-x="saveAbly">${pair?.a ? 'Replace Ably Key' : 'Use Ably'}</button>${pair?.a ? '<button class="btn" data-x="dropAbly">Stop Using Ably</button>' : ''}</div>
     <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
     <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
@@ -474,10 +474,14 @@ document.addEventListener('click', async (e) => {
     catch { toast('That isn\'t a Mega Remote setup link'); }
     return;
   }
-  if (x === 'saveAbly' || x === 'dropAbly') {
+  if (x === 'pasteAbly') { // read the copied key straight from the clipboard (no text box to change its letters)
+    let v = ''; try { v = (await navigator.clipboard.readText()).trim(); } catch { toast('The phone didn\'t allow reading the clipboard - paste into the box instead'); return; }
+    const el = $('#ablyKey'); if (el) el.value = v;
+  }
+  if (x === 'saveAbly' || x === 'pasteAbly' || x === 'dropAbly') { // (paste falls through to the same check + save)
     const v = x === 'dropAbly' ? '' : ($('#ablyKey')?.value || '').trim();
-    if (x === 'saveAbly' && !/^[\w-]+\.[\w-]+:[\w+/=-]+$/.test(v)) { toast('That doesn\'t look like an Ably key (appId.keyId:secret)'); return; }
-    if (x === 'saveAbly') { // try it with Ably before saving (keys are case-sensitive)
+    if (x !== 'dropAbly' && !/^[\w-]+\.[\w-]+:[\w+/=-]+$/.test(v)) { toast('That doesn\'t look like an Ably key (appId.keyId:secret)'); return; }
+    if (x !== 'dropAbly') { // try it with Ably before saving (keys are case-sensitive)
       toast('Checking the key with Ably…');
       try {
         const r = await fetch(`${ABLY}/channels/${encodeURIComponent(pair.s)}/messages?limit=1`, { headers: { Authorization: 'Basic ' + btoa(v), 'X-Ably-ClientId': btoa('mega-phone') }, cache: 'no-store' });
