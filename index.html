@@ -52,6 +52,26 @@
   .chip{all:unset;padding:7px 11px;border-radius:999px;background:#241e44;color:#cfc8f5;font-size:14px;font-weight:600}.chip.on{background:linear-gradient(90deg,#5b3fd6,#7a5cff);color:#fff}
   .statbar{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;font-size:14px;margin:4px 0}
   /* iPhone Duo unfolded (and any wide screen): tabs in one row, cards in two columns, PC box with its details beside it */
+  /* ===== Field Device theme (mirrors Mega's choice): glossy red shell, LCD-style screen. Night = dark screen, Day = paper ===== */
+  html.th-night,html.th-day{--shell1:#c4283a;--shell2:#7d1222;--seam:#4a0a14}
+  html.th-night{--bg:#0e1b1d;--card:#12262a;--line:#214448;--txt:#d8fff3;--dim:#86b8ae;--acc:#4fe0bc;--ok:#5ef0a0;--scrEdge:#2a5c5a;--glow:#4fe0bc55;--well:#0b1618}
+  html.th-day{--bg:#f3eddc;--card:#fffaf0;--line:#e3d6b6;--txt:#2b2420;--dim:#6f6455;--acc:#0f7a68;--ok:#137a3e;--warn:#a8650a;--bad:#b4232c;--scrEdge:#c8b98f;--glow:#0f7a6833;--well:#efe6cf}
+  html.th-night header,html.th-day header{background:linear-gradient(180deg,var(--shell1),var(--shell2));border:3px solid var(--seam);border-radius:16px;padding:8px 10px;color:#fff;box-shadow:inset 0 1px 0 #ffffff40,0 3px 0 var(--seam)}
+  html.th-night header .t span,html.th-day header .t span{color:#ffdfe3}
+  html.th-night .tabs,html.th-day .tabs{background:var(--shell2);border:3px solid var(--seam);border-radius:14px;padding:6px}
+  html.th-night .tabs button,html.th-day .tabs button{background:#00000030;color:#ffdfe3;border:1px solid #ffffff22}
+  html.th-night .tabs button.on,html.th-day .tabs button.on{background:var(--bg);color:var(--txt);box-shadow:inset 0 0 0 1px var(--scrEdge),0 0 10px var(--glow)}
+  html.th-night h3,html.th-day h3{text-transform:uppercase;font-size:15px;letter-spacing:1.2px;border-bottom:2px solid var(--line);padding-bottom:6px}
+  html.th-night .row,html.th-day .row{border-top:1px dashed var(--line)}
+  html.th-night .btn,html.th-day .btn{background:var(--shell2);color:#fff;border:1px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff30,0 2px 0 var(--seam)}
+  html.th-night .btn.gold,html.th-day .btn.gold{background:linear-gradient(180deg,#f5c542,#d4a017);color:#2b1d00;border-color:#9a7410}
+  html.th-night .btn.danger,html.th-day .btn.danger{background:#3a3a3a;border-color:#222}
+  html.th-night img.sp,html.th-day img.sp,html.th-night .mon,html.th-day .mon,html.th-night .bx,html.th-day .bx{background:var(--well);border-color:var(--line);color:var(--txt)}
+  html.th-night .bar,html.th-day .bar,html.th-night .pips span,html.th-day .pips span{background:var(--line)} html.th-night .bar i,html.th-day .bar i{background:linear-gradient(90deg,var(--acc),#f6c744)}
+  html.th-night .chip,html.th-day .chip{background:var(--well);color:var(--txt);border:1px solid var(--line)} html.th-night .chip.on,html.th-day .chip.on{background:var(--shell2);color:#fff}
+  html.th-night select,html.th-day select,html.th-night input[type=text],html.th-day input[type=text],html.th-night input[type=search],html.th-day input[type=search]{background:var(--card);color:var(--txt);border-color:var(--scrEdge)}
+  html.th-night .toast,html.th-day .toast{background:var(--shell2);color:#fff;border-color:var(--seam)}
+  html.th-night .zbtn,html.th-day .zbtn,html.th-night .pill,html.th-day .pill{background:var(--shell2);color:#fff}
   @media (min-width: 600px) {
     body{padding-left:16px;padding-right:16px}
     .tabs{grid-template-columns:repeat(9,1fr)}.tabs button{font-size:14px;padding:9px 2px}
@@ -377,7 +397,7 @@ function vNow() {
   { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:#5b3fd6;padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
   h += `<div class="card"><div class="flex"><span style="font-size:26px">${s.run ? '🟢' : '⏸️'}</span><div class="grow"><b style="font-size:18px">${s.run ? 'Plan running' : 'Plan paused'}</b><div class="dim">${s.goals.length} goal${s.goals.length === 1 ? '' : 's'} left · Mega ${esc(s.ver)}</div></div></div>
     <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
-  if (s.upd) h += `<div class="card" style="border-color:#d4a017"><div class="flex"><span style="font-size:22px">⬆</span><div class="grow"><b>Mega ${esc(s.upd)} is ready</b><div class="dim">This PC runs ${esc(s.ver || '?')}. Mega reloads the game by itself at a safe moment once Tampermonkey has it - or reload now.</div></div></div><button class="btn gold" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>`;
+  if (s.upd) h += `<div class="card" style="border-color:#d4a017"><div class="flex"><span style="font-size:22px">⬆</span><div class="grow"><b>New Update ${esc(s.upd)}</b><div class="dim">This PC runs ${esc(s.ver || '?')}. Mega reloads the game by itself at a safe moment once Tampermonkey has it - or reload now.</div></div></div><button class="btn gold" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
   for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
   for (const x of s.guard || []) probs.push(`🛡️ Safety check: ${esc(x)} - goals that use it are paused until it looks right (probably a game update).`);
@@ -785,7 +805,14 @@ function vAct() {
     <button class="btn" data-x="actLoad">⟳ Refresh</button></div>`;
   return h;
 }
+// theme: follows Mega (Auto / Day / Night); Auto = day 7 AM - 7 PM on this phone's clock
+function applyTheme() {
+  const t = snap?.theme || 'auto', h = new Date().getHours(), m = t === 'auto' ? (h >= 7 && h < 19 ? 'day' : 'night') : t;
+  const el = document.documentElement; if (!el.classList.contains('th-' + m)) { el.classList.remove('th-day', 'th-night'); el.classList.add('th-' + m); }
+  const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = '#7d1222';
+}
 function render() {
+  applyTheme();
   setSub();
   $('#tabs').innerHTML = pair ? tabList().map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
   if (!pair && RELAY) { $('#main').innerHTML = `<div class="card"><h3>Waiting for Mega</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and tick <b>Use Mega Relay on this PC</b>. This page pairs itself a few seconds later.</div></div>`; return; }
