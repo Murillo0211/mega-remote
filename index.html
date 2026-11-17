@@ -280,6 +280,7 @@ function vNow() {
     <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
   for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
+  for (const x of s.guard || []) probs.push(`🛡️ Safety check: ${esc(x)} - goals that use it are paused until it looks right (probably a game update).`);
   if ((s.gemPick || []).length) probs.push(`Pick your Legendary gem in the game: Elite League ${s.gemPick.map(([r, t]) => `${esc(r)} tier ${t}`).join(', ')} (needs the PC).`);
   if (probs.length) h += `<div class="card" style="border-color:#c0392b"><h3>⚠️ Needs You</h3>${probs.map((p) => `<div class="warn">${p}</div>`).join('')}</div>`;
   const scr = s.goals.find((g) => !g.bg && g.s === 'running');
