@@ -377,6 +377,7 @@ function vNow() {
   { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:#5b3fd6;padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
   h += `<div class="card"><div class="flex"><span style="font-size:26px">${s.run ? '🟢' : '⏸️'}</span><div class="grow"><b style="font-size:18px">${s.run ? 'Plan running' : 'Plan paused'}</b><div class="dim">${s.goals.length} goal${s.goals.length === 1 ? '' : 's'} left · Mega ${esc(s.ver)}</div></div></div>
     <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
+  if (s.upd) h += `<div class="card" style="border-color:#d4a017"><div class="flex"><span style="font-size:22px">⬆</span><div class="grow"><b>Mega ${esc(s.upd)} is ready</b><div class="dim">This PC runs ${esc(s.ver || '?')}. Mega reloads the game by itself at a safe moment once Tampermonkey has it - or reload now.</div></div></div><button class="btn gold" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
   for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
   for (const x of s.guard || []) probs.push(`🛡️ Safety check: ${esc(x)} - goals that use it are paused until it looks right (probably a game update).`);
@@ -651,7 +652,8 @@ function vGems() {
 }
 function vSet() {
   const s = snap?.set || {};
-  return `<div class="card"><h3>Mega Settings</h3>
+  return `<div class="card"><h3>Game</h3><div class="dim">Mega ${esc(snap?.ver || '?')}${snap?.upd ? ` · <span class="ok">${esc(snap.upd)} ready</span>` : ''}</div><button class="btn" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>
+  <div class="card"><h3>Mega Settings</h3>
     <label class="chk"><input type="checkbox" data-set="set.berries" ${s.berries ? 'checked' : ''}> Use berries while goals run</label>
     <label class="chk"><input type="checkbox" data-set="set.idle" ${s.idle ? 'checked' : ''}> Level Pokémon when the plan is idle</label></div>
     ${alertsCard()}
