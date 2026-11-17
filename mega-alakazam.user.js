@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.26.1
+// @version      0.26.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.26.1';
+const VERSION = '0.26.2';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -5420,6 +5420,7 @@ const Plan = (() => {
   // "Catch every <name> form" goal - once; if you remove it, Mega won't add it again
   // on a new region's side (Unova) with its League not beaten: add "Beat the Unova League" at the top - once
   function storyGoal() {
+    storyPlace(); // keep it after the dailies, every minute (you may reorder the plan)
     try {
       const link = E.get('Game.S')?.link; if (!link || link.side !== 'to') return;
       const reg = link.to, key = 'mega-storygoal-' + reg;
