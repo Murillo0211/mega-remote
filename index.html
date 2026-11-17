@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mega Remote">
+<meta name="theme-color" content="#120f24">
+<title>Mega Remote</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EM%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EM%3C/text%3E%3C/svg%3E">
+<style>
+  :root{--bg:#120f24;--card:#1b1633;--line:#2b2450;--txt:#ece9ff;--dim:#9c95c4;--ok:#5ad68a;--warn:#ffb547;--bad:#ff6b6b;--gold:#ffd45e;--acc:#7a5cff}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif}
+  body{padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 24px)}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  header .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#5b3fd6,#c79a2b);display:grid;place-items:center;font-weight:900}
+  header .t{flex:1}header .t b{font-size:18px;display:block}header .t span{font-size:13px;color:var(--dim)}
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+  .tabs button{all:unset;text-align:center;padding:10px 2px;border-radius:12px;background:#1f1a38;color:#b7b1d6;font-weight:700;font-size:15px}
+  .tabs button.on{background:linear-gradient(90deg,#5b3fd6,#7a5cff);color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  h3{margin:0 0 8px;font-size:17px}
+  .dim{color:var(--dim)}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}
+  .row .k{color:var(--dim);flex:none}.row .v{text-align:right}
+  .btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;margin-top:10px;font:700 16px/1.2 inherit;color:#fff;background:#2c2552}
+  .btn.gold{background:linear-gradient(90deg,#7a5cff,#c79a2b)}.btn.danger{background:#5a1f2a}.btn:disabled{opacity:.45}
+  .btn.sm{padding:10px 6px;font-size:14px;margin-top:0}
+  .tools{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+  .bar{height:8px;background:#2a2450;border-radius:6px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#5ad68a,#7a5cff)}
+  .flex{display:flex;gap:12px;align-items:center}.grow{flex:1;min-width:0}
+  img.sp{image-rendering:pixelated;background:#16122b;border-radius:12px;flex:none}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+  .mon{background:#16122b;border:1px solid #2e2752;border-radius:12px;padding:6px 4px;text-align:center;font-size:13px}.mon img{width:60px;height:60px;image-rendering:pixelated;display:block;margin:0 auto}
+  .mon.now{border-color:var(--ok)}
+  select,input[type=text],input[type=search]{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#16122b;color:var(--txt);font:16px inherit;margin-top:8px}
+  label.chk{display:flex;gap:10px;align-items:center;padding:8px 0;font-size:16px}label.chk input{width:22px;height:22px}
+  .toast{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 14px);background:#2c2552;border:1px solid var(--acc);border-radius:14px;padding:12px 14px;font-weight:600;box-shadow:0 8px 30px #000a;transition:opacity .3s}
+  .lbl{font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--dim)}
+  .big{font-size:22px;font-weight:800}
+  .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:800;background:#2c2552}
+</style>
+</head>
+<body>
+<header><div class="logo">M</div><div class="t"><b>Mega Remote</b><span id="sub">connecting…</span></div></header>
+<div class="tabs" id="tabs"></div>
+<main id="main"></main>
+<div class="toast" id="toast" style="opacity:0;pointer-events:none"></div>
+<script>
+'use strict';
+// ---- pairing (the link from Mega's "Send Setup Link to My Phone" alert) ----
+const SPRITE = (id) => `https://pokecatch-online.pages.dev/assets/pokemon/${id}.png`;
+const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+if (location.hash.startsWith('#pair-')) {
+  try { const p = JSON.parse(new TextDecoder().decode(unb64u(location.hash.slice(6)))); if (p.s && p.c && p.k) store.set('mr-pair', p); } catch {}
+  history.replaceState(null, '', location.pathname);
+}
+let pair = store.get('mr-pair', null);
+const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const $ = (s) => document.querySelector(s);
+
+// ---- crypto: same as Mega (AES-GCM over gzip(JSON)) ----
+let ck = null;
+async function key() { if (!ck) ck = await crypto.subtle.importKey('raw', unb64u(pair.k), 'AES-GCM', false, ['encrypt', 'decrypt']); return ck; }
+async function gz(bytes, mode) { const s = new Blob([bytes]).stream().pipeThrough(mode === 'c' ? new CompressionStream('gzip') : new DecompressionStream('gzip')); return new Uint8Array(await new Response(s).arrayBuffer()); }
+async function seal(obj) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await key(), await gz(new TextEncoder().encode(JSON.stringify(obj)), 'c')); const all = new Uint8Array(12 + ct.byteLength); all.set(iv); all.set(new Uint8Array(ct), 12); return b64u(all); }
+async function open(text) { const all = unb64u(text); const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, await key(), all.slice(12)); return JSON.parse(new TextDecoder().decode(await gz(new Uint8Array(pt), 'd'))); }
+const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+// ---- status stream ----
+let snap = store.get('mr-snap', null), parts = new Map(), es = null;
+function listen() {
+  if (!pair) return;
+  try { es?.close(); } catch {}
+  es = new EventSource(`https://ntfy.sh/${pair.s}/sse?since=10m`);
+  es.onmessage = async (ev) => {
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.event !== 'message') return;
+    const [tag, id, pos, body] = String(m.message || '').split('|'); if (tag !== 'M1' || !body) return;
+    const [i, n] = pos.split('/').map(Number); const p = parts.get(id) || []; p[i - 1] = body; parts.set(id, p);
+    if (p.filter(Boolean).length < n) return; parts.delete(id);
+    try { const s = await open(p.join('')); if (!snap || s.at >= snap.at) { snap = s; store.set('mr-snap', s); onSnap(); } } catch {}
+  };
+  es.onerror = () => setSub();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { listen(); render(); } });
+
+// ---- commands ----
+const pending = new Map(); // id -> {label, at, cb}
+async function cmd(name, args = {}, label = '', cb = null) {
+  if (!pair) return;
+  const id = rid();
+  pending.set(id, { label: label || name, at: Date.now(), cb });
+  toast(`Sending: ${label || name}…`);
+  try {
+    const body = await seal({ id, ts: Date.now(), cmd: name, args });
+    const n = Math.ceil(body.length / 3000), mid = rid().slice(0, 6);
+    for (let i = 0; i < n; i++) await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic: pair.c, message: `M1|${mid}|${i + 1}/${n}|${body.slice(i * 3000, (i + 1) * 3000)}`, priority: 1 }) });
+    toast(`Sent: ${label || name} - waiting for your PC…`);
+  } catch (e) { toast('Could not send: ' + e.message); pending.delete(id); }
+  return id;
+}
+function onSnap() {
+  for (const [id, res] of snap.acks || []) {
+    const p = pending.get(id); if (!p) continue;
+    pending.delete(id);
+    toast(`${/^error/.test(res) ? '⚠' : '✓'} ${p.label}: ${res}`);
+    p.cb?.(res, snap.re?.[id]?.data);
+  }
+  // replies that arrive later (a sim finishing)
+  for (const [id, w] of watch) { const r = snap.re?.[id]; if (r && w(r.data)) watch.delete(id); }
+  render();
+}
+const watch = new Map();
+for (const [id, p] of pending) if (Date.now() - p.at > 120000) pending.delete(id);
+let toastT = null;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), 4500); }
+
+// ---- views ----
+const TABS = [['now', 'Now'], ['plan', 'Plan'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
+let tab = store.get('mr-tab', 'now');
+const ui = { dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
+function setSub() {
+  const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
+  if (!snap) { el.textContent = 'waiting for your PC…'; return; }
+  const s = Math.round((Date.now() - snap.at) / 1000);
+  el.innerHTML = s < 90 ? `<span class="ok">● live</span> · updated ${s < 10 ? 'just now' : s + ' s ago'}` : `<span class="warn">● last update ${s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'} ago</span> - is the PC on?`;
+}
+setInterval(setSub, 5000);
+const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+const bar = (p) => `<div class="bar"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
+const img = (id, n = 52) => `<img class="sp" src="${SPRITE(id)}" width="${n}" height="${n}" loading="lazy">`;
+const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️' };
+const N = (id) => esc(snap?.nm?.[id] || '#' + id);
+const pic = (g, n = 48) => (g.sp ? img(g.sp, n) : `<span style="width:${n}px;text-align:center;font-size:${Math.round(n * .55)}px;flex:none">${ICON[g.t] || '🎯'}</span>`);
+const progTxt = (p) => (p ? `${p[3] ? '₽' : ''}${(+p[0]).toLocaleString()} of ${p[3] ? '₽' : ''}${(+p[1]).toLocaleString()}${p[2] ? ' ' + esc(p[2]) : ''}` : '');
+const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+function vNow() {
+  const s = snap; let h = '';
+  h += `<div class="card"><div class="flex"><span style="font-size:26px">${s.run ? '🟢' : '⏸️'}</span><div class="grow"><b style="font-size:18px">${s.run ? 'Plan running' : 'Plan paused'}</b><div class="dim">${s.goals.length} goal${s.goals.length === 1 ? '' : 's'} left · Mega ${esc(s.ver)}</div></div></div>
+    <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
+  const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
+  for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
+  if (probs.length) h += `<div class="card" style="border-color:#c0392b"><h3>⚠️ Needs You</h3>${probs.map((p) => `<div class="warn">${p}</div>`).join('')}</div>`;
+  const scr = s.goals.find((g) => !g.bg && g.s === 'running');
+  h += `<div class="card"><h3>Today</h3><div class="lbl">WORKING ON NOW${!scr && s.idle ? ' · IDLE' : ''}</div>`;
+  if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}`;
+  else if (s.idle) h += `<div class="flex" style="margin-top:6px">${s.idle.u[0] ? img(s.idle.u[0][0], 60) : '<span style="font-size:34px">💤</span>'}<div class="grow"><b style="font-size:17px">${s.idle.u.length ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</b><div>${s.idle.u.map((m) => `${N(m[0])}${m[3] ? ' ✨' : ''}${m[2] ? ' ★' + m[2] : ''} <b>Lv ${m[1]}</b>`).join(' · ')}</div></div></div><div class="dim" style="margin-top:6px">${esc(s.idle.l)}</div>`;
+  else h += `<div style="margin-top:6px">${s.run ? 'Nothing can run right this minute.' : 'Nothing - the plan is paused.'}</div>`;
+  if (s.where) h += `<div class="dim" style="margin-top:6px">📍 ${esc(s.where)}${s.foes.length ? ' · fighting ' + esc(s.foes.join(', ')) : ''}</div>`;
+  h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
+  const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
+  if (bg.length) h += `<div class="card"><h3>Running Alongside</h3>${bg.map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${esc(g.n || g.y)}</div></div></div>`).join('')}</div>`;
+  const next = s.goals.filter((g) => g !== scr && !g.bg && !(g.s === 'wait' && /\b(locked|closed)\b/i.test(g.y)));
+  if (next.length) h += `<div class="card"><h3>Up Next</h3>${next.slice(0, 5).map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${g.s === 'paused' ? '❚❚ paused' : g.s === 'queued' ? '○ after the one above' : '◐ ' + esc(g.y || g.s)}</div></div></div>`).join('')}</div>`;
+  if (s.trades) { const sp = s.trades.t.filter((t) => t[6] === 'spare'); h += `<div class="card"><h3>Trades</h3>${s.trades.t.length ? `${s.trades.t.length} Pokémon you're missing are on the board${sp.length ? ` · <span class="ok">${sp.length} for a spare</span>` : ' · none for a spare right now'}` : 'Nothing you\'re missing on the board.'}</div>`; }
+  if (s.dex.length) h += `<div class="card"><h3>Pokédex</h3>${s.dex.map(([n, a, b]) => `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between"><b>${esc(n)}</b><span>${a} / ${b}${a >= b ? ' <span class="ok">✔</span>' : ''}</span></div>${bar(a / Math.max(1, b))}</div>`).join('')}</div>`;
+  if (s.team.length) h += `<div class="card"><h3>Team</h3><div style="display:grid;grid-template-columns:repeat(${Math.min(6, s.team.length)},1fr);text-align:center;gap:4px">${s.team.map(([id, lv, r, sh, b]) => `<div>${img(id, 48)}<div style="font-size:12px">${N(id)}</div><div class="dim" style="font-size:12px">Lv ${lv}${r ? ' ★' + r : ''}${sh ? ' ✨' : ''}${b ? ' 💛' : ''}</div></div>`).join('')}</div></div>`;
+  return h;
+}
+function vPlan() {
+  const s = snap; let h = `<div class="card"><button class="btn ${s.run ? '' : 'gold'}" style="margin:0" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button><div class="dim" style="margin-top:8px">${esc(s.top)}</div></div>`;
+  const W = { running: ['ok', '●', 'running'], ready: ['ok', '●', 'running'], queued: ['dim', '○', 'next'], wait: ['warn', '◐', 'waiting'], paused: ['dim', '❚❚', 'paused'] };
+  s.goals.forEach((g, i) => {
+    const [cls, dot, word] = W[g.s] || W.wait;
+    h += `<div class="card"><div class="flex"><b class="dim" style="width:20px">${i + 1}</b>${pic(g, 44)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? `<div class="dim">${progTxt(g.p)}</div>` : ''}</div></div>
+      <div class="${cls}" style="margin-top:6px">${dot} ${word}${g.y ? ' · ' + esc(g.y) : ''}${g.s === 'running' && g.n ? ' · ' + esc(g.n) : ''}</div>
+      <div class="tools">
+        <button class="btn sm" data-c="goal.top" data-a='{"id":"${g.id}"}' data-l="Move to top" ${i ? '' : 'disabled'}>⤒ Top</button>
+        <button class="btn sm" data-c="goal.up" data-a='{"id":"${g.id}"}' data-l="Move up" ${i ? '' : 'disabled'}>↑ Up</button>
+        <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>↓ Down</button>
+        <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? '▶ Resume' : '❚❚ Pause'}</button>
+        <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">✕ Remove</button>
+      </div>${/3 times/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">Try Again</button>` : ''}</div>`;
+  });
+  if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
+  // add a goal
+  const types = [['legend', 'Catch a legendary'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex']];
+  h += `<div class="card"><h3>Add a Goal</h3><select id="addType">${types.map(([k, l]) => `<option value="${k}" ${ui.addType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  if (ui.addType === 'legend') {
+    if (!ui.sims) { h += `<button class="btn" data-x="loadSims">Load Legendaries</button>`; }
+    else h += `<select id="addVal"><option value="">Choose a legendary…</option>${ui.sims.filter((z) => !z[4]).map((z) => `<option value="${z[0]}" ${+ui.addVal === z[0] ? 'selected' : ''}>${esc(z[1])} · ${esc(z[2])}${z[3] != null ? ' · sim ' + Math.round(z[3] * 100) + '%' : ''}</option>`).join('')}</select>`;
+  } else if (ui.addType === 'money') h += `<select id="addVal">${[1e6, 2e6, 5e6, 1e7, 2e7, 5e7].filter((x) => x > s.money).map((x) => `<option value="${x}" ${+ui.addVal === x ? 'selected' : ''}>Up to ₽${x.toLocaleString()}</option>`).join('')}</select><div class="dim" style="margin-top:6px">You have ₽${s.money.toLocaleString()}.</div>`;
+  else if (ui.addType === 'region') h += `<select id="addVal"><option value="">Choose a region…</option>${s.dex.filter((r) => r[1] < r[2]).map((r) => `<option value="${esc(r[3])}" ${ui.addVal === r[3] ? 'selected' : ''}>${esc(r[0])} · ${r[2] - r[1]} missing</option>`).join('')}</select>`;
+  h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: add them from the Pokédex tab.</div></div>`;
+  if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
+  h += `<div class="card"><h3>Log</h3>${s.log.slice().reverse().map(([t, x]) => `<div style="margin:4px 0"><span class="dim">${at(t)}</span> ${esc(x)}</div>`).join('')}</div>`;
+  return h;
+}
+function vDex() {
+  let h = `<input type="search" id="dexQ" placeholder="Search any Pokémon…" value="${esc(ui.dexQ)}">`;
+  if (ui.dexInfo) {
+    const d = ui.dexInfo;
+    h = `<button class="btn" style="margin-top:0" data-x="dexBack">‹ Back to the Pokédex</button><div class="card" style="margin-top:12px"><div class="flex">${img(d.id, 88)}<div class="grow"><b style="font-size:20px">${esc(d.name)}</b><div class="dim">${esc((d.types || []).join(' / '))}</div><div>${d.reg ? '<span class="ok">registered</span>' : '<span class="bad">not registered</span>'}${d.owned ? ` · you own ${d.owned}` : ''}</div>${d.now ? `<div class="ok">● ${esc(d.now)}</div>` : ''}</div></div></div>`;
+    if (!d.reg) {
+      h += `<div class="card"><h3>${d.ways.length > 1 ? 'Ways to Get It' : 'Best Way to Get It'}</h3>${d.plan ? `<div class="ok" style="margin-bottom:8px">Already in your plan: ${esc(d.plan)}</div>` : ''}`;
+      const AUTO = ['legend', 'wild', 'evolve', 'special', 'loot', 'breed'];
+      d.ways.forEach(([k, t], i) => {
+        h += `<div style="${i ? 'border-top:1px solid var(--line);margin-top:10px;padding-top:10px' : ''}">${d.ways.length > 1 ? `<div class="lbl">${i ? 'OR' : 'BEST'}</div>` : ''}<div>${esc(t)}</div>`;
+        if (k === 'wild') { // every chapter: pick one
+          h += (d.wild || []).map(([ch, name, best, open, now, spots]) => `<div style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(name)}</b> <span class="dim">ch ${ch}</span> · ${Math.round(best * 100)}%${open ? (now ? ' <span class="ok">● now</span>' : ' <span class="warn">not at this time / weather</span>') : ' <span class="dim">· not unlocked</span>'}</div><div class="dim" style="font-size:13px">${esc(spots)}</div>${open && !d.plan ? `<button class="btn" data-c="dex.wild" data-a='{"id":${d.id},"ch":${ch}}' data-l="Add ${esc(d.name)} (${esc(name)})" data-after="dexInfo">Add: Catch Here</button>` : ''}</div>`).join('') + `</div>`;
+          return;
+        }
+        if (AUTO.includes(k) && !d.plan) h += `<button class="btn ${i ? '' : 'gold'}" data-c="dex.add" data-a='{"id":${d.id},"way":${i}}' data-l="Add ${esc(d.name)} to plan" data-after="dexInfo">${k === 'evolve' ? 'Add: Level to Evolve' : k === 'wild' ? 'Add: Catch in the Wild' : k === 'breed' ? 'Add: Breed It' : k === 'loot' ? 'Add: Find the Egg' : 'Add This to My Plan'}</button>`;
+        else if (!AUTO.includes(k)) h += `<div class="dim">Mega can't do this one by itself yet.</div>`;
+        h += `</div>`;
+      });
+      h += `</div>`;
+    }
+    return h;
+  }
+  if (ui.dexQ.length >= 2) {
+    if (!ui.dexHits) return h + `<div class="card dim">Searching on your PC…</div>`;
+    return h + `<div class="grid" style="margin-top:10px">${ui.dexHits.map(([id, n, r]) => `<div class="mon" data-x="dexOpen" data-id="${id}"><img src="${SPRITE(id)}" loading="lazy">${esc(n)}<div class="${r ? 'ok' : 'dim'}">${r ? '✓' : 'missing'}</div></div>`).join('') || '<div class="dim">No match.</div>'}</div>`;
+  }
+  if (!ui.dex) return h + `<button class="btn gold" data-x="loadDex">Load Missing Pokémon</button>`;
+  for (const [name, , list] of ui.dex) h += `<div class="card" style="margin-top:12px"><h3>${esc(name)} <span class="dim">${list.length} missing</span></h3>${list.length ? `<div class="grid">${list.map(([id, n, now]) => `<div class="mon ${now ? 'now' : ''}" data-x="dexOpen" data-id="${id}"><img src="${SPRITE(id)}" loading="lazy">${esc(n)}</div>`).join('')}</div>` : '<div class="ok">Complete.</div>'}</div>`;
+  return h + `<div class="dim">Green border = can be caught right now. Tap one for every way to get it.</div>`;
+}
+function vSim() {
+  let h = '';
+  if (!ui.sims) return `<button class="btn gold" data-x="loadSims">Load Legendaries</button>`;
+  h += `<div class="card"><h3>Simulate a Legendary</h3><select id="simPick"><option value="">Choose…</option>${ui.sims.map((z) => `<option value="${z[0]}" ${+ui.simPick === z[0] ? 'selected' : ''}>${esc(z[1])} · ${esc(z[2])}${z[3] != null ? ' · last ' + Math.round(z[3] * 100) + '%' : ''}${z[4] ? ' · in plan' : ''}</option>`).join('')}</select>
+    <label class="chk"><input type="checkbox" id="asMax" ${ui.asMax ? 'checked' : ''}> As if my Pokémon were Lv 100</label>
+    <button class="btn gold" data-x="runSim" ${ui.simPick ? '' : 'disabled'}>Run the Simulator on My PC</button></div>`;
+  const r = ui.simRes[ui.simPick];
+  if (r) {
+    if (r.running) h += `<div class="card">Simulating on your PC… this can take a minute.</div>`;
+    else {
+      const z = ui.sims.find((x) => x[0] === r.id);
+      h += `<div class="card"><h3>Best Team</h3><div class="big">${Math.round(r.ko * 100)}% KO</div>${r.asMax && r.today != null ? `<div class="dim">today, at their real levels: ${Math.round(r.today * 100)}%</div>` : ''}
+        <div style="display:grid;grid-template-columns:repeat(${Math.min(6, r.team.length)},1fr);text-align:center;margin-top:8px">${r.team.map(([id, lv]) => `<div>${img(id, 48)}<div class="dim" style="font-size:12px">Lv ${lv}</div></div>`).join('')}</div>
+        ${z && !z[4] ? `<button class="btn gold" data-c="goal.add" data-a='{"type":"legend","foe":${r.id}}' data-l="Add ${esc(z[1])} to plan" data-after="sims">Add to Plan</button>` : '<div class="ok" style="margin-top:8px">In your plan.</div>'}</div>`;
+    }
+  }
+  return h + `<div class="dim">Elite tiers will be simulated here once that's built.</div>`;
+}
+function vTrades() {
+  const s = snap; if (!s.trades) return `<div class="card">Trades haven't been read yet.</div>`;
+  const T = s.trades.t; let h = `<div class="card"><h3>Trade Board</h3><div>${T.length} Pokémon you're missing are on the board · checked ${at(s.trades.at)}</div><button class="btn" data-c="trades.refresh" data-l="Refresh trades">Refresh Now</button><div class="dim" style="margin-top:8px">Accepting needs the game window: remote in and use Open in Game in Mega.</div></div>`;
+  const TAG = { spare: ['ok', '✓ spare'], last: ['warn', 'your last'], busy: ['warn', 'in use'], none: ['dim', 'need it'] };
+  if (T.length) h += `<div class="grid">${T.map(([id, sh, n, can, nw, to, best]) => { const [c, t] = TAG[best] || TAG.none; return `<div class="mon" ${best === 'spare' ? 'style="border-color:#2f8f5b"' : ''}><img src="${SPRITE(id)}" loading="lazy">${sh ? '✨' : ''}${N(id)}<div style="font-size:12px">${n} offers</div><div style="font-size:12px"><span class="${can ? 'ok' : 'dim'}">${can} can do</span> · <span class="dim">${n - can} can't</span></div>${nw ? '<div class="ok" style="font-weight:800;font-size:12px">NEW</div>' : to ? `<div class="ok" style="font-size:12px">→ ${N(to)} NEW</div>` : ''}<div class="${c}" style="font-size:12px">${t}</div></div>`; }).join('')}</div>`;
+  return h;
+}
+function vGems() {
+  const g = snap.gems; if (!g) return `<div class="card">No gem data.</div>`;
+  return `<div class="card"><h3>Biggest Upgrades Right Now</h3><div class="dim">${g.total} gems. Ranking up needs the game window - remote in and use Open in Game on the Gems tab.</div>${g.top.map(([id, gain, label, need, r, sh], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div></div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
+}
+function vSet() {
+  const s = snap?.set || {};
+  return `<div class="card"><h3>Mega Settings</h3>
+    <label class="chk"><input type="checkbox" data-set="set.berries" ${s.berries ? 'checked' : ''}> Use berries while goals run</label>
+    <label class="chk"><input type="checkbox" data-set="set.idle" ${s.idle ? 'checked' : ''}> Level Pokémon when the plan is idle</label></div>
+    <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
+    <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
+    <button class="btn danger" data-x="unpair">Unpair This Phone</button>
+    <div class="dim" style="margin-top:8px">Tip: Share → Add to Home Screen, and Mega Remote opens like an app.</div></div>`;
+}
+function render() {
+  setSub();
+  $('#tabs').innerHTML = pair ? TABS.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
+  if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Phone Remote</b>, switch it on and press <b>Send Setup Link to My Phone</b>. Tap the alert that arrives in the ntfy app - it opens this page already paired.</div></div>`; return; }
+  if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
+  const V = { now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
+  $('#main').innerHTML = V();
+  if (focus === 'dexQ') { const el = $('#dexQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
+}
+
+// ---- input ----
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-tab],[data-c],[data-x]'); if (!t) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; store.set('mr-tab', tab); window.scrollTo(0, 0); render(); return; }
+  if (t.dataset.c) {
+    if (t.dataset.confirm && !await askConfirm(t.dataset.confirm)) return;
+    const after = t.dataset.after;
+    cmd(t.dataset.c, JSON.parse(t.dataset.a || '{}'), t.dataset.l, () => { if (after === 'dexInfo' && ui.dexInfo) openDex(ui.dexInfo.id); if (after === 'sims') loadSims(); });
+    return;
+  }
+  const x = t.dataset.x;
+  if (x === 'loadDex') cmd('dex.missing', {}, 'Load missing Pokémon', (r, data) => { ui.dex = data || []; render(); });
+  if (x === 'dexOpen') openDex(+t.dataset.id);
+  if (x === 'dexBack') { ui.dexInfo = null; render(); }
+  if (x === 'loadSims') loadSims();
+  if (x === 'runSim') {
+    const id = +ui.simPick; ui.simRes[id] = { running: 1 }; render();
+    const rq = await cmd('sim.run', { id, asMax: ui.asMax }, 'Run simulator');
+    watch.set(rq, (d) => { if (d && !d.running) { ui.simRes[id] = d; loadSims(); render(); return true; } return false; });
+  }
+  if (x === 'addGoal') {
+    const ty = ui.addType, v = ui.addVal;
+    const args = ty === 'legend' ? { type: ty, foe: +v } : ty === 'money' ? { type: ty, target: +v || 1e7 } : ty === 'region' ? { type: ty, reg: v } : { type: ty };
+    if ((ty === 'legend' || ty === 'region') && !v) { toast('Choose one first'); return; }
+    cmd('goal.add', args, 'Add goal', () => { ui.addVal = ''; if (ty === 'legend') loadSims(); });
+  }
+  if (x === 'unpair') { if (await askConfirm('Unpair this phone? You can pair again from Mega\'s Settings.')) { localStorage.clear(); pair = null; snap = null; try { es?.close(); } catch {} render(); } }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.id === 'addType') { ui.addType = t.value; ui.addVal = ''; if (t.value === 'legend' && !ui.sims) loadSims(); render(); }
+  if (t.id === 'addVal') ui.addVal = t.value;
+  if (t.id === 'simPick') { ui.simPick = +t.value || null; render(); }
+  if (t.id === 'asMax') ui.asMax = t.checked;
+  if (t.dataset.set) cmd(t.dataset.set, { on: t.checked }, t.checked ? 'Turn on' : 'Turn off');
+});
+let qT = null;
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'dexQ') return;
+  ui.dexQ = e.target.value.trim(); ui.dexHits = null; clearTimeout(qT);
+  if (ui.dexQ.length < 2) { render(); return; }
+  qT = setTimeout(() => cmd('dex.search', { q: ui.dexQ }, 'Search', (r, data) => { ui.dexHits = data || []; render(); }), 700);
+});
+function openDex(id) { cmd('dex.info', { id }, 'Look up', (r, data) => { if (data) { ui.dexInfo = data; window.scrollTo(0, 0); render(); } }); }
+function loadSims() { cmd('sim.list', {}, 'Load legendaries', (r, data) => { ui.sims = data || []; render(); }); }
+function askConfirm(text) {
+  return new Promise((res) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:9;padding:20px';
+    d.innerHTML = `<div class="card" style="max-width:420px;width:100%"><div style="font-size:17px">${esc(text)}</div><button class="btn danger" data-ok>Yes</button><button class="btn" data-no>Cancel</button></div>`;
+    d.onclick = (e) => { if (e.target.closest('[data-ok]')) { d.remove(); res(true); } else if (e.target.closest('[data-no]') || e.target === d) { d.remove(); res(false); } };
+    document.body.appendChild(d);
+  });
+}
+render();
+listen();
+</script>
+</body>
+</html>
