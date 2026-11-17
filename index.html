@@ -271,7 +271,26 @@ function fightBox(f) {
     ${row('Catch chance per KO', pct(f.chance))}
     ${f.pity ? row('Tries toward the guarantee', `${f.tries} of ${f.pity}`) : row('Capture tries so far', f.tries)}
     ${f.per ? row('Time per fight', hm(f.per)) : ''}
-    ${verdict ? `<div style="margin-top:6px">${verdict}</div>` : ''}</div>`;
+    ${verdict ? `<div style="margin-top:6px">${verdict}</div>` : ''}
+    ${f.k === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}</div>`;
+}
+// ---- change your team (the chapter team) ----
+const tm = { data: null, draft: [], slot: 0, q: '', loading: false };
+function loadTeam() { tm.loading = true; cmd('team.get', {}, 'Load your Pokémon', (r, data) => { tm.loading = false; if (data) { tm.data = data; Object.assign(snap.nm || (snap.nm = {}), data.nm || {}); tm.draft = data.team.map((x) => x[0]); tm.slot = Math.min(tm.draft.length, 5); } render(); }); }
+function vTeam() {
+  if (!tm.data) { if (!tm.loading) loadTeam(); return `<div class="card"><h3>Change Team</h3><div class="dim">Loading your Pokémon from your PC…</div><button class="btn" data-tab="now">← Back</button></div>`; }
+  const by = new Map(tm.data.opts.map((x) => [x[0], x])); for (const x of tm.data.team) by.set(x[0], x);
+  const card = (x, big) => `${img(x[1], big ? 48 : 40)}<div style="font-size:12px;line-height:1.2">${N(x[1])}</div><div class="dim" style="font-size:11px">Lv ${x[2]}${x[3] ? ' ★' + x[3] : ''}${x[4] ? ' ✨' : ''}</div>`;
+  let h = `<div class="card"><h3>Change Team</h3><div class="dim" style="font-size:13px">Tap a slot, then tap a Pokémon below to put it there. Pokémon in the Underground aren't listed.</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const x = by.get(tm.draft[i]); return `<div data-x="tmSlot" data-v="${i}" style="padding:6px;border-radius:12px;border:2px solid ${tm.slot === i ? '#9c86ff' : 'var(--line)'};min-height:86px">${x ? card(x, true) + `<div data-x="tmDrop" data-v="${i}" class="dim" style="font-size:12px;margin-top:2px">✕ remove</div>` : '<div class="dim" style="padding-top:26px">empty</div>'}</div>`; }).join('')}</div>
+    ${tm.data.busy?.length ? `<div class="warn" style="margin-top:8px">Mega is running ${esc(tm.data.busy.join(', '))} - it may use its own team for that and put yours back after.</div>` : ''}
+    <button class="btn gold" data-x="tmSave" ${tm.draft.filter(Boolean).length ? '' : 'disabled'}>Save Team</button><button class="btn" data-x="tmCancel">Cancel</button></div>`;
+  const q = tm.q.trim().toLowerCase();
+  const list = tm.data.opts.filter((x) => !tm.draft.includes(x[0]) && (!q || N(x[1]).toLowerCase().includes(q))).slice(0, 90);
+  h += `<div class="card"><input type="text" id="tmQ" value="${esc(tm.q)}" placeholder="Search your Pokémon…" autocomplete="off">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin-top:8px">${list.map((x) => `<div data-x="tmPick" data-v="${esc(x[0])}" style="padding:6px 2px;border-radius:12px;background:#1f1a38">${card(x)}</div>`).join('')}</div>
+    ${list.length ? '' : '<div class="dim">Nothing matches.</div>'}</div>`;
+  return h;
 }
 function vNow() {
   const s = snap; let h = '';
@@ -300,14 +319,15 @@ function vNow() {
   if (s.dc && (s.dc.u || s.dc.m.length)) {
     const since = Date.now() - s.at, hm = (ms) => { const m = Math.ceil(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`; };
     h += `<div class="card"><h3>🥚 Day Care</h3><div class="dim">Incubator ${s.dc.u} of ${s.dc.x || '?'}${s.dc.f ? ' · full - hatch one to make room' : s.dc.n != null ? ` · next egg in ${hm(Math.max(0, s.dc.n - since))}` : ''}</div>`
-      + s.dc.e.map(([id, left, ready, spar, dur]) => { const l = Math.max(0, left - since), rd = ready || l <= 0; return `<div class="flex" style="margin:8px 0"><span style="${rd ? '' : 'filter:brightness(.35)'}">${img(id, 44)}</span><div class="grow"><b>${N(id)}</b>${spar ? ' ✨' : ''}<div class="${rd ? 'ok' : 'dim'}">${rd ? '● ready to hatch' : `${hm(l)} left · hatches ${new Date(Date.now() + l).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}</div>${rd ? '' : bar(1 - l / Math.max(1, dur || 21600000))}</div></div>`; }).join('')
+      + s.dc.e.map(([id, left, ready, spar, dur, uid]) => { const l = Math.max(0, left - since), rd = ready || l <= 0; return `<div class="flex" style="margin:8px 0"><span style="${rd ? '' : 'filter:brightness(.35)'}">${img(id, 44)}</span><div class="grow"><b>${N(id)}</b>${spar ? ' ✨' : ''}<div class="${rd ? 'ok' : 'dim'}">${rd ? '● ready to hatch' : `${hm(l)} left · hatches ${new Date(Date.now() + l).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}</div>${rd ? '' : bar(1 - l / Math.max(1, dur || 21600000))}</div>${rd && uid ? `<button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-c="egg.hatch" data-a='{"uid":"${esc(uid)}"}' data-l="Hatch ${N(id)}">🐣 Hatch</button>` : ''}</div>`; }).join('')
+      + (s.dc.e.filter((e) => e[2] || e[1] - since <= 0).length > 1 ? `<button class="btn gold" data-c="egg.hatch" data-l="Hatch all ready eggs">🐣 Hatch All Ready (${s.dc.e.filter((e) => e[2] || e[1] - since <= 0).length})</button>` : '')
       + (s.dc.m.length ? `<div class="dim" style="margin-top:6px">Staying there: ${s.dc.m.map(([id, lv, sh]) => `${N(id)}${sh ? ' ✨' : ''} Lv ${lv}`).join(', ')}</div>` : '') + `</div>`;
   }
   const next = s.goals.filter((g) => g !== scr && !g.bg && !(g.s === 'wait' && /\b(locked|closed)\b/i.test(g.y)));
   if (next.length) h += `<div class="card"><h3>Up Next</h3>${next.slice(0, 5).map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${g.s === 'paused' ? '❚❚ paused' : g.s === 'queued' ? '○ after the one above' : '◐ ' + esc(g.y || g.s)}</div></div></div>`).join('')}</div>`;
   if (s.trades) { const sp = s.trades.t.filter((t) => t[6] === 'spare'); h += `<div class="card"><h3>Trades</h3>${s.trades.t.length ? `${s.trades.t.length} Pokémon you're missing are on the board${sp.length ? ` · <span class="ok">${sp.length} for a spare</span>` : ' · none for a spare right now'}` : 'Nothing you\'re missing on the board.'}</div>`; }
   if (s.dex.length) h += `<div class="card"><h3>Pokédex</h3>${s.dex.map(([n, a, b]) => `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between"><b>${esc(n)}</b><span>${a} / ${b}${a >= b ? ' <span class="ok">✔</span>' : ''}</span></div>${bar(a / Math.max(1, b))}</div>`).join('')}</div>`;
-  if (s.team.length) h += `<div class="card"><h3>Team</h3><div style="display:grid;grid-template-columns:repeat(${Math.min(6, s.team.length)},1fr);text-align:center;gap:4px">${s.team.map(([id, lv, r, sh, b]) => `<div>${img(id, 48)}<div style="font-size:12px">${N(id)}</div><div class="dim" style="font-size:12px">Lv ${lv}${r ? ' ★' + r : ''}${sh ? ' ✨' : ''}${b ? ' 💛' : ''}</div></div>`).join('')}</div></div>`;
+  if (s.team.length) h += `<div class="card"><h3>Team</h3><div style="display:grid;grid-template-columns:repeat(${Math.min(6, s.team.length)},1fr);text-align:center;gap:4px">${s.team.map(([id, lv, r, sh, b]) => `<div>${img(id, 48)}<div style="font-size:12px">${N(id)}</div><div class="dim" style="font-size:12px">Lv ${lv}${r ? ' ★' + r : ''}${sh ? ' ✨' : ''}${b ? ' 💛' : ''}</div></div>`).join('')}</div><button class="btn" data-x="teamEdit">✏️ Change Team</button></div>`;
   return h;
 }
 function vPlan() {
@@ -324,7 +344,7 @@ function vPlan() {
         <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>↓ Down</button>
         <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? '▶ Resume' : '❚❚ Pause'}</button>
         <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">✕ Remove</button>
-      </div>${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
+      </div>${g.t === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
   });
   if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
   if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
@@ -591,11 +611,12 @@ function render() {
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
-  const V = { act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  const V = { team: vTeam, act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
   $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
+  if (focus === 'tmQ') { const el = $('#tmQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'actQ') { const el = $('#actQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'dexQ') { const el = $('#dexQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
 }
@@ -613,6 +634,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'teamEdit') { tm.data = null; tm.q = ''; tab = 'team'; window.scrollTo(0, 0); render(); return; }
+  if (x === 'tmSlot') { tm.slot = +t.dataset.v; render(); return; }
+  if (x === 'tmDrop') { e.stopPropagation(); tm.draft[+t.dataset.v] = undefined; tm.draft = [...tm.draft.filter(Boolean)]; tm.slot = Math.min(tm.draft.length, 5); render(); return; }
+  if (x === 'tmPick') { const d = tm.draft.slice(); d[tm.slot] = t.dataset.v; tm.draft = d.filter(Boolean).slice(0, 6); tm.slot = Math.min(tm.draft.length, 5); render(); return; }
+  if (x === 'tmSave') { cmd('team.set', { uids: tm.draft.filter(Boolean) }, 'Save team', (res) => { if (!/^error/.test(res)) { tab = 'now'; render(); } }); return; }
+  if (x === 'tmCancel') { tab = 'now'; render(); return; }
   if (x === 'pushOn') { pushOn(); return; }
   if (x === 'pushTest') { pushTest(false); return; }
   if (x === 'pushOff') { if (await askConfirm('Turn off alerts on this phone?')) pushOff(); return; }
@@ -664,6 +691,7 @@ document.addEventListener('change', (e) => {
 });
 let qT = null;
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'tmQ') { tm.q = e.target.value; render(); return; }
   if (e.target.id === 'actQ') { act.q = e.target.value; act.show = 80; render(); return; }
   if (e.target.id !== 'dexQ') return;
   ui.dexQ = e.target.value.trim(); ui.dexHits = null; clearTimeout(qT);
