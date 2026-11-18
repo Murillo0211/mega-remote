@@ -453,7 +453,7 @@ function vPlan() {
   return h;
 }
 function addCard(s) {
-  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['wboss', 'World Boss (every edition)'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex']];
+  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['wboss', 'World Boss (every edition)'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex'], ['story', 'Beat a region\'s League']];
   let h = `<div class="card"><h3>Add a Goal</h3><select id="addType">${types.map(([k, l]) => `<option value="${k}" ${ui.addType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   if (ui.addType === 'legend') {
     if (!ui.sims) { h += `<button class="btn" data-x="loadSims">Load Legendaries</button>`; }
@@ -472,6 +472,7 @@ function addCard(s) {
     return h + `<div class="dim" style="margin-top:8px">Mega restarts the chapter until its item stop shows up, and keeps going until the item is yours.</div></div>`;
   } else if (ui.addType === 'money') h += `<select id="addVal">${[1e6, 2e6, 5e6, 1e7, 2e7, 5e7].filter((x) => x > s.money).map((x) => `<option value="${x}" ${+ui.addVal === x ? 'selected' : ''}>Up to ₽${x.toLocaleString()}</option>`).join('')}</select><div class="dim" style="margin-top:6px">You have ₽${s.money.toLocaleString()}.</div>`;
   else if (ui.addType === 'region') h += `<select id="addVal"><option value="">Choose a region…</option>${s.dex.filter((r) => r[1] < r[2]).map((r) => `<option value="${esc(r[3])}" ${ui.addVal === r[3] ? 'selected' : ''}>${esc(r[0])} · ${r[2] - r[1]} missing</option>`).join('')}</select>`;
+  if (ui.addType === 'story') { const L = s.leagues || []; h += L.length ? `<select id="addVal"><option value="">Choose a region…</option>${L.map(([k, n, inp]) => `<option value="${esc(k)}" ${ui.addVal === k ? 'selected' : ''} ${inp ? 'disabled' : ''}>${esc(n)} League${inp ? ' (in your plan)' : ''}</option>`).join('')}</select><div class="dim" style="margin-top:8px">Plays that region's chapters in order with the Pokémon caught there, picks the best 6 for each gym, trains 30 min after 2 losses, and stays below your dailies.</div>` : `<div class="dim" style="margin-top:8px">${s.leagues ? 'Every League you\'ve unlocked is beaten.' : 'Update Mega on the PC to add this from your phone.'}</div>`; }
   if (ui.addType === 'wboss') h += `<div class="dim" style="margin-top:8px">Each edition: uses your 3 daily attacks while the shield is up, then catches it during the 24-hour window.</div>`;
   h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: from the Pokédex tab. Elite tiers and the Elite League: from Simulate.</div></div>`;
   return h;
@@ -906,8 +907,8 @@ document.addEventListener('click', async (e) => {
   }
   if (x === 'addGoal') {
     const ty = ui.addType, v = ui.addVal;
-    const args = ty === 'legend' ? { type: ty, foe: +v } : ty === 'money' ? { type: ty, target: +v || 1e7 } : ty === 'region' ? { type: ty, reg: v } : { type: ty };
-    if ((ty === 'legend' || ty === 'region') && !v) { toast('Choose one first'); return; }
+    const args = ty === 'legend' ? { type: ty, foe: +v } : ty === 'money' ? { type: ty, target: +v || 1e7 } : ty === 'region' ? { type: ty, reg: v } : ty === 'story' ? { type: ty, region: v } : { type: ty };
+    if ((ty === 'legend' || ty === 'region' || ty === 'story') && !v) { toast('Choose one first'); return; }
     cmd('goal.add', args, 'Add goal', () => { ui.addVal = ''; if (ty === 'legend') loadSims(); });
   }
   if (x === 'unpair') { if (await askConfirm('Unpair this phone? You can pair again from Mega\'s Settings.')) { localStorage.clear(); pair = null; snap = null; history.replaceState(null, '', location.pathname); try { es?.close(); } catch {} render(); } }
