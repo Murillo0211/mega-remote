@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.1.7
+// @version      2.1.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.1.7';
+const VERSION = '2.1.8';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3514,7 +3514,7 @@ Views.league = (esc) => {
       h += `<div class="dim" style="margin-top:6px">${esc(Casing.title(s.gym.type || ''))} type · power ×${(+s.gym.power || 1).toFixed(2)}${s.cap ? ` · level cap ${s.cap}` : ''}${s.gym.byStarter ? ' · the leader depends on your starter' : ''}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.foes.map((f) => `<div style="text-align:center"><img src="${Engine.sprite(f.id)}" width="48" height="48" style="image-rendering:pixelated"><div style="font-size:12px">${nm(f.id)}</div><div class="dim" style="font-size:12px">Lv ${f.level}</div></div>`).join('')}</div>`;
       const pctB = (x) => `<b class="${x >= 0.6 ? 'ok' : x >= 0.3 ? 'warn' : 'bad'}">${Math.round(x * 100)}%</b>`;
-      if (s.win != null) h += `<div style="margin-top:10px">Your current team: ${pctB(s.win)} to win right now</div>`;
+      if (s.win != null) h += `<div style="margin-top:10px">Your current team vs ${esc(s.gym.leader ? Casing.names(String(s.gym.leader)) : 'the leader')}: ${pctB(s.win)} <span class="dim">at today's levels, in the leader's fight itself (not the chapter's wild Pokémon and trainers on the way)</span></div>`;
       // what Mega is doing about it, in its own words (the "Beat the League" goal)
       const sg = (() => { try { return (Plan.goals || []).find((g) => !g.done && g.type === 'story') || null; } catch { return null; } })();
       const sl = sg ? (() => { try { return Plan.live(sg.id); } catch { return null; } })() : null;
@@ -4619,11 +4619,19 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const chs = safe(() => ST.chaptersOf(reg), []) || [];
       const un = +(a.unlocked ?? 0), front = Math.min(un, chs[chs.length - 1]);
       const deaths = +(a.deaths?.[front] ?? 0);
+      // where the team wipes: the fight in progress is remembered every tick (after a wipe the game has already
+      // sent you back to the chapter's start, so "where am I now" would always say stop 1)
+      if (a.battle?.enemies?.length && +a.chapter === front) {
+        const b = a.battle, n = +b.slots || 1;
+        g.lastFight = { at: Date.now(), node: (+a.node || 0) + 1, of: (a.nodes || []).length, kind: b.kind, who: b.trainer ? Casing.names(String(E.read('STORY.trainerLabel', b.trainer, b.trainer))) : '', foes: b.enemies.map((m) => name(m.id)).slice(0, 4), size: n === 3 ? 'triple battle' : n === 2 ? 'double battle' : '' };
+      }
       if (g.seenDeaths == null || g.seenDeathsCh !== front) { g.seenDeaths = deaths; g.seenDeathsCh = front; }
       else if (deaths > g.seenDeaths) {
-        const nd = (a.nodes || [])[+a.node || 0] || {}, kind = a.battle?.kind || nd.type || 'a fight';
-        Log.add(`story: lost at ${ST.CHAPTERS[front]?.name} - stop ${(+a.node || 0) + 1} (${kind === 'gym' ? 'the leader' : kind})`);
-        g.seenDeaths = deaths; Plan.save();
+        const f = g.lastFight && Date.now() - g.lastFight.at < 3 * 60_000 ? g.lastFight : null;
+        const where = !f ? 'somewhere in the chapter' : f.kind === 'gym' ? `at ${f.who || 'the leader'} (stop ${f.node} of ${f.of})`
+          : `on the way, stop ${f.node} of ${f.of}: ${[f.size, f.kind === 'trainer' ? `vs ${f.who || 'a trainer'}` : f.kind].filter(Boolean).join(' ')} (${f.foes.join(', ')})`;
+        Log.add(`story: lost at ${ST.CHAPTERS[front]?.name} - ${where}`);
+        g.lossWhere = f ? (f.kind === 'gym' ? 'leader' : 'way') : null; g.seenDeaths = deaths; Plan.save();
       }
       // learn from real gym fights: note the estimate when one starts, then whether it ended in a badge or a loss
       try {
@@ -4634,7 +4642,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
           if (won || lost) GymPlan.learn(f, won);
           if (won || lost || Date.now() - f.at > 15 * 60_000) { g.gymFight = null; Plan.save(); }
         }
-      } catch (__e) { __h('70-plan-02-story:53', __e); }
+      } catch (__e) { __h('70-plan-02-story:61', __e); }
       if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
       const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
       const sp = (m) => Sim.species(m);
@@ -4643,8 +4651,8 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (!g.trainUntil && deaths - (g.deaths0 || 0) >= 2) {
         const capped = mons.filter((m) => m.level >= capOf(m.uid)).length;
         if (capped >= Math.min(6, mons.length)) { g.deaths0 = deaths; Plan.save(); Log.add('story: lost twice, but everyone is at the level cap - trying again with the best team'); }
-        else { g.trainUntil = now + 30 * 60_000; Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name} - training for 30 minutes first`); }
-        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:63', __e); }
+        else { g.trainUntil = now + 30 * 60_000; Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name}${g.lossWhere === 'way' ? ' (on the way, before the leader)' : g.lossWhere === 'leader' ? ' (against the leader)' : ''} - training for 30 minutes first`); g.trainWhy = g.lossWhere === 'way' ? 'on the way, before the leader' : g.lossWhere === 'leader' ? 'against the leader' : ''; }
+        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:71', __e); }
       }
       if (g.trainUntil && now < g.trainUntil) {
         const tm = (S().team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
@@ -4660,7 +4668,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
         ch = r[0]?.ch ?? done[done.length - 1] ?? front;
       }
       // ---- gym plan: the team that beats this gym (game's own estimate), and how to get it ----
-      try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan-02-story:79', __e); }
+      try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan-02-story:87', __e); }
       const G = safe(() => GymPlan.gymOf(front));
       const plan = G && G.foes.length ? safe(() => GymPlan.get(front)) : null;
       g.planWin = plan ? plan.plan.win : null; g.nowWin = plan ? plan.now.win : null;
@@ -4696,7 +4704,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
             const tch = r[0]?.ch ?? done[done.length - 1] ?? front;
             if (uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
-            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:115', __e); } }
+            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:123', __e); } }
             return `leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
@@ -4724,17 +4732,17 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       // so the team stays even (the gym is only as easy as your weakest Pokémon)
       { const team = (S().team || []).slice(0, 6).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).filter((m) => m.level < capOf(m.uid));
         const bud = team.sort((x, y) => x.level - y.level)[0];
-        if (bud && S().buddy?.uid !== bud.uid) { try { E.call('Game.setBuddy', bud.uid); } catch (__e) { __h('70-plan-02-story:143', __e); } if (S().buddy?.uid === bud.uid) Log.add(`story: made ${name(bud.id)} (Lv ${bud.level}) your buddy - it's the lowest on the team`); } }
+        if (bud && S().buddy?.uid !== bud.uid) { try { E.call('Game.setBuddy', bud.uid); } catch (__e) { __h('70-plan-02-story:151', __e); } if (S().buddy?.uid === bud.uid) Log.add(`story: made ${name(bud.id)} (Lv ${bud.level}) your buddy - it's the lowest on the team`); } }
       if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
       const looping = !!E.read('Adventure.isLooping', false, ch);
-      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:146', __e); } }
-      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:147', __e); } } // the frontier must not loop, or a win wouldn't move on
-      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:148', __e); } g.loopOn = null; Plan.save(); }
+      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:154', __e); } }
+      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:155', __e); } } // the frontier must not loop, or a win wouldn't move on
+      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:156', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length;
-      return training ? `training in ${ST.CHAPTERS[ch]?.name} for ${Math.ceil((g.trainUntil - now) / 60_000)} more min (lost twice at ${ST.CHAPTERS[front]?.name})`
+      return training ? `training in ${ST.CHAPTERS[ch]?.name} for ${Math.ceil((g.trainUntil - now) / 60_000)} more min (lost twice at ${ST.CHAPTERS[front]?.name}${g.trainWhy ? ', ' + g.trainWhy : ''})`
         : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:153', __e); } },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:161', __e); } },
   };
   Object.assign(GoalTypes, { story });
 })();
