@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.0.1
+// @version      2.0.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.0.1';
+const VERSION = '2.0.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7230,7 +7230,10 @@ const Remote = (() => {
     const team = uids.map((u) => (typeof u === 'object' ? u : E.read('Game.getMon', null, u) || (() => { try { return R?.allyMon(u); } catch { return null; } })())).filter(Boolean).map((m) => [m.id, m.level, ...hp(m), m.bot ? String(m.owner || 'ally') : '']);
     const node = a.chapter != null ? [(+a.node || 0) + 1, (a.nodes || []).length] : null;
     const fight = fightNow();
-    return { k: 'tick', at: Date.now(), fight, top: Casing.names(Plan.top || ''), goals, foes, team, node, money: History.homeMoney(), side: History.sideMoney(), idle: Plan.idle ? Casing.names(Plan.idle.line || '') : null, nm: Object.fromEntries([...foes.map((f) => f[0]), ...team.map((t) => t[0]), ...(fight ? [fight.foe] : [])].map((id) => [id, Dx[id]?.name || '#' + id])) };
+    // who you're fighting: [kind, name] - a trainer or gym leader by the game's own English label, else just the kind (wild, raid…)
+    const b = a.battle || null;
+    const opp = b && b.kind ? [String(b.kind), b.trainer ? Casing.names(String(E.read('STORY.trainerLabel', b.trainer, b.trainer))) : ''] : null;
+    return { k: 'tick', at: Date.now(), fight, opp, top: Casing.names(Plan.top || ''), goals, foes, team, node, money: History.homeMoney(), side: History.sideMoney(), idle: Plan.idle ? Casing.names(Plan.idle.line || '') : null, nm: Object.fromEntries([...foes.map((f) => f[0]), ...team.map((t) => t[0]), ...(fight ? [fight.foe] : [])].map((id) => [id, Dx[id]?.name || '#' + id])) };
   }
   let ticking = false, lastTickAt = 0;
   async function liveTick() {
