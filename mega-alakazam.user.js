@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.27.1
+// @version      0.27.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.27.1';
+const VERSION = '0.27.2';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -1341,6 +1341,16 @@ const Legends = (() => {
  * Read-only: nothing here changes the game.
  * ------------------------------------------------------------------------------------------- */
 const DexInfo = (() => {
+  // Items live in a side's bag: while you're on a new region's side (Unova), your older regions' bag
+  // is the game's stash (link.stash), so count an item from the bag of the chapter it's used in.
+  function itemFor(item, ch) {
+    const s = Engine.get('Game.S') || {}, link = s.link;
+    const here = +Engine.read('Game.itemCount', 0, item) || 0;
+    if (!link || !link.stash || ch == null) return here;
+    let reg = null; try { reg = Engine.get('STORY').regionOf(ch)?.key; } catch {}
+    const side = reg === link.to ? 'to' : 'from';
+    return side === link.side ? here : +(link.stash.items || {})[item] || 0;
+  }
   const E = Engine;
   const S = () => E.get('Game.S') || {};
   const D = () => E.get('Game.DEX') || {};
@@ -1409,7 +1419,7 @@ const DexInfo = (() => {
     const ST = E.get('STORY'), s = S(), unlocked = +(s.adv?.unlocked ?? 0), out = [];
     (ST?.CHAPTERS || []).forEach((c, ch) => (c.steps || []).forEach((st) => {
       if (st.kind !== 'static' || +st.id !== +id) return;
-      const place = placeOf(ch, st), have = st.needs ? +E.read('Game.itemCount', 0, st.needs) || 0 : null;
+      const place = placeOf(ch, st), have = st.needs ? itemFor(st.needs, ch) : null;
       const missingCaught = (st.caught || []).filter((x) => !s.dex?.[x]);
       const timeOk = (k) => (st.night ? k === 'night' : st.day ? k !== 'night' : true);
       const win = nextWindow(place, st.skies || null, timeOk);
@@ -1586,7 +1596,7 @@ const DexInfo = (() => {
     return v;
   }
 
-  return { howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
+  return { itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4556,13 +4566,16 @@ const GoalTypes = (() => {
     }
     return best;
   }
+  // the item belongs to the region it's farmed in (Spiritomb's souls: Sinnoh) - count that region's bag,
+  // even while you're on Unova's side (the game keeps the other bag in its stash)
+  const soulHave = (g) => DexInfo.itemFor(g.item, g.pick?.ch ?? g.ch ?? (() => { try { return DexInfo.special(g.forDex)[0]?.ch; } catch { return null; } })());
   const souls = {
     uses: 'screen',
-    progress: (g) => ({ have: Math.min(g.need, +E.read('Game.itemCount', 0, g.item) || 0), need: g.need, unit: g.item + 's' }),
+    progress: (g) => ({ have: Math.min(g.need, soulHave(g)), need: g.need, unit: g.item + 's' }),
     label: (g) => `Collect ${g.need} ${g.item}s${g.forDex ? ` (for ${name(g.forDex)})` : ''}`,
     sprite: (g) => g.forDex || null,
     check(g) {
-      const have = +E.read('Game.itemCount', 0, g.item) || 0;
+      const have = soulHave(g);
       if (have >= g.need) return { state: 'done', why: `${have}/${g.need}` };
       const cfg = E.get('CONFIG')?.SOULS || {};
       if (!soulChapter(cfg)) return { state: 'wait', why: `no ${cfg.type || ''} Pokémon in reach right now (time of day / weather)` };
@@ -4582,7 +4595,7 @@ const GoalTypes = (() => {
       if (g.pick.cut != null && last >= 0 && at > last && !inFight && !a.event && !a.zone) {
         if (rebuild(g.pick.ch)) { g.restarts = (g.restarts || 0) + 1; Plan.save(); return `restarted ${g.pick.name} - no ${cfg.type || ''} Pokémon after stop ${last + 1} (${g.restarts} restarts)`; }
       }
-      const have = +E.read('Game.itemCount', 0, g.item) || 0;
+      const have = soulHave(g);
       if (g.startHave == null) { g.startHave = have; g.startAt = Date.now(); Plan.save(); }
       const got = have - g.startHave, hrs = (Date.now() - g.startAt) / 3_600_000, rate = hrs > 0.05 ? got / hrs : null;
       return `${have}/${g.need} ${g.item}s · ${g.pick.name}${g.pick.cut != null ? ` stops 1-${g.pick.cut + 1}` : ''} (${Math.round(g.pick.score * 100)}% of fights ${cfg.type})${rate ? ` · ~${Math.round(rate)}/h, about ${Math.ceil((g.need - have) / Math.max(0.1, rate))} h to go` : ''}`;
