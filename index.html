@@ -672,7 +672,7 @@ function vGems() {
 }
 function vSet() {
   const s = snap?.set || {};
-  return `<div class="card"><h3>Game</h3><div class="dim">Mega ${esc(snap?.ver || '?')}${snap?.upd ? ` · <span class="ok">${esc(snap.upd)} ready</span>` : ''}</div><button class="btn" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>
+  return `<div class="card"><h3>Updates</h3><div class="dim">Mega ${esc(snap?.ver || '?')}${snap?.upd ? ` · <span class="ok">${esc(snap.upd)} ready</span>` : ''}</div><div class="flex" style="gap:8px;margin-top:8px"><button class="btn grow" data-c="update.check" data-l="Check for updates">⬆ Check for Updates</button><button class="btn grow" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div></div>
   <div class="card"><h3>Mega Settings</h3>
     <label class="chk"><input type="checkbox" data-set="set.berries" ${s.berries ? 'checked' : ''}> Use berries while goals run</label>
     <label class="chk"><input type="checkbox" data-set="set.idle" ${s.idle ? 'checked' : ''}> Level Pokémon when the plan is idle</label></div>
