@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.2.1
+// @version      2.3.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.2.1';
+const VERSION = '2.3.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2530,14 +2530,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:298', __e); } setTimeout(() => renderBody(true), 300); return; }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:299', __e); } return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:298', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gym-go' || act === 'gym-train') {
+      const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
+      try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
+      renderBody(true); return;
+    }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:304', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:302', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:307', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:305', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:310', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -2580,8 +2585,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:348', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:349', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:353', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:354', __e); }
     renderBody(true, w);
   }
 
@@ -2596,7 +2601,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:364', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:369', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -2611,11 +2616,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:379', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:380', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:384', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:385', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:383', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:388', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3522,6 +3527,7 @@ Views.league = (esc) => {
       // the gym plan: best team from what you have + what you can catch, at the level cap
       if (!s.travel && s.foes.length) {
         const P = (() => { try { return GymPlan.get(s.ch); } catch { return null; } })(), B = (() => { try { return GymPlan.busy; } catch { return null; } })();
+        let canTrain = false;
         const pct = (x) => `<b class="${x >= 0.6 ? 'ok' : x >= 0.3 ? 'warn' : 'bad'}">${Math.round(x * 100)}%</b>`;
         h += `<div class="note" style="margin-top:10px"><b>Gym plan</b> <span class="dim">· your Unova Pokémon and what you can catch, judged at the level cap${s.cap ? ' (Lv ' + s.cap + ')' : ''}</span>`;
         if (!P) h += `<div style="margin-top:6px">${B ? `Thinking… ${B.done} estimates so far` : 'Starting…'}</div>`;
@@ -3537,6 +3543,7 @@ Views.league = (esc) => {
           const capM = (m) => { try { return +Engine.read('Game.capFor', 0, m) || P.cap || s.cap || 100; } catch { return P.cap || s.cap || 100; } };
           const planMons = P.plan.team.map((t) => (t.kind === 'own' ? Engine.read('Game.getMon', null, t.uid) : null)).filter(Boolean);
           const atCap = planMons.filter((m) => m.level >= capM(m)).length;
+          canTrain = atCap < planMons.length;
           if (planMons.length && atCap < planMons.length && (sg?.levelFirst || !keep)) {
             h += `<div style="margin-top:10px"><b>Training to Lv ${P.cap || s.cap}:</b> ${atCap} of ${planMons.length} there${sg?.levelFirst ? ' <span class="dim">- then Mega tries again</span>' : ''}</div><div class="bar" style="margin-top:4px"><i style="width:${Math.round(atCap / planMons.length * 100)}%"></i></div>`;
             h += `<div class="dim" style="font-size:13px;margin-top:4px">${planMons.filter((m) => m.level < capM(m)).map((m) => `${nm(m.id)} ${m.level}/${capM(m)}`).join(' · ')}</div>`;
@@ -3551,7 +3558,13 @@ Views.league = (esc) => {
           else if (nx != null) h += `<div class="dim" style="margin-top:8px">The gym after this one gets planned once this plan is ready.</div>`;
           h += `<div class="dim" style="margin-top:6px">Mega fights when your team wins 60% or more; below that it trains (or catches) toward this plan first. Estimates use the game's battle simulation in Auto Switch order, tuned by your real gym results (weighting ${GymPlan.calib().k.toFixed(2)}). Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
         }
-        h += `<button class="btn" data-act="gymplan-run" data-ch="${s.ch}" style="margin-top:6px">${P ? 'Plan Again' : 'Plan Now'}</button></div>`;
+        // the old helper's Next boss buttons: simulate (checks every Pokémon you have), go fight now, train these to the cap
+        const on = (() => { try { return Plan.running && !sg?.paused; } catch { return false; } })();
+        h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn" data-act="gymplan-run" data-ch="${s.ch}" ${B ? 'disabled' : ''}>${B ? 'Simulating…' : 'Simulate the Fight'}</button>
+          ${sg ? `<button class="btn${sg.goFight ? '' : ' gold'}" data-act="gym-go" ${sg.goFight ? 'disabled' : ''}>${sg.goFight ? 'Fighting…' : 'Go Fight'}</button>` : ''}
+          ${sg && canTrain ? `<button class="btn" data-act="gym-train" ${sg.levelFirst ? 'disabled' : ''}>${sg.levelFirst ? 'Training…' : 'Train These'}</button>` : ''}</div>
+          <div class="dim" style="font-size:13px;margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself.' : 'Go Fight: try the chapter and leader now. Train These: level the planned team to the cap first.'}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
       }
     }
     h += `</div>`;
@@ -4655,7 +4668,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
           if (won || lost || Date.now() - f.at > 15 * 60_000) { g.gymFight = null; Plan.save(); }
         }
       } catch (__e) { __h('70-plan-02-story:61', __e); }
-      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
+      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; g.goFight = null; g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
       const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
       const sp = (m) => Sim.species(m);
       // stuck: 2 losses in the frontier chapter since the last try -> level the planned team to the level cap,
@@ -4663,7 +4676,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const now = Date.now();
       if (g.trainUntil) { g.trainUntil = 0; g.levelFirst = true; Plan.save(); } // (older versions trained for 30 min)
       if (deaths - (g.deaths0 || 0) >= 2) {
-        g.deaths0 = deaths; g.levelFirst = true; g.trainWhy = g.lossWhere === 'way' ? 'on the way, before the leader' : g.lossWhere === 'leader' ? 'against the leader' : '';
+        g.deaths0 = deaths; g.levelFirst = true; g.goFight = null; g.trainTap = false; g.trainWhy = g.lossWhere === 'way' ? 'on the way, before the leader' : g.lossWhere === 'leader' ? 'against the leader' : '';
         Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name}${g.trainWhy ? ' (' + g.trainWhy + ')' : ''} - leveling the planned team to the cap, then trying again`);
         try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:72', __e); }
       }
@@ -4685,8 +4698,8 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
         // wouldn't do meaningfully better (then preparing longer can't help)
         const capOfM0 = (m) => safe(() => +E.read('Game.capFor', 0, m), 0) || G.cap || 100;
         const lowPlan = plan.plan.team.map((t) => t.kind === 'own' ? E.read('Game.getMon', null, t.uid) : sideOf(t.base)).filter(Boolean).filter((m) => m.level < capOfM0(m));
-        if (g.levelFirst && !lowPlan.length) { g.levelFirst = false; Plan.save(); Log.add(`story: the planned team is at the level cap (${G.cap}) - trying ${plan.gym} again`); }
-        const good = !g.levelFirst && (plan.now.win >= 0.6 || (plan.plan.win - plan.now.win < 0.05 && (plan.plan.soft ?? 0) - (plan.now.soft ?? 0) < 0.05));
+        if (g.levelFirst && !lowPlan.length) { g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: the planned team is at the level cap (${G.cap}) - trying ${plan.gym} again`); }
+        const good = !!g.goFight || !g.levelFirst && (plan.now.win >= 0.6 || (plan.plan.win - plan.now.win < 0.05 && (plan.plan.soft ?? 0) - (plan.now.soft ?? 0) < 0.05));
         if (!good) {
           // 1) catch the members you don't have (a catch job each, done when it's on this side) - and,
           //    while you're at it, the ones the NEXT gym's plan wants from chapters you've unlocked
@@ -4716,7 +4729,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
             if (fullTeam(uids).join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
             if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:122', __e); } }
-            return `${g.levelFirst ? `lost twice${g.trainWhy ? ' ' + g.trainWhy : ''} - ` : ''}leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
+            return `${g.trainTap ? 'you pressed Train These - ' : g.levelFirst ? `lost twice${g.trainWhy ? ' ' + g.trainWhy : ''} - ` : ''}leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
           const uids = plan.plan.team.map((t) => (t.kind === 'own' ? t.uid : sideOf(t.base)?.uid)).filter(Boolean);
@@ -4750,9 +4763,20 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:154', __e); } } // the frontier must not loop, or a win wouldn't move on
       if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:155', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length;
-      return `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
+      return `${g.goFight ? 'Go Fight: ' : ''}playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:159', __e); } },
+    // the Gyms & League buttons (Jimmy's taps, like the old helper's Next boss box)
+    goFight(g) {
+      const a = S().adv || {}, front = +(g.front ?? a.unlocked ?? 0), deaths = +(a.deaths?.[front] ?? 0);
+      g.goFight = { at: Date.now(), deaths }; g.deaths0 = deaths; g.levelFirst = false; g.trainTap = false; g.teamAt = 0; Plan.save();
+      Log.add(`story: you pressed Go Fight - trying ${E.get('STORY')?.CHAPTERS?.[front]?.name || 'the chapter'} and its leader now with the best team at today's levels (after 2 losses Mega goes back to leveling)`);
+    },
+    trainThese(g) {
+      const a = S().adv || {}, front = +(g.front ?? a.unlocked ?? 0);
+      g.goFight = null; g.levelFirst = true; g.trainTap = true; g.deaths0 = +(a.deaths?.[front] ?? 0); g.teamAt = 0; Plan.save();
+      Log.add('story: you pressed Train These - leveling the planned team to the level cap, then trying again');
+    },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:170', __e); } },
   };
   Object.assign(GoalTypes, { story });
 })();
