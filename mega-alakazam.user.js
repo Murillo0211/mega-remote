@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.1.1
+// @version      2.1.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.1.1';
+const VERSION = '2.1.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -114,7 +114,8 @@ const Health = (() => {
     await run('gym plan for the next gym', () => { const s = S.link?.side === 'to' ? +(S.adv?.unlocked ?? 0) : null; if (s == null) return true; const G = GymPlan.gymOf(s); if (!G) return true; return G.foes.length ? true : 'gym has no team'; }, true);
     await run('gem ranking', () => { const g = EliteInfo.gems(); return Array.isArray(g.top) ? true : 'no list'; });
     await run('every screen draws', () => { const bad = UI.renderTest(); return bad.length ? bad.join('; ') : true; });
-    await run('no "undefined" or "NaN" on screen', () => { const o = UI.renderTest.odd || []; return o.length ? 'on ' + o.join(', ') : true; }, true);
+    // (named without the words it looks for: the Health card shows this name, and must not trip the check itself)
+    await run('no broken values on screen', () => { const o = UI.renderTest.odd || []; return o.length ? 'a missing number or name on ' + o.join(', ') : true; }, true);
     await run('English names everywhere', async () => { const l = (await UI.frenchLeft?.()) || []; return l.length ? l.slice(0, 6).join('; ') : true; }, true);
     // the test pack's live half: the version before wrote down its decisions; anything unplanned that changed is shown
     await run('same decisions as the version before', () => { const d = Decisions.compare(); if (!d) return true; const c = d.changed.filter((x) => !x.expected); return c.length ? `${c.length} changed since ${d.from}: ` + c.slice(0, 3).map((x) => `${x.k}: ${x.was} → ${x.now}`).join('; ') : true; }, true);
