@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      1.3.1
+// @version      1.3.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1900,11 +1900,11 @@ Views.plan = (w, ui, esc) => {
         <div class="${cls} st" style="margin:6px 0 0 30px">${dot} ${word}${L.why ? ' · ' + esc(L.why) : ''}${L.state === 'running' && L.line ? ' · ' + esc(L.line) : ''}</div>${L.state === 'running' && L.team && (L.team.win != null || L.team.how) ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">🛡️ ${L.team.win != null ? Math.round(L.team.win * 100) + '% · ' : ''}${esc(L.team.how || '')}</div>` : ''}
         ${g.type === 'region' && g.rows?.length ? `<details style="margin:8px 0 0 30px" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
         <div class="tools">
-          <button class="btn sm" data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move to the top">⤒ Top</button>
-          <button class="btn sm" data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move up">↑ Up</button>
-          <button class="btn sm" data-act="g-down" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''} title="Move down">↓ Down</button>
-          <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? '▶ Resume' : '❚❚ Pause'}</button>
-          <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">✕ Remove</button>
+          <button class="btn sm" data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move to the top">Top</button>
+          <button class="btn sm" data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move up">Up</button>
+          <button class="btn sm" data-act="g-down" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''} title="Move down">Down</button>
+          <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>
+          <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
