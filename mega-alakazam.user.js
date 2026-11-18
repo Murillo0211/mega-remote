@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.28.0
+// @version      0.28.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.28.0';
+const VERSION = '0.28.1';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -5737,6 +5737,13 @@ const History = (() => {
 const Updater = (() => {
   const BASE = 'https://raw.githubusercontent.com/Murillo0211/mega-remote/main/';
   const META = BASE + 'mega-alakazam.meta.js', SCRIPT = BASE + 'mega-alakazam.user.js';
+  // GitHub's raw-file servers keep an old copy for minutes; its API serves the current file right away
+  // (60 requests an hour per home - Mega uses about 7). Falls back to the raw file if the API says no.
+  const API = 'https://api.github.com/repos/Murillo0211/mega-remote/contents/';
+  async function getFile(name, raw) {
+    try { const r = await fetch(API + name + '?ref=main', { headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store' }); if (r.ok) return await r.text(); } catch {}
+    const r = await fetch(raw + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error('GitHub said ' + r.status); return await r.text();
+  }
   let latest = null, checkedAt = 0, err = null, got = null;
   try { const v = localStorage.getItem('mega-next-ver'); if (v && localStorage.getItem('mega-next-code')) got = v; } catch {}
   // download the new version itself, so a plain reload runs it (see the header). Kept only if it's
@@ -5744,8 +5751,8 @@ const Updater = (() => {
   async function download(v) {
     if (got === v) return true;
     try {
-      const r = await fetch(SCRIPT + '?t=' + Date.now(), { cache: 'no-store' }); const code = await r.text();
-      if (!r.ok || code.length < 100_000 || !new RegExp('@version\\s+' + v.replace(/\./g, '\\.') + '\\s').test(code) || !code.includes('window.__MEGA_HOT_OK')) return false;
+      const code = await getFile('mega-alakazam.user.js', SCRIPT);
+      if (code.length < 100_000 || !new RegExp('@version\\s+' + v.replace(/\./g, '\\.') + '\\s').test(code) || !code.includes('window.__MEGA_HOT_OK')) return false;
       let used = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^mega-next-/.test(k)) used += k.length + (localStorage.getItem(k) || '').length; }
       if (used + code.length > 1_800_000) { err = 'not enough room in the page storage to keep the update'; return false; }
       localStorage.setItem('mega-next-code', code); localStorage.setItem('mega-next-ver', v);
@@ -5757,8 +5764,7 @@ const Updater = (() => {
   const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   async function check() {
     try {
-      const r = await fetch(META + '?t=' + Date.now(), { cache: 'no-store' });
-      const m = (await r.text()).match(/@version\s+(\S+)/);
+      const m = (await getFile('mega-alakazam.meta.js', META)).match(/@version\s+(\S+)/);
       if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch {} try { UI.refresh?.(); } catch {} } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
