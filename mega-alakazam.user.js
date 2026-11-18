@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.30.1
+// @version      0.31.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.30.1';
+const VERSION = '0.31.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -107,6 +107,7 @@ const Health = (() => {
         return sideOk(ch, p);
       });
     }
+    await run('goal chains', () => { for (const g of Plan.goals.filter((x) => !x.done && x.type === 'legend')) { const z = (Engine.get('LegendZones')?.ZONES || []).find((q) => +q.id === +g.foe); if (z?.cond) Chains.steps(z.cond, z); } return true; });
     await run('XP per hour ranking', () => { const r = XpChap.rank(); return r.length && r.every((x) => isFinite(x.xpHr) && x.xpHr > 0) ? true : 'empty or broken numbers'; });
     await run('main money', () => { const m = History.homeMoney(); return isFinite(m) && m >= 0 ? true : 'bad number ' + m; });
     await run('gym plan for the next gym', () => { const s = S.link?.side === 'to' ? +(S.adv?.unlocked ?? 0) : null; if (s == null) return true; const G = GymPlan.gymOf(s); if (!G) return true; return G.foes.length ? true : 'gym has no team'; }, true);
@@ -1220,6 +1221,7 @@ const Views = (() => {
         <label class="chk"><input type="checkbox" data-act="update-continue" ${Updater.autoContinue ? 'checked' : ''}> Press Continue on the title screen after a reload</label>
         <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
         <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes and downloads a new version by itself; it runs the next time the game reloads (Mega reloads it at a safe moment - not during a zone, raid, tower or league - or use Reload Game on Kinesis). A version that fails to start is skipped and this one keeps running. "Install in Tampermonkey too" makes it permanent there (optional - Tampermonkey also catches up by itself).</div></div>`; }
+    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:13px">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:94', __e); }
     h += `<div class="card"><h3>🗂️ Tabs</h3><div class="dim" style="font-size:13px">Drag a tab at the top onto another to move it. Your order is saved.</div><button class="btn" data-act="tabs-reset" style="margin-top:6px">Reset tab order</button></div>`;
     { const ci = Calib.info, names = { raid: 'Shiny Raids', elite: 'Elite tiers', zone: 'Legendary zones' };
       const rows = Object.entries(names).map(([k, l]) => { const c = ci[k]; return `<div class="row"><span class="k">${l}</span><span class="v">${c ? `off by ${Math.round(c.errAfter * 100)} pts <span class="dim">(was ${Math.round(c.errBefore * 100)}) · ${c.n} fights · ${new Date(c.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>` : '<span class="dim">not enough fights yet (needs 12)</span>'}</span></div>`; }).join('');
@@ -2358,6 +2360,7 @@ const UI = (() => {
       c.classList.toggle('folded'); if (c.classList.contains('folded')) shut.add(k); else shut.delete(k);
       prefs.foldSet = [...shut]; savePrefs(); return;
     }
+    if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
     if (act === 'gem-rank') {
@@ -2369,14 +2372,14 @@ const UI = (() => {
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:326', __e); } setTimeout(() => renderBody(true), 300); return; }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:327', __e); } return; }
+    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:327', __e); } setTimeout(() => renderBody(true), 300); return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:328', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:330', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:331', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:333', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:334', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -2418,8 +2421,8 @@ const UI = (() => {
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:375', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:376', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:376', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:377', __e); }
     renderBody(true, w);
   }
 
@@ -2433,7 +2436,7 @@ const UI = (() => {
     if (body.dataset.html === html) return;
     body.innerHTML = html; body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:390', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:391', __e); }
     if (focused) { const q = root.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -2445,7 +2448,7 @@ const UI = (() => {
     for (const [k, f] of Object.entries(tabs)) { try { const h = f(); if (typeof h !== 'string') bad.push(`${k}: drew nothing`); else if (/\bundefined\b|\bNaN\b|\[object Object\]/.test(h.replace(/<[^>]+>/g, ' '))) odd.push(k); } catch (e) { bad.push(`${k}: ${e?.message || e}`); } }
     renderTest.odd = odd; return bad;
   }
-  return { mount, mvHtml, mvAct, renderTest, refresh: () => { try { render(); } catch (__e) { __h('60-ui:402', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, refresh: () => { try { render(); } catch (__e) { __h('60-ui:403', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3347,6 +3350,10 @@ Views.league = (esc) => {
             const own = t.kind === 'own' ? Engine.read('Game.getMon', null, t.uid) : null;
             const how = t.kind === 'catch' ? `catch ${nm(t.base)}<br><span class="dim">${esc(t.where || '')}</span>` : own && own.id !== t.id ? `your ${nm(own.id)} Lv ${own.level} → evolve` : own && s.cap && own.level < s.cap ? `yours · level ${own.level} → ${s.cap}` : '<span class="ok">✓ ready</span>';
             return `<div class="mon"><img src="${Engine.sprite(t.id)}" alt="">${nm(t.id)}<br><span style="font-size:12px">${how}</span></div>`; }).join('')}</div>`;
+          // the gym after: what to catch for it while you're in these chapters
+          const nx = (() => { try { return GymPlan.nextGym(s.ch); } catch { return null; } })(), NP = nx != null ? (() => { try { return GymPlan.saved[nx] || null; } catch { return null; } })() : null;
+          if (NP) { const c = NP.plan.team.filter((t) => t.kind === 'catch'); h += `<div style="margin-top:8px"><b>Next: ${esc(NP.gym)}</b> · best possible ${pct(NP.plan.win)}${c.length ? ` · catch ${c.map((t) => `${nm(t.base)} <span class="dim">(${esc(t.where || '')})</span>`).join(', ')}` : ' · nothing new to catch'}</div>`; }
+          else if (nx != null) h += `<div class="dim" style="margin-top:8px">The gym after this one gets planned once this plan is ready.</div>`;
           h += `<div class="dim" style="margin-top:6px">The "Beat the League" goal follows this: it catches what's missing, levels the team to the cap (evolving on the way, and evolving anyone stuck at the cap), then fights. Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
         }
         h += `<button class="btn" data-act="gymplan-run" data-ch="${s.ch}" style="margin-top:6px">${P ? 'Plan Again' : 'Plan Now'}</button></div>`;
@@ -3570,7 +3577,7 @@ const GymPlan = (() => {
         now: { uids: now.team.map((x) => x.uid), win: now.win },
         plan: { win: plan.win, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where }) },
       };
-      saved = { [ch]: r }; keep();
+      saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
       try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})`); } catch (__e) { __h('66-gymplan:107', __e); }
       try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:108', __e); }
       return r;
@@ -3589,7 +3596,15 @@ const GymPlan = (() => {
     }
     return out;
   }
-  return { gymOf, get, run, evolveStuck, evolveTo, get busy() { return busy; }, get saved() { return saved; } };
+  // the gym after this one (the next chapter of the region that has a gym)
+  function nextGym(ch) {
+    const st = ST(); const reg = safe(() => st.regionOf(ch)?.key); const chs = safe(() => st.chaptersOf(reg), []) || [];
+    for (const c of chs) if (c > ch && (st.CHAPTERS[c]?.steps || []).some((x) => x.kind === 'gym')) return c;
+    return null;
+  }
+  // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:132', __e); } }, 5 * 60_000);
+  return { gymOf, get, run, evolveStuck, evolveTo, nextGym, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4146,7 +4161,12 @@ const GoalTypes = (() => {
         if (!z.form || E.read('Game.owns', false, z.form)) return { state: 'wait', why: `this week's form is caught - a new one comes at the weekly reset (Sunday 4 PM). Still missing: ${left}` };
       } else if (z.state === 'done' || E.read('Game.owns', false, g.foe)) return { state: 'done', why: 'caught' };
       if (z.state === 'closed') return { state: 'wait', why: `zone closed right now (${z.when || 'time window'})` };
-      if (z.state !== 'open') return { state: 'wait', why: `locked - ${z.progress?.text || 'requirement missing'}` };
+      if (z.state !== 'open') {
+        // goals that plan themselves: add what this legendary still needs (every 30 min)
+        let manual = g.chainManual || [];
+        if (Date.now() - (g.chainAt || 0) > 30 * 60_000) { g.chainAt = Date.now(); try { const r = Chains.addFor(g); manual = g.chainManual = r.manual; } catch (__e) { __h('70-plan:107', __e); } Plan.save(); }
+        return { state: 'wait', why: `locked - ${z.progress?.text || 'requirement missing'}${manual.length ? ` · needs you: ${manual.join(', ')}` : ''}` };
+      }
       if (pending.has(g.foe)) return { state: 'wait', why: 'finding the best team…' };
       { const sim = Legends.sims()[g.foe], mons = (sim?.uids || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
         if (sim && !Sim.dupFree(mons)) { Legends.dropSim(g.foe); Log.add(`${name(g.foe)}: the saved team had two forms of the same Pokémon, which the game doesn't allow - finding a new team`); autoTeam(g.foe); return { state: 'wait', why: 'finding the best team…' }; } }
@@ -4179,7 +4199,7 @@ const GoalTypes = (() => {
       if (sim && !vs && !(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) {
         const r = setTeam(id, sim.uids);
         if (!r.ok) return 'waiting: ' + r.why;
-        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:137', __e); }
+        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:142', __e); }
         await new Promise((x) => setTimeout(x, 600));
         await ctx.enter(id, true);
         return `switched to the planned team (${sim.uids.length} Pokémon) and re-entered`;
@@ -4212,7 +4232,7 @@ const GoalTypes = (() => {
       const un = +(S().adv?.unlocked ?? 0);
       if (un < chs[0]) return { state: 'wait', why: 'region not unlocked yet' };
       const pend = S().adv?.pending;
-      if (pend) { if (!g.askedPend) { g.askedPend = true; Plan.save(); try { Notify.send('problem', 'Poke\'Catch needs you', 'The game is waiting for a choice in your story run (a gift or a question). Open the game and choose.'); } catch (__e) { __h('70-plan:170', __e); } } return { state: 'wait', why: 'the game is waiting for you to choose something' }; }
+      if (pend) { if (!g.askedPend) { g.askedPend = true; Plan.save(); try { Notify.send('problem', 'Poke\'Catch needs you', 'The game is waiting for a choice in your story run (a gift or a question). Open the game and choose.'); } catch (__e) { __h('70-plan:175', __e); } } return { state: 'wait', why: 'the game is waiting for you to choose something' }; }
       g.askedPend = false;
       const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
       if (!mons.length) return { state: 'wait', why: 'no Pokémon on this side yet - pick your starter' };
@@ -4235,7 +4255,7 @@ const GoalTypes = (() => {
         const capped = mons.filter((m) => m.level >= capOf(m.uid)).length;
         if (capped >= Math.min(6, mons.length)) { g.deaths0 = deaths; Plan.save(); Log.add('story: lost twice, but everyone is at the level cap - trying again with the best team'); }
         else { g.trainUntil = now + 30 * 60_000; Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name} - training for 30 minutes first`); }
-        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan:193', __e); }
+        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan:198', __e); }
       }
       const training = g.trainUntil && now < g.trainUntil;
       if (g.trainUntil && !training) { g.trainUntil = 0; g.deaths0 = deaths; Plan.save(); Log.add('story: training done - back to the next chapter'); }
@@ -4247,16 +4267,20 @@ const GoalTypes = (() => {
         ch = r[0]?.ch ?? done[done.length - 1] ?? front;
       }
       // ---- gym plan: the team that beats this gym (game's own estimate), and how to get it ----
-      try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan:205', __e); }
+      try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan:210', __e); }
       const G = safe(() => GymPlan.gymOf(front));
       const plan = G && G.foes.length ? safe(() => GymPlan.get(front)) : null;
       g.planWin = plan ? plan.plan.win : null; g.nowWin = plan ? plan.now.win : null;
       if (plan && !training) {
         const good = plan.now.win >= 0.6 || plan.plan.win - plan.now.win < 0.15;
         if (!good) {
-          // 1) catch the members you don't have (a catch job each, done when it's on this side)
-          for (const t of plan.plan.team.filter((x) => x.kind === 'catch' && !sideHas(x.base))) {
-            if (!Plan.goals.some((c) => !c.done && c.type === 'wild' && c.parent === g.id && +c.foe === +t.base)) { Plan.insertAfter(g.id, 'wild', { foe: t.base, ch: t.ch, parent: g.id, side: true }); Log.add(`gym plan: catching ${name(t.base)} (${t.where}) for ${plan.gym}`); }
+          // 1) catch the members you don't have (a catch job each, done when it's on this side) - and,
+          //    while you're at it, the ones the NEXT gym's plan wants from chapters you've unlocked
+          const nx = safe(() => GymPlan.nextGym(front)), nplan = nx != null && !GymPlan.busy ? safe(() => GymPlan.get(nx)) : (nx != null ? GymPlan.saved?.[nx] : null);
+          const wantNow = plan.plan.team.filter((x) => x.kind === 'catch' && !sideHas(x.base));
+          const wantNext = !wantNow.length && nplan ? nplan.plan.team.filter((x) => x.kind === 'catch' && !sideHas(x.base) && x.ch <= front) : [];
+          for (const t of [...wantNow, ...wantNext]) {
+            if (!Plan.goals.some((c) => !c.done && c.type === 'wild' && c.parent === g.id && +c.foe === +t.base)) { Plan.insertAfter(g.id, 'wild', { foe: t.base, ch: t.ch, parent: g.id, side: true }); Log.add(`gym plan: catching ${name(t.base)} (${t.where}) for ${wantNow.includes(t) ? plan.gym : 'the gym after (' + (nplan?.gym || 'next') + ')'}`); }
           }
           // 2) level the members below the cap: they train together, the 2 strongest capped ones carry
           const members = plan.plan.team.map((t) => t.kind === 'own' ? E.read('Game.getMon', null, t.uid) : sideOf(t.base)).filter(Boolean);
@@ -4270,7 +4294,7 @@ const GoalTypes = (() => {
             const tch = r[0]?.ch ?? done[done.length - 1] ?? front;
             if (uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
-            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan:228', __e); } }
+            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan:237', __e); } }
             return `leveling the gym team in ${ST.CHAPTERS[tch]?.name}: ${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')} · then ${plan.gym} (best plan ${Math.round(plan.plan.win * 100)}%)`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
@@ -4296,17 +4320,17 @@ const GoalTypes = (() => {
       // so the team stays even (the gym is only as easy as your weakest Pokémon)
       { const team = (S().team || []).slice(0, 6).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).filter((m) => m.level < capOf(m.uid));
         const bud = team.sort((x, y) => x.level - y.level)[0];
-        if (bud && S().buddy?.uid !== bud.uid) { try { E.call('Game.setBuddy', bud.uid); } catch (__e) { __h('70-plan:254', __e); } if (S().buddy?.uid === bud.uid) Log.add(`story: made ${name(bud.id)} (Lv ${bud.level}) your buddy - it's the lowest on the team`); } }
+        if (bud && S().buddy?.uid !== bud.uid) { try { E.call('Game.setBuddy', bud.uid); } catch (__e) { __h('70-plan:263', __e); } if (S().buddy?.uid === bud.uid) Log.add(`story: made ${name(bud.id)} (Lv ${bud.level}) your buddy - it's the lowest on the team`); } }
       if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
       const looping = !!E.read('Adventure.isLooping', false, ch);
-      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan:257', __e); } }
-      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan:258', __e); } } // the frontier must not loop, or a win wouldn't move on
-      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan:259', __e); } g.loopOn = null; Plan.save(); }
+      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan:266', __e); } }
+      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan:267', __e); } } // the frontier must not loop, or a win wouldn't move on
+      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan:268', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length;
       return training ? `training in ${ST.CHAPTERS[ch]?.name} for ${Math.ceil((g.trainUntil - now) / 60_000)} more min (lost twice at ${ST.CHAPTERS[front]?.name})`
         : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.deaths0 || 0)} loss${deaths - (g.deaths0 || 0) === 1 ? '' : 'es'} here`;
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan:264', __e); } },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan:273', __e); } },
   };
 
   // ---- leveling -------------------------------------------------------------------------
@@ -4336,8 +4360,8 @@ const GoalTypes = (() => {
     const s = S();
     s.team = uids.slice(0, 6);
     s.road = null; // the game rebuilds the road team from .team (same as its own team editor)
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan:294', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan:295', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan:303', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan:304', __e); }
     const now = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
     return uids.every((u) => now.includes(u));
   }
@@ -4351,7 +4375,7 @@ const GoalTypes = (() => {
     const have = +E.read('Game.itemCount', 0, 'pinap-berry') || 0;
     if (!have) { if (!pinapOut) Log.add('out of Pinap Berries - training continues without the XP boost'); pinapOut = true; return ' · no Pinap Berries left'; }
     let ok = null;
-    try { ok = E.call('Game.useBuffBerry', 'pinap-berry'); } catch (__e) { __h('70-plan:309', __e); }
+    try { ok = E.call('Game.useBuffBerry', 'pinap-berry'); } catch (__e) { __h('70-plan:318', __e); }
     const now = (E.read('Game.activeBuffs', []) || []).find((b) => b.family === 'xp');
     if (now && now.left > 120_000) { Log.add(`used a Pinap Berry (XP x1.25 for 60 min) - ${have - 1} left`); return ` · Pinap ${Math.ceil(now.left / 60_000)} min`; }
     return ok == null ? ' · could not use a Pinap Berry' : '';
@@ -4382,14 +4406,14 @@ const GoalTypes = (() => {
       const s = S(), a = s.adv || {};
       const best = bestChapter(g);
       if (!best) return 'waiting: no chapter to train in';
-      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan:340', __e); } }
+      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan:349', __e); } }
       if (!g.restore) {
         g.restore = { team: [...(s.team || [])], chapter: a.chapter, loopAdded: null, buddy: s.buddy?.uid ?? null };
         Plan.save();
         Log.add(`${level.label(g)}: training in ${best.name} (wild Lv ${best.top}). Your team, buddy and chapter come back when it's done.`);
       }
       // leave a legendary zone first (the game's own way back)
-      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:347', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:356', __e); } return 'leaving the legendary zone…'; }
       // team: 4 trainees + 2 carriers (Jimmy's rule - every team member gets the full XP of each win).
       // A 3rd carrier only when the simulator says it raises total XP per hour: 3 trainees earn 25% less
       // per win, so the 3rd carrier has to make wins come more than a third faster (hard chapters).
@@ -4418,7 +4442,7 @@ const GoalTypes = (() => {
             if (x3 > x2 * 1.02) g.nCarry = 3;
             why = ` - 2 carriers ${Math.round(x2 / Math.max(x2, x3) * 100)}% vs 3 carriers ${Math.round(x3 / Math.max(x2, x3) * 100)}% of the best XP/h`;
           }
-        } catch (__e) { __h('70-plan:376', __e); }
+        } catch (__e) { __h('70-plan:385', __e); }
         Plan.save();
         if (picks.length) Log.add(`carriers for ${best.name}: ${picks.slice(0, g.nCarry).map((p) => name(p.m.id)).join(', ')}${why}`);
       }
@@ -4450,16 +4474,16 @@ const GoalTypes = (() => {
       // buddy: x1.3 XP plus a candy every few KOs - the trainee furthest from its goal gets it
       const bud = [...(pending.length ? pending.filter((u) => trainees.includes(u)) : trainees)].sort((x, y) => (lvl(x) || 0) - (lvl(y) || 0))[0];
       if (bud && S().buddy?.uid !== bud) {
-        try { E.call('Game.setBuddy', bud); } catch (__e) { __h('70-plan:408', __e); }
+        try { E.call('Game.setBuddy', bud); } catch (__e) { __h('70-plan:417', __e); }
         if (S().buddy?.uid === bud) Log.add(`made ${name(E.read('Game.getMon', {}, bud)?.id)} your buddy while it trains`);
       }
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
       if (g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan:413', __e); }
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan:422', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
       if (!E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan:417', __e); }
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan:426', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -4467,12 +4491,12 @@ const GoalTypes = (() => {
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan:425', __e); }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan:426', __e); }
-      if (r.buddy && S().buddy?.uid !== r.buddy && E.read('Game.getMon', null, r.buddy)) { try { E.call('Game.setBuddy', r.buddy); } catch (__e) { __h('70-plan:427', __e); } }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan:434', __e); }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan:435', __e); }
+      if (r.buddy && S().buddy?.uid !== r.buddy && E.read('Game.getMon', null, r.buddy)) { try { E.call('Game.setBuddy', r.buddy); } catch (__e) { __h('70-plan:436', __e); } }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan:430', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan:439', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
@@ -4545,12 +4569,12 @@ const GoalTypes = (() => {
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan:503', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan:512', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan:507', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan:508', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan:516', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan:517', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -4586,8 +4610,8 @@ const GoalTypes = (() => {
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, from);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan:544', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan:545', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan:553', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan:554', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${from} - about floor ${pl.floors} by the game's own simulation`);
           delete ugPlans[bay];
         }
@@ -4620,7 +4644,7 @@ const GoalTypes = (() => {
   // eggs 1/512, but 1/16 when the parent is shiny (CONFIG.PENSION.SHINY_PARENT_RATE). So: breeding a
   // shiny you own from the same family is usually fastest; otherwise the wild spot where it's most common.
   const ownsShinyId = (id) => (E.read('Game.ownedMons', []) || []).some((m) => +m.id === +id && m.shiny);
-  function eggOf(id) { const L = E.get('CONFIG')?.PENSION?.LAYS || {}; if (L[id] != null) return +L[id]; let f = []; try { f = E.get('Game').familyOf(+id) || []; } catch (__e) { __h('70-plan:578', __e); } return +(f[0] ?? id); }
+  function eggOf(id) { const L = E.get('CONFIG')?.PENSION?.LAYS || {}; if (L[id] != null) return +L[id]; let f = []; try { f = E.get('Game').familyOf(+id) || []; } catch (__e) { __h('70-plan:587', __e); } return +(f[0] ?? id); }
   // level-up steps from the egg's species to the target (null if a stone / trade / item is needed)
   function levelPath(from, to) {
     const PV = E.get('Game')?.PREVO || {}, steps = []; let cur = +to, n = 0;
@@ -4632,20 +4656,20 @@ const GoalTypes = (() => {
     id = +id;
     const Gm = E.get('Game'), out = [];
     if (ownsShinyId(id)) return { owned: true, ways: [] };
-    let fam = []; try { fam = Gm.familyOf(id) || []; } catch (__e) { __h('70-plan:590', __e); }
+    let fam = []; try { fam = Gm.familyOf(id) || []; } catch (__e) { __h('70-plan:599', __e); }
     // 1. breed a shiny you own from the same family (1/16 an egg)
     const perDay = 86_400_000 / (+(S().pension?.eggGoal) || 10_800_000);
     for (const m of here().filter((x) => x.shiny && fam.includes(+x.id))) {
-      let ok = false; try { ok = Gm.canLay(m); } catch (__e) { __h('70-plan:594', __e); } if (!ok) continue;
+      let ok = false; try { ok = Gm.canLay(m); } catch (__e) { __h('70-plan:603', __e); } if (!ok) continue;
       const egg = eggOf(m.id), steps = egg === id ? [] : levelPath(egg, id); if (!steps) continue;
-      let rate = 0.0625; try { rate = +Gm.eggRate({ id: egg, reg: m.reg, sp: 2 }) || rate; } catch (__e) { __h('70-plan:596', __e); }
+      let rate = 0.0625; try { rate = +Gm.eggRate({ id: egg, reg: m.reg, sp: 2 }) || rate; } catch (__e) { __h('70-plan:605', __e); }
       const hours = (1 / (rate * perDay) + 0.25) * 24 + (steps.length ? 2 : 0);
       out.push({ way: 'breed', parent: m.uid, parentId: +m.id, egg, steps, rate, hours,
         text: `breed your shiny ${name(m.id)} in the Day Care: each egg is a ${name(egg)} with a 1 in ${Math.round(1 / rate)} shiny chance${steps.length ? `, then level it to ${steps.map((x) => `${name(x.to)} (Lv ${x.level})`).join(', then ')}` : ''}` });
       break;
     }
     // 2. the wild: where it's most common (share of all encounters in that chapter)
-    let r = 1 / 1024; try { r = +Gm.shinyRate(id) || r; } catch (__e) { __h('70-plan:603', __e); }
+    let r = 1 / 1024; try { r = +Gm.shinyRate(id) || r; } catch (__e) { __h('70-plan:612', __e); }
     for (const c of wildChapters(id).slice(0, 3)) {
       const routes = (E.get('STORY')?.CHAPTERS?.[c.ch]?.steps || []).filter((x) => x.kind === 'route' && x.areas?.length).length || 1;
       const share = c.spots.reduce((t, x) => t + (x.on ? x.pct : 0), 0) / routes || c.best / routes;
@@ -4658,14 +4682,14 @@ const GoalTypes = (() => {
     if (!pres.length && fam.length && +fam[0] !== id) pres.push(+fam[0]);
     for (const pre of pres) {
       const steps = levelPath(pre, id), c = wildChapters(pre)[0]; if (!c) continue;
-      let rp = 1 / 1024; try { rp = +Gm.shinyRate(pre) || rp; } catch (__e) { __h('70-plan:616', __e); }
+      let rp = 1 / 1024; try { rp = +Gm.shinyRate(pre) || rp; } catch (__e) { __h('70-plan:625', __e); }
       const routes = (E.get('STORY')?.CHAPTERS?.[c.ch]?.steps || []).filter((x) => x.kind === 'route' && x.areas?.length).length || 1;
       const share = c.spots.reduce((t, x) => t + (x.on ? x.pct : 0), 0) / routes || c.best / routes;
       out.push({ way: 'wild', foe: pre, target: id, ch: c.ch, now: c.now, share, rate: rp * 2, steps, hours: 1 / (WILD_PER_HOUR * share * rp * 2) + (steps ? 2 : 0),
         text: `hunt a shiny ${name(pre)} in ${Casing.names(c.name)} (about ${share >= 0.1 ? Math.round(share * 100) : (share * 100).toFixed(1)}% of encounters${c.now ? '' : ', not at this time / weather'}), then ${steps ? `Mega levels it to ${steps.map((x) => `${name(x.to)} (Lv ${x.level})`).join(', then ')}` : `evolve it into ${name(id)} yourself (it needs a stone or item)`}` });
     }
     // 3. the Shiny Raid: today's boss is always shiny
-    try { const lane = RD()?.lane?.() || []; const hit = lane.find((x) => +x.boss === id && !x.won); if (hit) out.push({ way: 'raid', reg: hit.key, hours: 0, text: `it's today's Shiny Raid boss in ${hit.key} - the boss is always shiny (the Shiny Raid goal catches it)` }); } catch (__e) { __h('70-plan:623', __e); }
+    try { const lane = RD()?.lane?.() || []; const hit = lane.find((x) => +x.boss === id && !x.won); if (hit) out.push({ way: 'raid', reg: hit.key, hours: 0, text: `it's today's Shiny Raid boss in ${hit.key} - the boss is always shiny (the Shiny Raid goal catches it)` }); } catch (__e) { __h('70-plan:632', __e); }
     return { owned: false, ways: out.sort((a, b) => a.hours - b.hours) };
   }
   const shinyLabel = (g) => `Shiny ${name(g.target || g.foe)}${g.way === 'breed' ? ` (breeding your shiny ${name(g.parentId)})` : ` (${g.target && g.target !== g.foe ? `as ${name(g.foe)}, ` : ''}${E.get('STORY')?.CHAPTERS?.[g.ch]?.name || 'chapter ' + g.ch})`}`;
@@ -4691,14 +4715,14 @@ const GoalTypes = (() => {
     },
     async step(g) {
       const a = S().adv || {};
-      if (a.capture && !a.capture.shiny) { a.capture.shiny = true; try { E.call('Game.save'); } catch (__e) { __h('70-plan:649', __e); } Log.add('turned on "always catch shinies" for the shiny hunt'); }
+      if (a.capture && !a.capture.shiny) { a.capture.shiny = true; try { E.call('Game.save'); } catch (__e) { __h('70-plan:658', __e); } Log.add('turned on "always catch shinies" for the shiny hunt'); }
       // count each new encounter with the target (and the battles, for the real pace)
       const b = a.battle, foes = (b?.enemies || []).filter((e) => +e.id === +g.foe);
       for (const e of foes) if (e.uid && e.uid !== g.lastUid) { g.lastUid = e.uid; g.seen = (g.seen || 0) + 1; if (e.shiny) Log.add(`✨ a shiny ${name(g.foe)} appeared - catching!`); Plan.save(); }
       const bt = +(S().stats?.battles ?? 0); if (!g.b0) { g.b0 = bt; g.t0 = Date.now(); Plan.save(); }
       const line = await wild.step(g);
       // Starf: shiny x2. Nanab: rare-rarity Pokémon appear x2 as often (the game's spawn weight), so a rare target is met twice as often
-      let rare = false; try { rare = E.get('Game').tierOf(+g.foe)?.key === 'rare'; } catch (__e) { __h('70-plan:656', __e); }
+      let rare = false; try { rare = E.get('Game').tierOf(+g.foe)?.key === 'rare'; } catch (__e) { __h('70-plan:665', __e); }
       const berry = Berries.keep('shiny', `hunting a shiny ${name(g.foe)}`) + (rare ? Berries.keep('rare', `finding ${name(g.foe)} (rare) more often`) : '');
       const hrs = (Date.now() - g.t0) / 3.6e6, perH = hrs > 0.2 ? (bt - g.b0) / hrs : null;
       return `${foes.length ? (foes.some((e) => e.shiny) ? `✨ SHINY ${name(g.foe)} - catching!` : `${name(g.foe)} found - not shiny`) : line.replace(/^[^·]*· /, '')} · ${g.seen || 0} seen (1 in ${Math.round(1 / (g.rate || 1 / 512))} each)${perH ? ` · ${Math.round(perH)} fights/h` : ''}${berry}`;
@@ -4724,9 +4748,9 @@ const GoalTypes = (() => {
       for (const e of [...(P.eggs || [])]) {
         if (+e.id !== +g.egg || !e.sp || !E.read('Game.eggReady', false, e)) continue;
         const before = new Set((E.read('Game.ownedMons', []) || []).map((m) => m.uid));
-        let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan:682', __e); }
+        let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan:691', __e); }
         if (!r) continue;
-        try { E.call('Game.save'); } catch (__e) { __h('70-plan:684', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:684', __e); }
+        try { E.call('Game.save'); } catch (__e) { __h('70-plan:693', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:693', __e); }
         g.hatched = (g.hatched || 0) + 1; Plan.save();
         const baby = (E.read('Game.ownedMons', []) || []).find((m) => !before.has(m.uid) && +m.id === +g.egg);
         if (baby?.shiny) {
@@ -4741,14 +4765,14 @@ const GoalTypes = (() => {
         const ditto = here().filter((m) => +m.id === 132).sort((a, b) => b.level - a.level)[0];
         if (!ditto) return 'waiting: you need a Ditto for the Day Care';
         if (!free()) return 'waiting: the Day Care is full - make room for Ditto';
-        try { E.call('Game.toPension', ditto.uid); E.call('Game.save'); } catch (__e) { __h('70-plan:699', __e); }
+        try { E.call('Game.toPension', ditto.uid); E.call('Game.save'); } catch (__e) { __h('70-plan:708', __e); }
         if (E.read('Game.pensionHasDitto', false)) { g.placedDitto = ditto.uid; Plan.save(); Log.add('shiny hunt: put Ditto in the Day Care'); }
         return 'putting Ditto in the Day Care…';
       }
       if (!inCare(g.parent)) {
         if (!free()) return `waiting: the Day Care is full - make room for your shiny ${name(g.parentId)}`;
         const why = Guard.team([g.parent], { need: 1, minLevel: 1 }); if (why) return 'waiting: ' + why;
-        try { E.call('Game.toPension', g.parent); E.call('Game.save'); } catch (__e) { __h('70-plan:706', __e); }
+        try { E.call('Game.toPension', g.parent); E.call('Game.save'); } catch (__e) { __h('70-plan:715', __e); }
         if ((S().pension?.mons || []).some((x) => (x.mon || x)?.uid === g.parent)) { g.placed = g.parent; Plan.save(); Log.add(`shiny hunt: put your shiny ${name(g.parentId)} in the Day Care`); }
         return `putting your shiny ${name(g.parentId)} in the Day Care…`;
       }
@@ -4756,8 +4780,8 @@ const GoalTypes = (() => {
       return `${g.hatched || 0} eggs hatched · ${mine.length} on the way${mine.length ? ` (next hatches ${DexInfo.clock(mine[0].hatchAt)})` : ''} · 1 in ${Math.round(1 / (g.rate || 0.0625))} each${sl.used >= sl.max ? ' · incubator full - hatch other eggs to make room' : ''}`;
     },
     finish(g) {
-      for (const k of ['placed', 'placedDitto']) if (g[k]) { try { E.call('Game.fromPension', g[k]); } catch (__e) { __h('70-plan:714', __e); } g[k] = null; }
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan:715', __e); } Plan.save();
+      for (const k of ['placed', 'placedDitto']) if (g[k]) { try { E.call('Game.fromPension', g[k]); } catch (__e) { __h('70-plan:723', __e); } g[k] = null; }
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan:724', __e); } Plan.save();
     },
   };
   const wild = {
@@ -4775,11 +4799,11 @@ const GoalTypes = (() => {
     async step(g) {
       const s = S(), a = s.adv || {};
       if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null, capture: a.capture ? { ...a.capture } : null }; Plan.save(); Log.add(`${wild.label(g)}: going there. Your chapter comes back when it's done.`); }
-      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:733', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:742', __e); } return 'leaving the legendary zone…'; }
       // auto-catch must be on and catching new species
-      if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan:735', __e); } Log.add('turned auto-catch on ("new") so the target gets caught'); }
+      if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan:744', __e); } Log.add('turned auto-catch on ("new") so the target gets caught'); }
       if (+a.chapter !== +g.ch) { if (E.call('Adventure.setChapter', +g.ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-      if (!E.read('Adventure.isLooping', false, +g.ch)) { try { E.call('Adventure.toggleLoop', +g.ch); g.restore.loopAdded = +g.ch; Plan.save(); } catch (__e) { __h('70-plan:737', __e); } }
+      if (!E.read('Adventure.isLooping', false, +g.ch)) { try { E.call('Adventure.toggleLoop', +g.ch); g.restore.loopAdded = +g.ch; Plan.save(); } catch (__e) { __h('70-plan:746', __e); } }
       if (!g.parent) passTeam(g, g.ch); // a gym-plan catch keeps the gym team leveling instead
       // restart trick: no stop ahead can hold the target -> back to stop 0
       const nodes = a.nodes || [], at = +a.node || 0;
@@ -4790,7 +4814,7 @@ const GoalTypes = (() => {
         // the game's own Restart button (Map: "Restart" on the chapter you're in) - Screens.adventure.restartChapter;
         // going to the same chapter again just carries on, so Mega used to hop out and back (Jimmy, 2026-11-17)
         const scr = E.get('Screens')?.adventure;
-        if (typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+g.ch); } catch (__e) { __h('70-plan:748', __e); } }
+        if (typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+g.ch); } catch (__e) { __h('70-plan:757', __e); } }
         else {
           const unlocked = +(a.unlocked ?? 0), other = +g.ch > 0 ? +g.ch - 1 : Math.min(unlocked, +g.ch + 1);
           if (other === +g.ch || E.call('Adventure.setChapter', other) === false) return 'waiting: could not step out of the chapter to restart it';
@@ -4807,8 +4831,8 @@ const GoalTypes = (() => {
     },
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan:765', __e); }
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan:766', __e); } }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan:774', __e); }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan:775', __e); } }
       g.restore = null; Plan.save();
     },
   };
@@ -4819,7 +4843,7 @@ const GoalTypes = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan:777', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan:786', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -4828,10 +4852,10 @@ const GoalTypes = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:786', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan:787', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:795', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan:796', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan:789', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan:798', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -4839,7 +4863,7 @@ const GoalTypes = (() => {
   // otherwise (or if that's missing) step out and back - re-opening the same chapter just continues (Jimmy)
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan:797', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan:806', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -4968,7 +4992,7 @@ const GoalTypes = (() => {
         const sl = DexInfo.eggSlots();
         if (sl.used >= sl.max) {
           const e = (S().pension?.eggs || []).find((x) => E.read('Game.eggReady', false, x));
-          if (e) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan:926', __e); } if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan:926', __e); } Log.add(`hatched a ${name(e.id)} egg to free a Day Care egg slot for the ${DexInfo.itemName(g.item)}`); } }
+          if (e) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan:935', __e); } if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan:935', __e); } Log.add(`hatched a ${name(e.id)} egg to free a Day Care egg slot for the ${DexInfo.itemName(g.item)}`); } }
           return 'making room in the Day Care…';
         }
       }
@@ -5009,18 +5033,18 @@ const GoalTypes = (() => {
       const free = (P.mons || []).length < +(P.open?.slots ?? 0);
       const mon = here().filter((m) => +m.id === +g.from).sort((a, b) => b.level - a.level)[0];
       if (!free) return `waiting: the Day Care is full - make room for ${name(g.from)} next to Ditto`;
-      if (mon) { try { E.call('Game.toPension', mon.uid); } catch (__e) { __h('70-plan:967', __e); } try { E.call('Game.save'); } catch (__e) { __h('70-plan:967', __e); } if ((S().pension?.mons || []).some((x) => (x.mon || x)?.uid === mon.uid)) { g.placed = mon.uid; Plan.save(); Log.add(`put ${name(g.from)} in the Day Care to breed ${name(g.foe)}`); } }
+      if (mon) { try { E.call('Game.toPension', mon.uid); } catch (__e) { __h('70-plan:976', __e); } try { E.call('Game.save'); } catch (__e) { __h('70-plan:976', __e); } if ((S().pension?.mons || []).some((x) => (x.mon || x)?.uid === mon.uid)) { g.placed = mon.uid; Plan.save(); Log.add(`put ${name(g.from)} in the Day Care to breed ${name(g.foe)}`); } }
       return `putting ${name(g.from)} in the Day Care…`;
     },
-    finish(g) { if (g.placed) { try { E.call('Game.fromPension', g.placed); } catch (__e) { __h('70-plan:970', __e); } try { E.call('Game.save'); } catch (__e) { __h('70-plan:970', __e); } Log.add(`took ${name(g.from)} back from the Day Care`); g.placed = null; Plan.save(); } },
+    finish(g) { if (g.placed) { try { E.call('Game.fromPension', g.placed); } catch (__e) { __h('70-plan:979', __e); } try { E.call('Game.save'); } catch (__e) { __h('70-plan:979', __e); } Log.add(`took ${name(g.from)} back from the Day Care`); g.placed = null; Plan.save(); } },
   };
 
   // hatch ready Day Care eggs of species you're missing (eggs of things you have are left alone)
   function hatchMissing() {
     for (const e of [...(S().pension?.eggs || [])]) {
       if (E.read('Game.inDex', false, +e.id) || !E.read('Game.eggReady', false, e)) continue;
-      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan:977', __e); }
-      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan:978', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:978', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
+      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan:986', __e); }
+      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan:987', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:987', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
     }
   }
 
@@ -5033,8 +5057,8 @@ const GoalTypes = (() => {
     for (let f = from; f < from + 40; f += 4) {
       // the trainers on each floor (the game moved this to floorOf().team = [[id, level], ...];
       // poolOf is now empty, which made Mega skip picking a team and start with a leftover one)
-      let p = []; try { p = (CR().floorOf(f)?.team || []).map((x) => (Array.isArray(x) ? { id: x[0], lv: x[1] } : x)); } catch (__e) { __h('70-plan:991', __e); }
-      if (!p.length) { try { p = CR().poolOf(f) || []; } catch (__e) { __h('70-plan:992', __e); } }
+      let p = []; try { p = (CR().floorOf(f)?.team || []).map((x) => (Array.isArray(x) ? { id: x[0], lv: x[1] } : x)); } catch (__e) { __h('70-plan:1000', __e); }
+      if (!p.length) { try { p = CR().poolOf(f) || []; } catch (__e) { __h('70-plan:1001', __e); } }
       const lv = +(p[0]?.lv) || +(() => { try { return CR().levelOf(f); } catch { return 0; } })() || 80;
       for (const x of p) { const id = +(x?.id ?? x); if (!id) continue; const o = out.get(id) || { id, lv, w: 0 }; o.w += 1; o.lv = Math.max(o.lv, lv); out.set(id, o); }
     }
@@ -5055,7 +5079,7 @@ const GoalTypes = (() => {
     const hp = team.map(() => 1);
     let floors = 0;
     for (let f = from; f < from + max; f++) {
-      let fl = null; try { fl = CR().floorOf(f); } catch (__e) { __h('70-plan:1013', __e); }
+      let fl = null; try { fl = CR().floorOf(f); } catch (__e) { __h('70-plan:1022', __e); }
       const foes = (fl?.team || []).map((x) => (Array.isArray(x) ? { id: +x[0], lv: +x[1] } : { id: +x.id, lv: +x.lv || +x.level }));
       if (!foes.length) break;
       const mult = (+fl.statMult || 1) * (1 + 0.05 * (+fl.rank || 0));
@@ -5111,11 +5135,11 @@ const GoalTypes = (() => {
         if (S().adv?.tower?.kind !== 'candy') {
           if (Date.now() - (g.resumeAt || 0) < 60_000) return 'waiting before putting the run back on screen…';
           g.resumeAt = Date.now();
-          try { E.call('Adventure.startTower', false, 'candy'); E.call('App.refresh'); } catch (__e) { __h('70-plan:1069', __e); } Log.add('Candy Factory: put the paused run back on screen'); return 'putting the run back on screen…';
+          try { E.call('Adventure.startTower', false, 'candy'); E.call('App.refresh'); } catch (__e) { __h('70-plan:1078', __e); } Log.add('Candy Factory: put the paused run back on screen'); return 'putting the run back on screen…';
         }
         return `run in progress · ${r?.type || ''} · floor ${r?.floor ?? '?'}`;
       }
-      if (!c.today()) { try { await c.loadDay(); } catch (__e) { __h('70-plan:1073', __e); } if (!c.today()) return 'reading today\'s type…'; }
+      if (!c.today()) { try { await c.loadDay(); } catch (__e) { __h('70-plan:1082', __e); } if (!c.today()) return 'reading today\'s type…'; }
       const day = c.today(), from = Math.max(...((() => { try { return c.starts(); } catch { return [1]; } })() || [1]));
       // team: the best clearers against the day's Pokémon (same damage math as the training carriers)
       const pool = candyPool(from);
@@ -5133,16 +5157,16 @@ const GoalTypes = (() => {
         candyWant = uids; candyNeed = Math.min(size, ranked.length);
         if (est) Log.add(`Candy Factory: tested ${est.tries} teams floor by floor - best gets to about floor ${from + Math.floor(est.floors)}`);
         const s0 = S(); s0.eventTeams = s0.eventTeams || {}; const old = (s0.eventTeams[c.TEAM_KEY || 'candy'] || []).join(',');
-        if (uids.length && old !== uids.join(',')) { s0.eventTeams[c.TEAM_KEY || 'candy'] = uids; try { E.call('Game.save'); } catch (__e) { __h('70-plan:1091', __e); } Log.add(`Candy Factory (${day.type}): team ${uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
+        if (uids.length && old !== uids.join(',')) { s0.eventTeams[c.TEAM_KEY || 'candy'] = uids; try { E.call('Game.save'); } catch (__e) { __h('70-plan:1100', __e); } Log.add(`Candy Factory (${day.type}): team ${uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
       }
       // safety: the team the game will really use (read back) must be the full team Mega picked
       { const key = c.TEAM_KEY || 'candy';
-        let game = null; try { game = (c.picked() || []).map((m) => m?.uid ?? m); } catch (__e) { __h('70-plan:1095', __e); }
+        let game = null; try { game = (c.picked() || []).map((m) => m?.uid ?? m); } catch (__e) { __h('70-plan:1104', __e); }
         if (!game || !game.length) game = S().eventTeams?.[key] || [];
         const why = candyNeed < 1 ? 'no Pokémon are allowed today' : Guard.team(game, { need: candyNeed, want: candyWant, minLevel: 50 });
         if (why) return Guard.stop('the Candy Factory', why); }
       let r = null; try { r = E.call('Adventure.startTower', false, 'candy', from); } catch (e) { Log.add('Candy Factory: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1100', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1109', __e); }
       if (r && c.run()) { Log.add(`Candy Factory: started today's ${day.type} run from floor ${from}`); return `started today's ${day.type} run`; }
       return 'could not start the run - ' + (((() => { try { return c.why(); } catch { return null; } })()) || 'see the log');
     },
@@ -5172,7 +5196,7 @@ const GoalTypes = (() => {
       if (run && Date.now() - (g.resumeAt || 0) < 60_000) return 'waiting before resuming the run…';
       if (run) g.resumeAt = Date.now();
       let ok = false; try { ok = E.call('Adventure.startTower', false, 'tower'); } catch (e) { Log.add('Battle Tower: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1130', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1139', __e); }
       if (ok && S().adv?.tower) { Log.add(run ? 'Battle Tower: resumed this week\'s run' : 'Battle Tower: started this week\'s run'); return run ? 'resumed the run' : 'started this week\'s run'; }
       return 'could not start the Tower - see the log';
     },
@@ -5253,19 +5277,19 @@ const GoalTypes = (() => {
   async function raidRepick() {
     const r = RD(), C = E.get('CONFIG')?.RAID || {}, a = S().adv || {};
     const g = Plan.goals.find((x) => x.type === 'raid' && !x.done);
-    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan:1211', __e); } }
+    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan:1220', __e); } }
     if (!reg) { if (g) { delete g.pick; Plan.save(); } return 'today\'s raid isn\'t drawn yet - it will pick when it starts'; }
     const lane = (() => { try { return r.lane() || []; } catch { return []; } })(), boss = a.event?.raid ? +a.event.id : lane.find((x) => x.key === reg)?.boss;
     if (!boss) return 'can\'t read today\'s boss';
     const blocked = Guard.blocks('raid'); if (blocked) return 'safety check: ' + blocked;
-    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan:1216', __e); }
+    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan:1225', __e); }
     if (g) { g.pick = { ...pick, day, reg }; Plan.save(); }
     const names = pick.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ');
     if (a.event?.raid) { // running now: swap the team for the next fight
       const why = Guard.team(pick.mine, { need: +C.MINE || 2, minLevel: 70 }); if (why) return 'not changed - ' + why;
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = pick.mine;
-      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan:1222', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan:1223', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1223', __e); }
+      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan:1231', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan:1232', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1232', __e); }
       Log.add(`Shiny Raid: re-picked from the phone - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
       return `now ${names} + ${pick.allyNames.join(' & ')} (sim ${Math.round(pick.ko * 100)}%)`;
     }
@@ -5278,7 +5302,7 @@ const GoalTypes = (() => {
     check(g) {
       const r = RD(); if (!r || !E.read('Raids.unlocked', false)) return { state: 'wait', why: 'Shiny Raids are not open yet' };
       if (S().adv?.event?.raid) return { state: 'ready', why: null };
-      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan:1236', __e); } }
+      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan:1245', __e); } }
       const reg = (() => { try { return r.drawn(); } catch { return null; } })();
       if (!reg) { const from = r.state?.drawFrom; return { state: 'wait', why: `today's raid isn't drawn yet${from && from > Date.now() ? ` - draws ${DexInfo.clock(from)}` : ''}` }; }
       if ((() => { try { return r.done(reg); } catch { return false; } })()) { const b = (r.lane() || []).find((x) => x.key === reg);
@@ -5289,7 +5313,7 @@ const GoalTypes = (() => {
     async step(g) {
       const r = RD(), C = E.get('CONFIG')?.RAID || {};
       if (S().adv?.event?.raid) { const ev = S().adv.event; return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}`; }
-      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan:1247', __e); }
+      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan:1256', __e); }
       const day = r.dateKey(), lane = (() => { try { return r.lane() || []; } catch { return []; } })();
       const bossOf = (k) => lane.find((x) => x.key === k)?.boss;
       // the reroll: once a day, only when today's boss is a shiny you own or clearly weak, and
@@ -5318,8 +5342,8 @@ const GoalTypes = (() => {
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = mine.map((m) => m.uid);
       const allyN = +C.ALLIES || 2;
       const bots = g.pick.allies.slice(0, allyN).map((key) => ({ b: { key, name: g.pick.allyNames[g.pick.allies.indexOf(key)] } }));
-      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan:1276', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan:1277', __e); }
+      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan:1285', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan:1286', __e); }
       // safety: your 2 (read back from the game) and the ally trainers must be set as picked
       { const read = S().eventTeams?.[r.teamKey(reg)] || [];
         let why = Guard.team(read, { need: +C.MINE || 2, want: g.pick.mine, minLevel: 70 });
@@ -5327,7 +5351,7 @@ const GoalTypes = (() => {
         if (!why && g.pick.allies.length && picks.length < Math.min(allyN, g.pick.allies.length)) why = 'the ally trainers are not set';
         if (why) return Guard.stop('the Shiny Raid', why); }
       let ok = false; try { ok = E.call('Adventure.startRaid', reg); } catch (e) { Log.add('Shiny Raid: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1285', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1294', __e); }
       if (ok && S().adv?.event?.raid) { Log.add(`Shiny Raid: started vs ${name(boss)} (${reg}) with ${mine.map((m) => name(m.id)).join(' & ')} + ${bots.slice(0, allyN).map((x) => x.b.name).join(' & ')}`); return `started vs ${name(boss)}`; }
       return 'could not start the raid - see the log';
     },
@@ -5366,7 +5390,7 @@ const GoalTypes = (() => {
       const w = goChapter(g, best.ch, money.label(g)); if (w) return w;
       // carriers: the fastest clearers of this chapter
       if (g.carriersFor !== best.ch || g.carriersV !== Sim.CARRIER_V) {
-        let picks = []; try { picks = Sim.carriers(best.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan:1324', __e); }
+        let picks = []; try { picks = Sim.carriers(best.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan:1333', __e); }
         g.carriersFor = best.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
         if (picks.length && setChapterTeam(g.carriers)) Log.add(`money team for ${best.name}: ${picks.map((p) => name(p.m.id)).join(', ')}`);
       }
@@ -5459,20 +5483,20 @@ const GoalTypes = (() => {
       const inIt = +(a.zone?.id) === +g.foe && +(a.zone?.elite) === next;
       const sim = EliteSim.get(`L${g.foe}:${next}`);
       if (!inIt) {
-        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:1417', __e); } return 'leaving the current zone…'; }
+        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:1426', __e); } return 'leaving the current zone…'; }
         if (sim?.uids?.length) { const zt = E.read('Game.zoneTeam', [], g.foe) || []; if (!(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) { const r = setTeam(g.foe, sim.uids); if (!r.ok) return 'waiting: ' + r.why; } }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'entering…';
         g.enterAt = Date.now();
         { const zt = E.read('Game.zoneTeam', [], g.foe) || []; const why = Guard.team(zt, { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`${name(g.foe)} elite tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startZone', g.foe, next) !== false; } catch (__e) { __h('70-plan:1422', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1423', __e); }
+        let ok = false; try { ok = E.call('Adventure.startZone', g.foe, next) !== false; } catch (__e) { __h('70-plan:1431', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1432', __e); }
         if (ok) Log.add(`${name(g.foe)}: started elite tier ${next}${sim ? ` (sim ${Math.round(sim.ko * 100)}%)` : ''}`);
         return ok ? `started elite tier ${next}` : `the game would not start tier ${next}`;
       }
       const tries = +(a.zone?.tries || 1);
       return `elite tier ${next} vs ${name(a.zone?.foe || g.foe)} · try ${tries}${sim ? ` · sim ${Math.round(sim.ko * 100)}%` : ''}`;
     },
-    finish(g) { const a = S().adv || {}; if (+(a.zone?.id) === +g.foe && a.zone?.elite) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:1430', __e); } } },
+    finish(g) { const a = S().adv || {}; if (+(a.zone?.id) === +g.foe && a.zone?.elite) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:1439', __e); } } },
   };
 
   // ---- Elite League: a region's Elite Four + Champion, tiers 1-5 ---------------------------------
@@ -5502,26 +5526,26 @@ const GoalTypes = (() => {
       g.lastBest = best; Plan.save();
       const inIt = a.league?.reg === g.reg && +a.league?.tier === next;
       if (inIt) { const tries = +(a.league?.tries || 1); g.lost = { ...(g.lost || {}), [next]: Math.max(g.lost?.[next] || 0, tries - 1) }; Plan.save(); }
-      if (inIt && (g.lost?.[next] || 0) >= 10 && !g.force) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan:1460', __e); } Log.add(`Elite League ${g.reg}: tier ${next} lost 10 times - stepping back`); Notify.send('problem', `Elite League tier ${next} is too strong for now`, 'Lost 10 times in a row - level or rank up your team, then press ▶ on the goal'); return 'stepped back after 10 losses'; }
+      if (inIt && (g.lost?.[next] || 0) >= 10 && !g.force) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan:1469', __e); } Log.add(`Elite League ${g.reg}: tier ${next} lost 10 times - stepping back`); Notify.send('problem', `Elite League tier ${next} is too strong for now`, 'Lost 10 times in a row - level or rank up your team, then press ▶ on the goal'); return 'stepped back after 10 losses'; }
       if (g.force && best > (g.forceAt ?? -1)) { g.force = false; g.forceAt = best; }
       const sim = EliteSim.get(`G${g.reg}:${next}`) || EliteSim.leagueTeam(g.reg, next);
       if (!inIt) {
-        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:1464', __e); } return 'leaving the current zone…'; }
-        if (a.league) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan:1465', __e); } return 'leaving the other League run…'; }
+        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan:1473', __e); } return 'leaving the current zone…'; }
+        if (a.league) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan:1474', __e); } return 'leaving the other League run…'; }
         if (!g.restore) { g.restore = { team: [...(S().team || [])], chapter: a.chapter }; Plan.save(); }
         if (sim?.uids?.length) { const cur = S().team || []; if (!(cur.length === sim.uids.length && sim.uids.every((u) => cur.includes(u)))) setChapterTeam(sim.uids); }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'starting…';
         g.enterAt = Date.now();
         { const why = Guard.team(S().team || [], { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`Elite League ${g.reg} tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan:1471', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1472', __e); }
+        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan:1480', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1481', __e); }
         if (ok) Log.add(`Elite League ${g.reg}: started tier ${next} with ${sim.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`);
         return ok ? `started tier ${next}` : `the game would not start tier ${next}`;
       }
       const at = +a.node || 0, n = (a.nodes || []).length;
       return `Elite League tier ${next} · stop ${at + 1} of ${n || '?'} · try ${+(a.league?.tries || 1)}`;
     },
-    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan:1479', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
+    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan:1488', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
   };
 
   // ---- World Boss: 3 attacks a day while its shield is up, then the capture window ----------------
@@ -5534,7 +5558,7 @@ const GoalTypes = (() => {
     check(g) {
       const W = E.get('WorldBoss'); if (!W) return { state: 'wait', why: 'not in this game version' };
       if (!W.open()) return { state: 'wait', why: 'opens once you beat the Sinnoh League' };
-      let st = {}; try { st = W.state() || {}; } catch (__e) { __h('70-plan:1492', __e); }
+      let st = {}; try { st = W.state() || {}; } catch (__e) { __h('70-plan:1501', __e); }
       if (st.phase === 'shield') { const left = +W.left(st) || 0; return left > 0 ? { state: 'ready', why: null } : { state: 'wait', why: `today's 3 attacks are done · ${Math.round((st.pct ?? 0) * 100)}% of its shield left` }; }
       if (st.phase === 'capture') return W.caught(st) ? { state: 'wait', why: `caught this edition ✔ · next ${DexInfo.clock(st.next)}` } : { state: 'ready', why: null };
       return { state: 'wait', why: st.next ? `next edition ${DexInfo.clock(st.next)}` : 'no edition yet' };
@@ -5549,7 +5573,7 @@ const GoalTypes = (() => {
         { const why = Guard.team(team.map((x) => x?.uid ?? x), { need: 1, minLevel: 1 }); if (why) return Guard.stop('the World Boss attack', why); }
         const r = await W.attack(team);
         if (r?.error) { Log.add(`World Boss: the game said "${r.error}"`); return 'could not attack: ' + r.error; }
-        try { E.call('Game.save'); } catch (__e) { __h('70-plan:1507', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1507', __e); }
+        try { E.call('Game.save'); } catch (__e) { __h('70-plan:1516', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1516', __e); }
         const dmg = r?.dmg ?? r?.damage ?? null;
         Log.add(`World Boss: attacked with ${team.map((m) => name(m.id)).join(', ')}${dmg ? ` - ${(+dmg).toLocaleString()} damage` : ''} (${W.left()} left today)`);
         if (!W.left()) Notify.send('daily', 'World Boss: today\'s attacks done', `${Math.round((W.state()?.pct ?? 0) * 100)}% of its shield left`);
@@ -5596,17 +5620,17 @@ const Plan = (() => {
 
   function load() {
     let p;
-    try { p = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('70-plan:1554', __e); }
+    try { p = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('70-plan:1563', __e); }
     p = p && Array.isArray(p.goals) ? p : { running: false, goals: [] };
     // 0.3.x: a running hunt becomes the first goal
     try {
       const h = JSON.parse(localStorage.getItem('mega-hunt') || 'null');
       if (h && h.target && !p.goals.some((g) => g.type === 'legend' && g.foe === h.target)) { p.goals.unshift(newGoal('legend', { foe: h.target })); p.running = true; }
       localStorage.removeItem('mega-hunt');
-    } catch (__e) { __h('70-plan:1561', __e); }
+    } catch (__e) { __h('70-plan:1570', __e); }
     return p;
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (__e) { __h('70-plan:1564', __e); } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (__e) { __h('70-plan:1573', __e); } }
   function newGoal(type, data) { return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), type, ...data, paused: false, done: null, added: Date.now() }; }
 
   const type = (g) => GoalTypes[g.type];
@@ -5647,7 +5671,7 @@ const Plan = (() => {
     return g;
   }
   function finish(g) { try { type(g)?.finish?.(g); } catch (e) { Log.add(`${name(g)}: could not put things back (${e?.message || e})`); } }
-  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) finish(g); st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
+  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan:1614', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
   function move(id, d) {
     const open = st.goals.filter((g) => !g.done), i = open.findIndex((g) => g.id === id), j = i + d;
     if (i < 0 || j < 0 || j >= open.length) return;
@@ -5682,7 +5706,7 @@ const Plan = (() => {
     let ok = false;
     { const why = Guard.team(E.read('Game.zoneTeam', [], +id) || [], { need: 1, minLevel: 1 }); if (why) { Guard.stop(`${E.get('Game.DEX')?.[id]?.name}'s zone`, why); return false; } }
     try { ok = E.call('Adventure.startZone', +id) !== false; } catch (e) { Log.add(`${E.get('Game.DEX')?.[id]?.name}: the game refused to enter (${e.message})`); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1640', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan:1649', __e); }
     await new Promise((r) => setTimeout(r, 800));
     if (ok && +(E.get('Game.S')?.adv?.zone?.id) === +id) { fails = 0; Log.add(`entered ${E.get('Game.DEX')?.[id]?.name}'s zone`); return true; }
     if (failsFor !== id) { failsFor = id; fails = 0; }
@@ -5768,14 +5792,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan:1726', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan:1735', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan:1733', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan:1742', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -5798,7 +5822,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan:1756', __e); }
+    } catch (__e) { __h('70-plan:1765', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -5813,7 +5837,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan:1771', __e); }
+    } catch (__e) { __h('70-plan:1780', __e); }
   }
   function formGoals() {
     try {
@@ -5823,7 +5847,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan:1781', __e); }
+    } catch (__e) { __h('70-plan:1790', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
@@ -5840,6 +5864,82 @@ const Plan = (() => {
     has: (foe) => st.goals.find((g) => g.type === 'legend' && g.foe === +foe && !g.done) || null,
     hasType: (t) => st.goals.find((g) => g.type === t && !g.done) || null,
   };
+})();
+
+/* ===================================================================================================
+ * Chains - goals that plan themselves. A legendary that's locked gets the goals it needs added for it.
+ * The game describes each unlock with a few building blocks (LegendZones.ZONES[].cond):
+ *   owns {ids}      -> a catch goal for each one you don't own (its legendary zone, or its best route)
+ *   item {item}     -> find that item where the game hides it (a rare-item goal)
+ *   dex             -> complete that region's Pokédex
+ *   league {region} -> beat that region's League
+ *   all {list}      -> every one of the above
+ * The rest (braille doors, a trainer tally, owning N species, a type count) Mega can't do for you:
+ * they're listed as "needs you". Each locked goal is looked at every 30 minutes; a goal you remove
+ * is not added back for the same legendary.
+ * =================================================================================================== */
+const Chains = (() => {
+  const E = Engine, LZ = () => E.get('LegendZones'), D = () => E.get('Game.DEX') || {};
+  const own = (id) => !!E.read('Game.owns', false, +id);
+  const nameOf = (id) => D()[+id]?.name || '#' + id;
+  const KEY = 'mega-chain-removed';
+  let removed = {}; try { removed = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (__e) { __h('71-chains:18', __e); }
+  const on = () => { try { return JSON.parse(localStorage.getItem('mega-chains') ?? 'true') !== false; } catch { return true; } };
+  function setOn(v) { try { localStorage.setItem('mega-chains', JSON.stringify(!!v)); } catch (__e) { __h('71-chains:20', __e); } }
+  const zoneOf = (id) => (LZ()?.ZONES || []).find((z) => +z.id === +id || (z.forms || []).includes(+id));
+
+  // what one condition still needs, as steps
+  function steps(cond, z, out = []) {
+    if (!cond) return out;
+    if (cond.kind === 'all') { for (const c of cond.list || []) steps(c, z, out); return out; }
+    if (cond.kind === 'owns') { for (const id of cond.ids || []) if (!own(id)) out.push({ kind: 'own', id: +id }); return out; }
+    if (cond.kind === 'item') { if (!(+E.read('Game.itemCount', 0, cond.item) > 0) && !E.get('Game.S')?.adv?.gifts?.[cond.item]) out.push({ kind: 'item', item: cond.item, text: cond.text }); return out; }
+    if (cond.kind === 'dex') { const reg = z?.region; if (reg && !dexDone(z)) out.push({ kind: 'dex', region: reg }); return out; }
+    if (cond.kind === 'league') { if (!E.read('Game.regionCleared', false, cond.region)) out.push({ kind: 'league', region: cond.region }); return out; }
+    out.push({ kind: 'manual', text: cond.text || cond.kind }); return out;
+  }
+  // the game's own count for that zone (Shaymin: 101 of 102 Sinnoh entries)
+  function dexDone(z) {
+    try { const p = LZ().progress(z); const line = (p?.lines || []).find((l) => /Pokédex|Pokedex/i.test(l.text || '')) || p; return !line || +line.have >= +line.need; } catch { return true; }
+  }
+  // the goal that covers one step (or null when Mega can't do it); returns [type, data, label]
+  function goalFor(s) {
+    if (s.kind === 'own') {
+      const z = zoneOf(s.id);
+      if (z && +z.id === +s.id) return ['legend', { foe: s.id }, `Catch ${nameOf(s.id)}`];
+      return ['dex', { id: s.id }, `Catch ${nameOf(s.id)}`];
+    }
+    if (s.kind === 'item') {
+      const it = (() => { try { return DexInfo.rareItems().find((x) => x.key === s.item); } catch { return null; } })();
+      const L = it?.spots?.[0]; if (!L) return null;
+      return ['loot', { item: it.key, ch: L.ch, place: L.place, need: it.need }, `Find ${it.name}`];
+    }
+    if (s.kind === 'dex') return ['region', { reg: s.region }, `Complete the ${s.region} Pokédex`];
+    if (s.kind === 'league') return ['story', { region: s.region, regionName: s.region[0].toUpperCase() + s.region.slice(1) }, `Beat the ${s.region} League`];
+    return null;
+  }
+  const has = (type, data) => Plan.goals.some((g) => !g.done && g.type === type && (
+    type === 'legend' ? +g.foe === +data.foe : type === 'loot' ? g.item === data.item : type === 'region' ? g.reg === data.reg : type === 'story' ? g.region === data.region : false));
+  // add what goal g's legendary still needs; returns { added: [labels], manual: [texts] }
+  function addFor(g) {
+    const z = zoneOf(g.foe); if (!z || !z.cond || !on()) return { added: [], manual: [] };
+    const need = steps(z.cond, z), added = [], manual = [];
+    for (const s of need) {
+      if (s.kind === 'manual') { manual.push(s.text); continue; }
+      const k = `${g.foe}:${s.kind}:${s.id || s.item || s.region}`;
+      if (removed[k]) continue;
+      const gf = goalFor(s); if (!gf) { manual.push(s.text || `${s.kind} ${s.item || ''}`); continue; }
+      const [type, data, label] = gf;
+      if (type === 'dex') { if (Plan.goals.some((x) => !x.done && +x.foe === +data.id)) continue; try { if (addDexJob(data.id)) added.push(label); } catch (__e) { __h('71-chains:65', __e); } }
+      else if (!has(type, data)) { if (Plan.add(type, data)) added.push(label); }
+      const kid = Plan.goals.filter((x) => !x.done).slice(-1)[0]; if (kid && added.includes(label)) { kid.chainFor = g.foe; kid.chainKey = k; }
+    }
+    if (added.length) { try { Log.add(`${nameOf(g.foe)} needs more first - added: ${added.join(', ')}`); Plan.save(); } catch (__e) { __h('71-chains:69', __e); } }
+    return { added, manual };
+  }
+  // a chained goal you removed is not added back for the same legendary
+  function forget(g) { if (g?.chainKey) { removed[g.chainKey] = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(removed)); } catch (__e) { __h('71-chains:73', __e); } } }
+  return { steps, addFor, forget, setOn, get on() { return on(); } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
