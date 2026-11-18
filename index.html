@@ -72,6 +72,12 @@
   html.th-night select,html.th-day select,html.th-night input[type=text],html.th-day input[type=text],html.th-night input[type=search],html.th-day input[type=search]{background:var(--card);color:var(--txt);border-color:var(--scrEdge)}
   html.th-night .toast,html.th-day .toast{background:var(--shell2);color:#fff;border-color:var(--seam)}
   html.th-night .zbtn,html.th-day .zbtn,html.th-night .pill,html.th-day .pill{background:var(--shell2);color:#fff}
+  .mv .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;align-items:baseline} .mv .row .k{color:var(--dim);flex:none} .mv .row .v{text-align:right;min-width:0}
+  .mv .note{background:var(--well,#16122b);border-radius:10px;padding:8px 10px;margin:6px 0;font-size:14px} .mv .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px}
+  .mv .mon{text-align:center;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:4px;background:var(--well,#16122b)} .mv .mon img{width:48px;height:48px;image-rendering:pixelated}
+  .mv img{max-width:100%;image-rendering:pixelated} .mv label.chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0} .mv .btn{margin:6px 6px 0 0}
+  .mv select,.mv input.q{width:100%;margin:4px 0} .mv .bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:4px 0} .mv .bar i{display:block;height:100%;background:var(--acc)}
+  .mv .card h3{cursor:pointer} .mv .card.folded > :not(h3){display:none} .mv table{width:100%;border-collapse:collapse;font-size:13px} .mv td,.mv th{padding:3px 4px;border-bottom:1px solid var(--line);text-align:left}
   @media (min-width: 600px) {
     body{padding-left:16px;padding-right:16px}
     .tabs{grid-template-columns:repeat(9,1fr)}.tabs button{font-size:14px;padding:9px 2px}
@@ -278,7 +284,7 @@ function tabList() {
   const o = (snap?.tabs || []).map((k) => MEGA_TAB[k] || k), byK = new Map(TABS);
   return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))];
 }
-const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
+const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
@@ -671,13 +677,36 @@ function vGems() {
   const g = snap.gems; if (!g) return `<div class="card">No gem data.</div>`;
   return `<div class="card"><h3>Strongest Get Stronger</h3><div class="dim">${g.total} gems. Ranking up needs the game window - remote in and use Open in Game on the Gems tab.</div>${g.top.map(([id, gain, label, need, r, sh, bst], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">${bst ? `base ${bst} · ` : ''}rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div></div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
 }
+// ---- Mega's own screens (Settings, Fights), shown as Mega draws them; buttons press Mega's buttons on the PC.
+// This keeps Kinesis and Mega the same: anything those screens get, the phone gets too.
+const MV = { html: {}, at: {}, busy: {} };
+function mvLoad(tab) { if (MV.busy[tab]) return; MV.busy[tab] = 1; cmd('ui.html', { tab }, 'Load from your PC', (r, d) => { MV.busy[tab] = 0; if (d && d.html != null) { MV.html[tab] = d.html; MV.at[tab] = Date.now(); render(); } }, true); }
+function mvBox(tab) {
+  if (!MV.html[tab] || Date.now() - (MV.at[tab] || 0) > 60_000) mvLoad(tab);
+  if (!MV.html[tab]) return `<div class="card dim">Loading from your PC…</div>`;
+  return `<div class="mv" data-mvtab="${tab}">${MV.html[tab]}</div>`;
+}
+function vFights() { return `<div class="card"><h3>Fights</h3><div class="dim">Mega's fight log and analysis, live from your PC.</div><button class="btn" data-x="mvReload" data-t="fights">⟳ Refresh</button></div>${mvBox('fights')}`; }
+function mvSend(el, kind) {
+  const box = el.closest('.mv'); if (!box) return;
+  const tab = box.dataset.mvtab, data = { ...el.dataset };
+  if (data.act === 'fold-card') { el.closest('.card')?.classList.toggle('folded'); return; }
+  cmd('ui.act', { tab, data, kind, checked: !!el.checked, value: el.value ?? '', tag: el.tagName.toLowerCase() }, el.textContent.trim().slice(0, 40) || data.act, (r, d) => { if (d && d.html != null) { MV.html[tab] = d.html; MV.at[tab] = Date.now(); render(); } });
+}
+document.addEventListener('click', (e) => {
+  const h3 = e.target.closest('.mv .card > h3'); if (h3 && !e.target.closest('[data-act]')) { h3.parentElement.classList.toggle('folded'); return; }
+  const el = e.target.closest('.mv [data-act]'); if (!el) return;
+  if (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox')) return;
+  if (el.tagName !== 'INPUT') e.preventDefault();
+  mvSend(el, 'click');
+}, true);
+document.addEventListener('change', (e) => { const el = e.target.closest('.mv select[data-act], .mv select'); if (el && el.closest('.mv')) mvSend(el, 'change'); }, true);
 function vSet() {
   const s = snap?.set || {};
   return `<div class="card"><h3>Updates</h3><div class="dim">Mega ${esc(snap?.ver || '?')}${snap?.upd ? ` · <span class="ok">${esc(snap.upd)} ready</span>` : ''}</div><div class="flex" style="gap:8px;margin-top:8px"><button class="btn grow" data-c="update.check" data-l="Check for updates">⬆ Check for Updates</button><button class="btn grow" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div></div>
-  <div class="card"><h3>Mega Settings</h3>
-    <label class="chk"><input type="checkbox" data-set="set.berries" ${s.berries ? 'checked' : ''}> Use berries while goals run</label>
-    <label class="chk"><input type="checkbox" data-set="set.idle" ${s.idle ? 'checked' : ''}> Level Pokémon when the plan is idle</label></div>
-    ${alertsCard()}
+  ${alertsCard()}
+  <div class="card"><h3>Mega on Your PC</h3><div class="dim">Mega's own Settings, live from your PC - every card and switch works from here. Tap a title to fold it.</div><button class="btn" data-x="mvReload" data-t="engine">⟳ Refresh</button></div>
+  ${mvBox('engine')}
     <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
     <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
     <button class="btn danger" data-x="unpair">Unpair This Phone</button>
@@ -821,7 +850,7 @@ function render() {
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
-  const V = { box: vBox, team: vTeam, act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  const V = { box: vBox, team: vTeam, act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, fights: vFights, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
@@ -905,6 +934,7 @@ document.addEventListener('click', async (e) => {
     const rq = await cmd('sim.run', { id, asMax: ui.asMax }, 'Run simulator');
     watch.set(rq, (d) => { if (d && !d.running) { ui.simRes[id] = d; loadSims(); render(); return true; } return false; });
   }
+  if (x === 'mvReload') { MV.at[t.dataset.t] = 0; mvLoad(t.dataset.t); toast('Refreshing…'); return; }
   if (x === 'addGoal') {
     const ty = ui.addType, v = ui.addVal;
     const args = ty === 'legend' ? { type: ty, foe: +v } : ty === 'money' ? { type: ty, target: +v || 1e7 } : ty === 'region' ? { type: ty, reg: v } : ty === 'story' ? { type: ty, region: v } : { type: ty };
