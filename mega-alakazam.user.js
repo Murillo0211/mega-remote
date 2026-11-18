@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.0
+// @version      2.3.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.0';
+const VERSION = '2.3.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3564,7 +3564,7 @@ Views.league = (esc) => {
           <button class="btn" data-act="gymplan-run" data-ch="${s.ch}" ${B ? 'disabled' : ''}>${B ? 'Simulating…' : 'Simulate the Fight'}</button>
           ${sg ? `<button class="btn${sg.goFight ? '' : ' gold'}" data-act="gym-go" ${sg.goFight ? 'disabled' : ''}>${sg.goFight ? 'Fighting…' : 'Go Fight'}</button>` : ''}
           ${sg && canTrain ? `<button class="btn" data-act="gym-train" ${sg.levelFirst ? 'disabled' : ''}>${sg.levelFirst ? 'Training…' : 'Train These'}</button>` : ''}</div>
-          <div class="dim" style="font-size:13px;margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself.' : 'Go Fight: try the chapter and leader now. Train These: level the planned team to the cap first.'}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
+          <div class="dim" style="font-size:13px;margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself.' : `Simulate the Fight checks every Pokémon you have. Go Fight: try the chapter and leader now.${canTrain ? ' Train These: level the planned team to the cap first.' : ' Everyone in the plan is at the level cap, so there is nothing to train.'}`}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
       }
     }
     h += `</div>`;
