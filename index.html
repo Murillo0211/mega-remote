@@ -174,6 +174,10 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   .statbar{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;font-size:var(--t-s);margin:4px 0}
   /* Mega's own screens on the phone */
   .mv img{max-width:100%;image-rendering:pixelated}
+  /* live battle: a hit flashes and shakes the sprite once; a fainted Pokémon greys out */
+  .hpw.hit img{animation:hit .5s ease-out} .hpw.ko img{filter:grayscale(1) opacity(.45)}
+  @keyframes hit{0%{filter:brightness(2.4) saturate(.4);transform:translateX(0)}20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}100%{filter:none;transform:none}}
+  @media (prefers-reduced-motion: reduce){.hpw.hit img{animation:none}}
   .mv [data-act="gem-open"],.mv [data-act="tr-open"]{display:none}
   /* iPhone Duo unfolded (and any wide screen): tabs in one row, cards in two columns, PC box with its details beside it */
   @media (min-width: 600px) {
@@ -524,6 +528,31 @@ function vTeam() {
     ${list.length ? '' : '<div class="dim">Nothing matches.</div>'}</div></div>`;
   return h;
 }
+// ---- the live battle: who you're fighting, and HP that glides instead of jumping ----
+// Kinesis redraws the card about once a second; each HP bar and number remembers where it was and
+// animates from there, and a Pokémon that just lost HP flashes once.
+const OPP_KIND = { wild: 'Wild', trainer: 'Trainer', gym: 'Gym Leader', league: 'League', raid: 'Raid Boss', legend: 'Legendary', boss: 'Boss', tower: 'Battle Tower', candy: 'Candy Factory', under: 'Underground', elite: 'Elite Legendary', wboss: 'World Boss' };
+function oppName(o) { if (o === undefined) return ''; if (!o) return 'Wild'; const [k, n] = o; return n || OPP_KIND[k] || (k ? k[0].toUpperCase() + k.slice(1) : 'Wild'); }
+const HPW = {}, HPN = {};
+const hpNum = (k, v) => `<span class="hpn" data-k="${k}" data-v="${v}">${(HPN[k] ?? v).toLocaleString()}</span>`;
+function animateHp() {
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (const el of document.querySelectorAll('i.hp[data-k]')) {
+    const k = el.dataset.k, to = +el.dataset.w, from = HPW[k];
+    if (from != null && from !== to && !calm) {
+      el.style.transition = 'none'; el.style.width = from + '%'; void el.offsetWidth;
+      el.style.transition = 'width .8s cubic-bezier(.2,.7,.3,1)'; el.style.width = to + '%';
+      if (to < from) { const w = el.closest('.hpw'); if (w) { w.classList.remove('hit'); void w.offsetWidth; w.classList.add('hit'); } }
+    }
+    HPW[k] = to;
+  }
+  for (const el of document.querySelectorAll('.hpn[data-k]')) {
+    const k = el.dataset.k, to = +el.dataset.v, from = HPN[k] ?? to; HPN[k] = to;
+    if (from === to || calm) { el.textContent = to.toLocaleString(); continue; }
+    const t0 = performance.now(), step = (t) => { const p = Math.min(1, (t - t0) / 800), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(from + (to - from) * e).toLocaleString(); if (p < 1 && el.isConnected) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+}
 function vNow() {
   const s = snap; let h = '';
   { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:var(--acc);padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
@@ -531,7 +560,7 @@ function vNow() {
     <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
   if (s.upd) h += `<div class="card" style="border-color:var(--gold-lo)"><div class="flex"><span style="font-size:22px">⬆</span><div class="grow"><b>New Update ${esc(s.upd)}</b><div class="dim">This PC runs ${esc(s.ver || '?')}. Mega reloads the game by itself at a safe moment once Tampermonkey has it - or reload now.</div></div></div><button class="btn gold" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
-  for (const g of s.goals) if (/error|could not|refused|3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
+  for (const g of s.goals) if (/error|could not|refused|zone 3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
   for (const x of s.guard || []) probs.push(`🛡️ Safety check: ${esc(x)} - goals that use it are paused until it looks right (probably a game update).`);
   if ((s.gemPick || []).length) probs.push(`Pick your Legendary gem in the game: Elite League ${s.gemPick.map(([r, t]) => `${esc(r)} tier ${t}`).join(', ')} (needs the PC).`);
   if (probs.length) h += `<div class="card" style="border-color:var(--bad)"><h3>⚠️ Needs You</h3>${probs.map((p) => `<div class="warn">${p}</div>`).join('')}</div>`;
@@ -543,8 +572,8 @@ function vNow() {
   if (scr?.tm && scr.tm[0]?.length) { const [ms, w, how] = scr.tm; h += `<div class="dim" style="margin-top:6px;font-size:14px">🛡️ Team: ${ms.map(([id, lv]) => `${N(id)} ${lv}`).join(', ')}${w != null ? ` · <b class="${w >= 0.6 ? 'ok' : w >= 0.3 ? 'warn' : 'bad'}">${Math.round(w * 100)}%</b>` : ''}${how ? ` (${esc(how)})` : ''}</div>`; }
   const L = s.live && Date.now() - s.live.at < 15000 ? s.live : null;
   if (s.where) h += `<div class="dim" style="margin-top:6px">📍 ${esc(s.where)}${L?.node && !/\bstop \d/.test(s.where) ? ` <b style="color:var(--ink)">· stop ${L.node[0]} of ${L.node[1]}</b>` : ''}${!L && s.foes.length ? ' · fighting ' + esc(s.foes.join(', ')) : ''}</div>`;
-  if (L?.foes?.length) h += `<div style="margin-top:8px"><div class="lbl">⚔️ BATTLE</div>${L.foes.map(([id, lv, c, mx]) => `<div class="flex" style="margin-top:4px">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${N(id)} <span class="dim">Lv ${lv}</span></b><span>${c.toLocaleString()} / ${mx.toLocaleString()}</span></div><div class="bar" style="margin-top:3px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;background:linear-gradient(90deg,var(--bad),var(--warn))"></i></div></div></div>`).join('')}</div>`;
-  if (L?.team?.length) { const allies = L.team.filter((t) => t[4]).length; h += `<div style="margin-top:8px"><div class="lbl">${allies ? `FIGHTING · YOURS + ${allies} ALLIES` : 'FIGHTING'}</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx, ally]) => `<div style="${ally ? 'opacity:.75' : ''}">${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;${c <= 0 ? '' : ''}"></i></div><div class="dim" style="font-size:11px">${c}/${mx}</div>${ally ? `<div class="dim" style="font-size:10px;line-height:1.1">${esc(ally.split(' ').pop())}</div>` : ''}</div>`).join('')}</div></div>`; }
+  if (L?.foes?.length) h += `<div style="margin-top:10px"><div class="lbl">Opponent${oppName(L.opp) ? ` · <span style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">${esc(oppName(L.opp))}</span>` : ''}</div>${L.foes.map(([id, lv, c, mx], i) => `<div class="flex hpw" data-k="f${i}-${id}" style="margin-top:4px">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${N(id)} <span class="dim">Lv ${lv}</span></b><span>${hpNum(`f${i}-${id}`, c)} / ${mx.toLocaleString()}</span></div><div class="bar" style="margin-top:3px"><i class="hp" data-k="f${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;background:linear-gradient(90deg,var(--bad),var(--warn))"></i></div></div></div>`).join('')}</div>`;
+  if (L?.team?.length) { const allies = L.team.filter((t) => t[4]).length; h += `<div style="margin-top:8px"><div class="lbl">${allies ? `Current team · yours + ${allies} allies` : 'Current team'}</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx, ally], i) => `<div class="hpw${c <= 0 ? ' ko' : ''}" data-k="t${i}-${id}" style="${ally ? 'opacity:.75' : ''}">${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i class="hp" data-k="t${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%"></i></div><div class="dim" style="font-size:11px">${hpNum(`t${i}-${id}`, c)}/${mx}</div>${ally ? `<div class="dim" style="font-size:10px;line-height:1.1">${esc(ally.split(' ').pop())}</div>` : ''}</div>`).join('')}</div></div>`; }
   if (L?.fight) h += fightBox(L.fight);
   h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
@@ -1006,6 +1035,7 @@ function render() {
   const why = relayWhy ? `<div class="card" style="border-color:var(--bad)"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
   $('#main').className = ['now', 'act', 'plan', 'set', 'gems'].includes(tab) ? 'cols' : '';
   $('#main').innerHTML = Icons.swap(why + (tab === 'set' ? '' : banner) + V());
+  animateHp();
   if (mvFocus) { const el = document.querySelector(`.mv[data-mvtab="${mvFocus.tab}"] ${mvFocus.sel}`); if (el) { el.focus(); try { el.setSelectionRange(mvFocus.pos, mvFocus.pos); } catch {} } }
   mvFolds();
   if (focus === 'trQ') { const el = $('#trQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
