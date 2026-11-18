@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.27.4
+// @version      0.28.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.27.4';
+const VERSION = '0.28.0';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -2107,7 +2107,26 @@ const UI = (() => {
       if (shut.has(cardKey(h))) c.classList.add('folded');
     });
   }
-  let fightData = null;
+  let fightData = null, changeH = null, inputH = null;
+  // ---- Kinesis shows Mega's own screens (Settings, Fights) and presses their buttons from the phone,
+  // so the two always match: whatever these screens get, the phone gets too.
+  const MV = { engine: (w) => Views.engine(w, esc), fights: (w) => Views.fights(w, fightData, prefs, esc) };
+  async function mvHtml(tab) {
+    if (!MV[tab]) throw new Error('that screen is not on the phone');
+    if (tab === 'fights' && !fightData) { try { fightData = { list: await Recorder.all(), at: Date.now() }; } catch { fightData = { list: [], at: Date.now() }; } }
+    return MV[tab](World.build());
+  }
+  async function mvAct(d) {
+    const data = { ...(d.data || {}) }, act = data.act;
+    const cls = { contains: () => false, toggle() {}, add() {}, remove() {} };
+    const t = { dataset: data, checked: !!d.checked, value: d.value ?? '', classList: cls, tagName: (d.tag || 'BUTTON').toUpperCase(),
+      closest: (sel) => (sel === '[data-act]' ? t : null), matches: (sel) => !!act && sel.includes(`[data-act="${act}"]`) && sel.toLowerCase().startsWith((d.tag || 'button').toLowerCase()) };
+    if (act === 'fold-card' || act === 'toggle' || act === 'bigger' || act === 'smaller' || act === 'tab') return 'ok'; // just the PC's own layout
+    if (act === 'fights-reload' || (d.tab === 'fights' && /^f-?/.test(act || ''))) fightData = null;
+    if (d.kind === 'change' && changeH) changeH({ target: t }); else if (d.kind === 'input' && inputH) inputH({ target: t }); else onClick({ target: { closest: () => t }, preventDefault() {}, stopPropagation() {} });
+    await new Promise((r) => setTimeout(r, 400));
+    return 'ok';
+  }
   const dexUi = { dexOpen: null };
   const planUi = { addMoney: null, addFoe: null, addType: 'legend', addFrom: 1, addReg: null, showLog: false };
   const legUi = { pick: null, simRun: null, real: null, asMax: false, mode: 'legendary' };
@@ -2138,7 +2157,7 @@ const UI = (() => {
     document.documentElement.appendChild(host);
     layout();
     root.addEventListener('click', onClick);
-    root.addEventListener('change', (e) => { if (e.target.dataset.msel) { Mirror.ui.box[e.target.dataset.msel] = e.target.value; renderBody(true); return; } if (e.target.matches('select[data-act="add-foe"]')) { planUi.addFoe = +e.target.value || null; renderBody(true); return; }
+    root.addEventListener('change', changeH = (e) => { if (e.target.dataset.msel) { Mirror.ui.box[e.target.dataset.msel] = e.target.value; renderBody(true); return; } if (e.target.matches('select[data-act="add-foe"]')) { planUi.addFoe = +e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-money"]')) { planUi.addMoney = +e.target.value; return; }
@@ -2146,7 +2165,7 @@ const UI = (() => {
       if (e.target.matches('select[data-act="add-story"]')) { planUi.addStory = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-reg"]')) { planUi.addReg = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select.sel')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
-    root.addEventListener('input', (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
+    root.addEventListener('input', inputH = (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
     legUi.pick = prefs.leg || null;
     legUi.asMax = !!prefs.asMax;
     legUi.mode = ['elite', 'league'].includes(prefs.simMode) ? prefs.simMode : 'legendary';
@@ -2309,7 +2328,7 @@ const UI = (() => {
     if (focused) { const q = root.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
-  return { mount, refresh: () => { try { render(); } catch {} } };
+  return { mount, mvHtml, mvAct, refresh: () => { try { render(); } catch {} } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -6062,6 +6081,9 @@ const Remote = (() => {
     'set.idle': (a) => { Plan.setIdle(!!a.on); return 'ok'; },
     'ping': () => 'pong',
     // ---- actions from Kinesis ----
+    // Mega's own screens on the phone (Settings, Fights): the HTML, and a button press on them
+    'ui.html': async (a, rid) => { replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab)) } }; return 'ok'; },
+    'ui.act': async (a, rid) => { await UI.mvAct(a); replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab || 'engine')) } }; return 'ok'; },
     'update.check': async () => {
       await Updater.check(); try { push(true); } catch {}
       const v = Updater.available, I = Updater.info;
@@ -6166,7 +6188,7 @@ const Remote = (() => {
     let res;
     try { res = fn ? await fn(c.args || {}, c.id) : 'unknown command'; } catch (e) { res = 'error: ' + (e?.message || e); }
     acks.push([c.id, String(res)]); if (acks.length > 30) acks.shift();
-    if (!['ping', 'watch'].includes(c.cmd) && !/^dex\.|^log\.|^hist|^shiny\.ways|^trade\.(offers|postopts)|^box\.(list|info)|^team\.get|^sim\.list|^elite\.list|^league\.list|^item\.list/.test(c.cmd)) Log.add(`phone: ${c.cmd.replace('.', ' ')} → ${res}`);
+    if (!['ping', 'watch'].includes(c.cmd) && !/^ui\.html|^dex\.|^log\.|^hist|^shiny\.ways|^trade\.(offers|postopts)|^box\.(list|info)|^team\.get|^sim\.list|^elite\.list|^league\.list|^item\.list/.test(c.cmd)) Log.add(`phone: ${c.cmd.replace('.', ' ')} → ${res}`);
     watchedAt = Date.now();
     push(true);
   }
