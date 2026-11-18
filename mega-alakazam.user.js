@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.32.3
+// @version      0.32.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.32.3';
+const VERSION = '0.32.4';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3378,7 +3378,7 @@ Views.league = (esc) => {
           const nx = (() => { try { return GymPlan.nextGym(s.ch); } catch { return null; } })(), NP = nx != null ? (() => { try { return GymPlan.saved[nx] || null; } catch { return null; } })() : null;
           if (NP) { const c = NP.plan.team.filter((t) => t.kind === 'catch'); h += `<div style="margin-top:8px"><b>Next: ${esc(NP.gym)}</b> · best possible ${pct(NP.plan.win)}${c.length ? ` · catch ${c.map((t) => `${nm(t.base)} <span class="dim">(${esc(t.where || '')})</span>`).join(', ')}` : ' · nothing new to catch'}</div>`; }
           else if (nx != null) h += `<div class="dim" style="margin-top:8px">The gym after this one gets planned once this plan is ready.</div>`;
-          h += `<div class="dim" style="margin-top:6px">The "Beat the League" goal fights as soon as your team wins 85%. Below that it follows this plan: catches what's quick to get right now, levels the team to the cap (evolving on the way, and anyone stuck at the cap), then fights. Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
+          h += `<div class="dim" style="margin-top:6px">The "Beat the League" goal fights as soon as your team wins 60%. Below that it follows this plan: catches what's quick to get right now, levels the team to the cap (evolving on the way, and anyone stuck at the cap), then fights. Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
         }
         h += `<button class="btn" data-act="gymplan-run" data-ch="${s.ch}" style="margin-top:6px">${P ? 'Plan Again' : 'Plan Now'}</button></div>`;
       }
@@ -4304,9 +4304,9 @@ const GoalTypes = (() => {
       const plan = G && G.foes.length ? safe(() => GymPlan.get(front)) : null;
       g.planWin = plan ? plan.plan.win : null; g.nowWin = plan ? plan.now.win : null;
       if (plan && !training) {
-        // fight the gym once your team wins 85% (Jimmy's old-helper rule) - or when the best possible team
+        // fight the gym once your team wins 60% (Jimmy) - or when the best possible team
         // wouldn't do meaningfully better (then preparing longer can't help)
-        const good = plan.now.win >= 0.85 || plan.plan.win - plan.now.win < 0.05;
+        const good = plan.now.win >= 0.6 || plan.plan.win - plan.now.win < 0.05;
         if (!good) {
           // 1) catch the members you don't have (a catch job each, done when it's on this side) - and,
           //    while you're at it, the ones the NEXT gym's plan wants from chapters you've unlocked
