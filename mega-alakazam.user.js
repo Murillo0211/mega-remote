@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.28.1
+// @version      0.29.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.28.1';
+const VERSION = '0.29.0';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -2110,7 +2110,7 @@ const UI = (() => {
   let fightData = null, changeH = null, inputH = null;
   // ---- Kinesis shows Mega's own screens (Settings, Fights) and presses their buttons from the phone,
   // so the two always match: whatever these screens get, the phone gets too.
-  const MV = { engine: (w) => Views.engine(w, esc), fights: (w) => Views.fights(w, fightData, prefs, esc) };
+  const MV = { engine: (w) => Views.engine(w, esc), fights: (w) => Views.fights(w, fightData, prefs, esc), league: () => Views.league(esc) };
   async function mvHtml(tab) {
     if (!MV[tab]) throw new Error('that screen is not on the phone');
     if (tab === 'fights' && !fightData) { try { fightData = { list: await Recorder.all(), at: Date.now() }; } catch { fightData = { list: [], at: Date.now() }; } }
@@ -2261,6 +2261,7 @@ const UI = (() => {
       c.classList.toggle('folded'); if (c.classList.contains('folded')) shut.add(k); else shut.delete(k);
       prefs.foldSet = [...shut]; savePrefs(); return;
     }
+    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch {} setTimeout(() => renderBody(true), 300); return; }
     if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch {} return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
@@ -3216,6 +3217,22 @@ Views.league = (esc) => {
       h += `<div class="dim" style="margin-top:6px">${esc(Casing.title(s.gym.type || ''))} type · power ×${(+s.gym.power || 1).toFixed(2)}${s.cap ? ` · level cap ${s.cap}` : ''}${s.gym.byStarter ? ' · the leader depends on your starter' : ''}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.foes.map((f) => `<div style="text-align:center"><img src="${Engine.sprite(f.id)}" width="48" height="48" style="image-rendering:pixelated"><div style="font-size:12px">${nm(f.id)}</div><div class="dim" style="font-size:12px">Lv ${f.level}</div></div>`).join('')}</div>`;
       if (s.win != null) h += `<div style="margin-top:8px">Your current team wins about <b>${Math.round(s.win * 100)}%</b> <span class="dim">(the game's own estimate)</span></div>`;
+      // the gym plan: best team from what you have + what you can catch, at the level cap
+      if (!s.travel && s.foes.length) {
+        const P = (() => { try { return GymPlan.get(s.ch); } catch { return null; } })(), B = (() => { try { return GymPlan.busy; } catch { return null; } })();
+        const pct = (x) => `<b class="${x >= 0.6 ? 'ok' : x >= 0.3 ? 'warn' : 'bad'}">${Math.round(x * 100)}%</b>`;
+        h += `<div class="note" style="margin-top:10px"><b>Gym plan</b> <span class="dim">· the best team from your ${esc(s.reg?.name || '')} Pokémon plus everything you can catch in unlocked chapters, all at the level cap${s.cap ? ' (' + s.cap + ')' : ''} - scored with the game's own estimate</span>`;
+        if (!P) h += `<div style="margin-top:6px">${B ? `Thinking… ${B.done} estimates so far` : 'Starting…'}</div>`;
+        else {
+          h += `<div style="margin-top:6px">Best team you have right now: ${pct(P.now.win)} · best possible: ${pct(P.plan.win)}</div>`;
+          h += `<div class="grid" style="margin-top:8px">${P.plan.team.map((t) => {
+            const own = t.kind === 'own' ? Engine.read('Game.getMon', null, t.uid) : null;
+            const how = t.kind === 'catch' ? `catch ${nm(t.base)}<br><span class="dim">${esc(t.where || '')}</span>` : own && own.id !== t.id ? `your ${nm(own.id)} Lv ${own.level} → evolve` : own && s.cap && own.level < s.cap ? `yours · level ${own.level} → ${s.cap}` : '<span class="ok">✓ ready</span>';
+            return `<div class="mon"><img src="${Engine.sprite(t.id)}" alt="">${nm(t.id)}<br><span style="font-size:12px">${how}</span></div>`; }).join('')}</div>`;
+          h += `<div class="dim" style="margin-top:6px">The "Beat the League" goal follows this: it catches what's missing, levels the team to the cap (evolving on the way, and evolving anyone stuck at the cap), then fights. Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
+        }
+        h += `<button class="btn" data-act="gymplan-run" data-ch="${s.ch}" style="margin-top:6px">${P ? 'Plan Again' : 'Plan Now'}</button></div>`;
+      }
     }
     h += `</div>`;
   }
@@ -3328,6 +3345,133 @@ const Berries = (() => {
     return '';
   }
   return { keep, active, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch {} } };
+})();
+
+/* ===================================================================================================
+ * GymPlan - the team that beats the next gym of a region run (Unova), and how to get it.
+ *
+ * Scored with the game's own estimate (Adventure.winChance, the same one its gym screen uses). Pool:
+ *   - your Pokémon on that region's side, at the level cap and evolved as far as the cap allows
+ *   - every species you can catch in that region's unlocked chapters, the same way
+ * A search (best single matchups first, then swapping members and order) finds the best 6. The result
+ * says, per member: already yours / catch it in chapter X / level it (and evolve) to the cap.
+ * It runs in small slices so the game never freezes, and is kept per gym until your side changes.
+ * =================================================================================================== */
+const GymPlan = (() => {
+  const E = Engine, KEY = 'mega-gymplan';
+  const S = () => E.get('Game.S') || {}, D = () => E.get('Game.DEX') || {}, ST = () => E.get('STORY');
+  const safe = (f, d = null) => { try { const v = f(); return v === undefined ? d : v; } catch { return d; } };
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch {}
+  const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch {} };
+  let busy = null; // { ch, done, total }
+
+  function gymOf(ch) {
+    const st = ST(), c = st?.CHAPTERS?.[ch]; if (!c) return null;
+    const gym = (c.steps || []).find((x) => x.kind === 'gym'); if (!gym) return null;
+    let foes = []; try { foes = st.gymTeam(ch, gym).map(([id, lv], i) => ({ uid: 'foe' + i, id: +id, level: +lv })); } catch {}
+    const cap = safe(() => +st.capOf(ch), null);
+    return { ch, gym, foes, cap, name: gym.leader || 'Gym Leader', chapter: c.name, power: +gym.power || 1 };
+  }
+  // the species a Pokémon becomes by levelling to `lv` (level evolutions only)
+  function evolveTo(id, lv) {
+    const EV = E.get('EVOLUTIONS') || {}; let cur = +id;
+    for (let i = 0; i < 3; i++) { const nx = (EV[cur] || []).find((e) => e.level && e.level <= lv && !e.item); if (!nx) break; cur = +nx.to; }
+    return cur;
+  }
+  const fam = (id) => safe(() => [...(E.read('Game.familyOf', [], id) || [])].map(Number), [+id]);
+  const win = (team, foes, power) => safe(() => +E.call('Adventure.winChance', team, foes, 'gym', 1, power) || 0, 0);
+  const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
+  const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
+  // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
+  const sig = () => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|');
+
+  function candidates(G) {
+    const st = ST(), cap = G.cap || 100, out = [], seen = new Set();
+    const reg = safe(() => st.regionOf(G.ch)?.key), chs = safe(() => st.chaptersOf(reg), []) || [];
+    const ownFam = new Set();
+    for (const m of sideMons()) {
+      const id = evolveTo(m.id, Math.max(cap, m.level)); fam(m.id).forEach((x) => ownFam.add(x));
+      const k = 'o' + id; if (seen.has(k)) { const o = out.find((x) => x.key === k); if (o && m.level > o.from.level) { o.from = m; o.uid = m.uid; } continue; }
+      seen.add(k); out.push({ key: k, kind: 'own', uid: m.uid, from: m, id, mon: { uid: 'p' + m.uid, id, level: cap, shiny: false } });
+    }
+    for (const ch of chs) {
+      if (ch > G.ch) break;
+      for (const step of st.CHAPTERS[ch]?.steps || []) {
+        if (step.kind !== 'route' || !step.areas) continue;
+        for (const p of safe(() => E.pool(step, ch), []) || []) {
+          if (ownFam.has(+p.id)) continue;
+          const id = evolveTo(p.id, cap), k = 'c' + id;
+          if (seen.has(k) || seen.has('o' + id)) continue; seen.add(k);
+          out.push({ key: k, kind: 'catch', base: +p.id, ch, where: step.name || st.CHAPTERS[ch]?.name, id, mon: { uid: 'c' + p.id, id, level: cap, shiny: false } });
+        }
+      }
+    }
+    return out;
+  }
+  const sleep = () => new Promise((r) => setTimeout(r, 0));
+  // best 6 from `pool` (entries with .mon) against the gym; yields every few estimates
+  async function search(pool, G, budget, tick) {
+    const foes = G.foes, P = G.power, sp = (x) => Sim.species(x.mon);
+    let n = 0; const W = async (t, f) => { if (++n % 12 === 0) { tick?.(n); await sleep(); } return win(t.map((x) => x.mon), f, P); };
+    const obj = async (t) => { let s = 0; for (let k = 1; k <= foes.length; k++) s += (await W(t, foes.slice(0, k))) * (k === foes.length ? foes.length : 1); return s; };
+    // single matchups (the hardest foe counts double)
+    const hard = []; for (const x of pool) { let s = 0; for (const f of foes) s += await W([x], [f]); hard.push(s); }
+    const lastHard = []; for (const x of pool) lastHard.push(await W([x], [foes[foes.length - 1]]));
+    const top = pool.map((x, i) => ({ x, s: hard[i] + lastHard[i] })).sort((a, b) => b.s - a.s).slice(0, 16).map((y) => y.x);
+    let best = null, bs = -1;
+    for (let r = 0; r < 5 && n < budget; r++) {
+      let t = [...top].sort(() => Math.random() - 0.5).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
+      let s = await obj(t), imp = true;
+      while (imp && n < budget) {
+        imp = false;
+        for (let i = 0; i < t.length; i++) for (const x of top) { if (t.includes(x)) continue; const t2 = [...t]; t2[i] = x; if (new Set(t2.map(sp)).size < t2.length) continue; const s2 = await obj(t2); if (s2 > s) { t = t2; s = s2; imp = true; } }
+        for (let i = 0; i < t.length; i++) for (let j = i + 1; j < t.length; j++) { const t2 = [...t]; [t2[i], t2[j]] = [t2[j], t2[i]]; const s2 = await obj(t2); if (s2 > s) { t = t2; s = s2; imp = true; } }
+      }
+      if (s > bs) { bs = s; best = t; }
+    }
+    return { team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0 };
+  }
+  // plan the gym of chapter `ch` (cached per gym + side). Returns the saved plan, or null while it's thinking.
+  function get(ch, { force = false } = {}) {
+    const p = saved[ch];
+    if (p && !force && p.sig === sig() && Date.now() - p.at < 2 * 3.6e6) return p;
+    if (!busy) run(ch);
+    return p || null;
+  }
+  async function run(ch) {
+    const G = gymOf(ch); if (!G || !G.foes.length) return null;
+    busy = { ch, done: 0, total: 1 };
+    try {
+      const pool = candidates(G);
+      // now: the Pokémon you have, at their real levels
+      const nowPool = sideMons().map((m) => ({ key: 'n' + m.uid, kind: 'own', uid: m.uid, id: m.id, mon: fresh(m) }));
+      const now = await search(nowPool, G, 700, (n) => { busy.done = n; });
+      const plan = await search(pool, G, 1600, (n) => { busy.done = 700 + n; });
+      const r = {
+        ch, at: Date.now(), sig: sig(), gym: G.name, chapter: G.chapter, cap: G.cap, foes: G.foes.map((f) => [f.id, f.level]),
+        now: { uids: now.team.map((x) => x.uid), win: now.win },
+        plan: { win: plan.win, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where }) },
+      };
+      saved = { [ch]: r }; keep();
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})`); } catch {}
+      try { UI.refresh?.(); } catch {}
+      return r;
+    } finally { busy = null; }
+  }
+  // Pokémon stuck at the cap with an evolution waiting (they only evolve when they level up): evolve them
+  function evolveStuck() {
+    const out = [];
+    for (const m of sideMons()) {
+      const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
+      if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
+      const to = +ev[0].to; const before = m.id;
+      try { E.call('Game.evolveMon', m.uid, to); } catch {}
+      const now = E.read('Game.getMon', null, m.uid);
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch {} }
+    }
+    return out;
+  }
+  return { gymOf, get, run, evolveStuck, evolveTo, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3935,6 +4079,9 @@ const GoalTypes = (() => {
   // rates best against that chapter (its gym leader counts as a whole stop), and when the team keeps
   // wiping there it trains in the best cleared chapter of the region for 30 minutes, then tries again.
   const safe = (f, d = null) => { try { const v = f(); return v === undefined ? d : v; } catch { return d; } };
+  // a region run only counts Pokémon on that region's side (the game's sideMons), any stage of the family
+  const sideHas = (id) => { const f = new Set(safe(() => [...(E.read('Game.familyOf', [], id) || [])].map(Number), [+id])); f.add(+id); return (E.read('Game.sideMons', []) || []).some((m) => f.has(+m.id)); };
+  const sideOf = (id) => { const f = new Set(safe(() => [...(E.read('Game.familyOf', [], id) || [])].map(Number), [+id])); f.add(+id); return (E.read('Game.sideMons', []) || []).filter((m) => f.has(+m.id)).sort((a, b) => b.level - a.level)[0] || null; };
   const story = {
     uses: 'screen',
     label: (g) => `Beat the ${g.regionName || 'Unova'} League`,
@@ -3951,6 +4098,8 @@ const GoalTypes = (() => {
       g.askedPend = false;
       const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
       if (!mons.length) return { state: 'wait', why: 'no Pokémon on this side yet - pick your starter' };
+      const kids = Plan.goals.filter((c) => !c.done && c.parent === g.id);
+      if (kids.length) return { state: 'wait', why: `catching for the gym plan first: ${kids.map((c) => name(c.foe)).join(', ')}` };
       return { state: 'ready', why: null };
     },
     async step(g) {
@@ -3968,6 +4117,7 @@ const GoalTypes = (() => {
         const capped = mons.filter((m) => m.level >= capOf(m.uid)).length;
         if (capped >= Math.min(6, mons.length)) { g.deaths0 = deaths; Plan.save(); Log.add('story: lost twice, but everyone is at the level cap - trying again with the best team'); }
         else { g.trainUntil = now + 30 * 60_000; Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name} - training for 30 minutes first`); }
+        try { GymPlan.get(front, { force: true }); } catch {}
       }
       const training = g.trainUntil && now < g.trainUntil;
       if (g.trainUntil && !training) { g.trainUntil = 0; g.deaths0 = deaths; Plan.save(); Log.add('story: training done - back to the next chapter'); }
@@ -3978,8 +4128,44 @@ const GoalTypes = (() => {
         const r = safe(() => XpChap.rank().filter((x) => done.includes(x.ch)), []) || [];
         ch = r[0]?.ch ?? done[done.length - 1] ?? front;
       }
+      // ---- gym plan: the team that beats this gym (game's own estimate), and how to get it ----
+      try { GymPlan.evolveStuck(); } catch {}
+      const G = safe(() => GymPlan.gymOf(front));
+      const plan = G && G.foes.length ? safe(() => GymPlan.get(front)) : null;
+      g.planWin = plan ? plan.plan.win : null; g.nowWin = plan ? plan.now.win : null;
+      if (plan && !training) {
+        const good = plan.now.win >= 0.6 || plan.plan.win - plan.now.win < 0.15;
+        if (!good) {
+          // 1) catch the members you don't have (a catch job each, done when it's on this side)
+          for (const t of plan.plan.team.filter((x) => x.kind === 'catch' && !sideHas(x.base))) {
+            if (!Plan.goals.some((c) => !c.done && c.type === 'wild' && c.parent === g.id && +c.foe === +t.base)) { Plan.insertAfter(g.id, 'wild', { foe: t.base, ch: t.ch, parent: g.id, side: true }); Log.add(`gym plan: catching ${name(t.base)} (${t.where}) for ${plan.gym}`); }
+          }
+          // 2) level the members below the cap: they train together, the 2 strongest capped ones carry
+          const members = plan.plan.team.map((t) => t.kind === 'own' ? E.read('Game.getMon', null, t.uid) : sideOf(t.base)).filter(Boolean);
+          const capOfM = (m) => safe(() => +E.read('Game.capFor', 0, m), 0) || G.cap || 100;
+          const low = members.filter((m) => m.level < capOfM(m));
+          if (low.length) {
+            const carriers = (E.read('Game.sideMons', []) || []).filter((m) => !low.includes(m) && m.level >= capOfM(m)).sort((a, b) => b.level - a.level).slice(0, 2);
+            const uids = [...low.slice(0, 4), ...carriers].map((m) => m.uid).slice(0, 6);
+            const done = chs.filter((c) => c < front);
+            const r = safe(() => XpChap.rank().filter((x) => done.includes(x.ch)), []) || [];
+            const tch = r[0]?.ch ?? done[done.length - 1] ?? front;
+            if (uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
+            if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
+            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch {} }
+            return `leveling the gym team in ${ST.CHAPTERS[tch]?.name}: ${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')} · then ${plan.gym} (best plan ${Math.round(plan.plan.win * 100)}%)`;
+          }
+          // 3) everyone's here and at the cap: fight with the planned team, in the planned order
+          const uids = plan.plan.team.map((t) => (t.kind === 'own' ? t.uid : sideOf(t.base)?.uid)).filter(Boolean);
+          if (uids.length && uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan team for ${plan.gym}: ${uids.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ')} (~${Math.round(plan.plan.win * 100)}%)`); }
+          g.teamAt = now; g.teamFor = ch;
+        } else if (plan.now.uids.length && (!g.teamAt || g.teamFor !== ch || now - g.teamAt > 10 * 60_000)) {
+          if (plan.now.uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(plan.now.uids); Log.add(`story team for ${plan.gym} (~${Math.round(plan.now.win * 100)}%): ${plan.now.uids.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ')}`); }
+          g.teamAt = now; g.teamFor = ch;
+        }
+      }
       // team: the 6 side Pokémon the simulator rates best against where we're going (re-picked every 10 min)
-      if (!g.teamAt || now - g.teamAt > 10 * 60_000 || g.teamFor !== ch) {
+      if (!plan && (!g.teamAt || now - g.teamAt > 10 * 60_000 || g.teamFor !== ch)) {
         const foes = safe(() => Sim.chapterFoes(front), []) || [];
         const rated = mons.map((m) => ({ m, s: foes.length ? (Sim.clearScore(m, foes).score || 0) : m.level })).sort((x, y) => y.s - x.s);
         const pick = []; for (const r of rated) { if (pick.length >= 6) break; if (!pick.some((p) => sp(p) === sp(r.m))) pick.push(r.m); }
@@ -4460,7 +4646,7 @@ const GoalTypes = (() => {
     label: (g) => `Catch ${name(g.foe)} (${E.get('STORY')?.CHAPTERS?.[g.ch]?.name || 'chapter ' + g.ch})`,
     sprite: (g) => g.foe,
     check(g) {
-      if (E.read('Game.inDex', false, g.foe)) return { state: 'done', why: 'caught' };
+      if (g.side ? sideHas(g.foe) : E.read('Game.inDex', false, g.foe)) return { state: 'done', why: 'caught' };
       if (g.ch > +(S().adv?.unlocked ?? 0)) return { state: 'wait', why: 'that chapter is not unlocked yet' };
       const spots = wildSpots(g.foe, g.ch);
       if (!spots.length) return { state: 'wait', why: 'not found in that chapter any more' };
