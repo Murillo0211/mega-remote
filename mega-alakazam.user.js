@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.1.0
+// @version      2.1.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.1.0';
+const VERSION = '2.1.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3062,7 +3062,7 @@ Views.now = (w, esc, fmtIn) => {
   const E = Engine, S = E.get('Game.S') || {}, D = E.get('Game.DEX') || {};
   const nm = (id) => esc(D[id]?.name || '#' + id);
   const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-  const ago = (t) => { const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min ' : ''}ago` : `${Math.round(m / 1440)} days ago`; };
+  const ago = (t) => { if (!t || !isFinite(+t)) return 'not yet'; const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min ' : ''}ago` : `${Math.round(m / 1440)} days ago`; };
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const bar = (p) => `<div class="bar" style="margin-top:8px"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
   const icon = (g) => ({ under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
@@ -3222,7 +3222,7 @@ Views.now = (w, esc, fmtIn) => {
   if (td && !td.failed) {
     const T = td.targets || [], spare = T.filter((t) => t.best === 'spare');
     h += `<div class="card"><h3>Trades</h3><div>${T.length ? `${T.length} Pokémon you're missing are on the board${spare.length ? ` · <span class="ok">${spare.length} for a spare: ${spare.slice(0, 4).map((t) => nm(t.id)).join(', ')}</span>` : ' · none for a spare right now'}` : 'Nothing you\'re missing on the board right now.'}</div>
-      <div class="dim">checked ${ago(td.at)}</div>${spare.length ? `<button class="btn" data-act="tab" data-tab="trades">Open Trades</button>` : ''}</div>`;
+      <div class="dim">${td.at ? `checked ${ago(td.at)}` : "the board hasn&#39;t been checked yet"}</div>${spare.length ? `<button class="btn" data-act="tab" data-tab="trades">Open Trades</button>` : ''}</div>`;
   }
 
   // ---- 8. Pokédex + team ----
