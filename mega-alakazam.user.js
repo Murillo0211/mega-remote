@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.27.2
+// @version      0.27.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.27.2';
+const VERSION = '0.27.3';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -6051,6 +6051,12 @@ const Remote = (() => {
     'set.idle': (a) => { Plan.setIdle(!!a.on); return 'ok'; },
     'ping': () => 'pong',
     // ---- actions from Kinesis ----
+    'update.check': async () => {
+      await Updater.check(); try { push(true); } catch {}
+      const v = Updater.available, I = Updater.info;
+      if (I.err && !I.latest) return 'could not reach GitHub: ' + I.err;
+      return v ? `New Update ${v} is ready${Updater.downloaded === v ? ' - downloaded, tap Reload Game to run it' : ''}` : `you're up to date (${VERSION})`;
+    },
     'game.reload': () => { Updater.reloadNow('phone: reloading the game'); return 'reloading the game - back in a few seconds'; },
     'egg.hatch': (a) => { const r = DayCare.hatch(a.uid || null); if (/^hatched/.test(r)) Log.add('phone: ' + r); return r; },
     'team.get': (a, rid) => { // your team + everyone who can join it (not in the Underground)
