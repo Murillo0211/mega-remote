@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.0.9
+// @version      2.0.10
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.0.9';
+const VERSION = '2.0.10';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3673,7 +3673,10 @@ const GymPlan = (() => {
     // the stretch: trainers between the chapter's last Pokémon Center and the gym. There's no heal before the
     // leader, so the team arrives worn down - each trainer is modelled as 2 of the chapter's own Pokémon
     const steps = c.steps || [], gi = steps.indexOf(gym), hi = steps.slice(0, gi).map((x) => x.kind).lastIndexOf('heal');
-    const trainers = steps.slice(hi + 1, gi).reduce((n, x) => n + (+x.trainers || 0) + (x.kind === 'trainer' ? 1 : 0), 0);
+    let trainers = steps.slice(hi + 1, gi).reduce((n, x) => n + (+x.trainers || 0) + (x.kind === 'trainer' ? 1 : 0), 0);
+    // in the chapter you're playing, the game's real map is better than the outline (it can place more trainers)
+    const adv = E.get('Game.S')?.adv, nodes = adv && +adv.chapter === +ch ? adv.nodes || [] : null;
+    if (nodes?.length) { const gn = nodes.findIndex((x) => x.type === 'gym'), hn = nodes.slice(0, gn).map((x) => x.type).lastIndexOf('heal'); if (gn > 0) trainers = nodes.slice(hn + 1, gn).filter((x) => x.type === 'trainer').length; }
     const pool = (safe(() => Sim.chapterPool(ch), []) || []).slice().sort((a, b) => b.w - a.w);
     const stretch = []; for (let i = 0; pool.length && i < trainers * 2; i++) { const p = pool[i % pool.length]; stretch.push({ uid: 'way' + i, id: +p.id, level: +p.lv }); }
     return { ch, gym, foes, stretch, trainers, cap, name: gym.leader || 'Gym Leader', chapter: c.name, power: +gym.power || 1 };
@@ -3688,7 +3691,7 @@ const GymPlan = (() => {
   const win = (team, foes, power) => safe(() => +E.call('Adventure.winChance', team, foes, 'gym', 1, power) || 0, 0);
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 3; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 4; // bump when the scoring changes: saved plans from before are redone
   const grade = (team, foes, P) => LEVELS.reduce((s, [k, w]) => s + w * win(team, foes, 1 + (P - 1) * k), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
@@ -3730,7 +3733,7 @@ const GymPlan = (() => {
     // graded score: the estimate at the gym's full power falls off a cliff (a whole box can read 0% against a
     // 1.2 gym and 100% at plain strength), so each team is also scored at power levels in between: a team that
     // still wins when the gym is stronger ranks higher, even when every team reads 0% at full power
-    let n = 0; const W = async (t, f) => { if (++n % 12 === 0) { tick?.(n); await sleep(); } return grade(t.map((x) => x.mon), f, P); };
+    let n = 0; const W = async (t, f) => { if (++n % 4 === 0) { tick?.(n); await sleep(); } return grade(t.map((x) => x.mon), f, P); };
     // the gym fight itself (each foe in turn, the whole team counting most), plus the full run: the trainers after
     // the last heal and then the leader in one go, HP carrying over - a team that arrives healthy wins more
     const way = G.stretch?.length ? [...G.stretch, ...foes] : null;
@@ -3775,8 +3778,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:129', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:130', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:132', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:133', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3787,9 +3790,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:141', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:144', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:143', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:146', __e); } }
     }
     return out;
   }
@@ -3800,7 +3803,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:154', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:157', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
