@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      1.3.2
+// @version      1.3.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.2';
+const VERSION = '1.3.3';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1906,7 +1906,7 @@ Views.plan = (w, ui, esc) => {
           <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>
           <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
-        ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
+        ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
   // add a goal - shown right under Start / Pause, above the list
@@ -3080,7 +3080,7 @@ Views.now = (w, esc, fmtIn) => {
   // ---- 1. status line + needs-you ----
   const problems = [];
   if (Plan.oldOn()) problems.push('Alakazam 4.x is switched on, so the plan can\'t act (Plan tab → Switch 4.x off).');
-  for (const g of open) { const L = live(g); if (/error|could not|refused|3 times|did not|stuck/i.test((L.why || '') + ' ' + (L.line || ''))) problems.push(`${esc(Plan.label(g))}: ${esc(L.why || L.line)}`); }
+  for (const g of open) { const L = live(g); if (/error|could not|refused|zone 3 times|did not|stuck/i.test((L.why || '') + ' ' + (L.line || ''))) problems.push(`${esc(Plan.label(g))}: ${esc(L.why || L.line)}`); }
   try { const pend = E.get('LegendZones')?.leaguePending?.() || []; if (pend.length) problems.push(`Pick your Legendary gem in the game: Elite League ${pend.map((p) => `${esc(p.reg)} tier ${p.tier}`).join(', ')}.`); } catch (__e) { __h('62-nowview:41', __e); }
   for (const f of Guard.failures()) problems.push(`Safety check: ${esc(f.label)} looks wrong (${esc(f.why)}) - goals that use it are paused until it looks right. Probably a game update.`);
   const miss = E.audit().missing || []; if (miss.length) problems.push(`${miss.length} game functions are missing after a game update - some goals may not work.`);
@@ -6393,7 +6393,7 @@ const Notify = (() => {
     check('old', Plan.oldOn(), 'Mega is waiting', 'Alakazam 4.x is switched on, so the plan can\'t act. Switch it off in Mega\'s Plan tab.');
     for (const g of Plan.goals.filter((x) => !x.done)) {
       const L = Plan.live(g.id) || {};
-      check('g' + g.id, /error|could not|refused|3 times|did not/i.test((L.why || '') + ' ' + (L.line || '')), `Mega: ${Plan.label(g)} is stuck`, L.why || L.line || 'see the log');
+      check('g' + g.id, /error|could not|refused|zone 3 times|did not/i.test((L.why || '') + ' ' + (L.line || '')), `Mega: ${Plan.label(g)} is stuck`, L.why || L.line || 'see the log');
     }
     const a = E.audit(); check('engine', a.missing?.length, 'Mega lost part of the game', `${a.missing.length} game functions are missing after a game update - Mega may not work right`);
   }
