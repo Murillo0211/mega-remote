@@ -77,6 +77,9 @@
   .mv .mon{text-align:center;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:4px;background:var(--well,#16122b)} .mv .mon img{width:48px;height:48px;image-rendering:pixelated}
   .mv img{max-width:100%;image-rendering:pixelated} .mv label.chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0} .mv .btn{margin:6px 6px 0 0}
   .mv select,.mv input.q{width:100%;margin:4px 0} .mv .bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:4px 0} .mv .bar i{display:block;height:100%;background:var(--acc)}
+  .mv .mon.leg{border-color:#7a5cff} .mv .mon.now{border:2px solid #3ddc84} .mv .mon.unk img{filter:brightness(0) invert(.35)} .mv .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .mv .tmgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 6px;text-align:center} .mv .tmname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+  .mv [data-act="gem-open"],.mv [data-act="tr-open"]{display:none}
   .mv .card h3{cursor:pointer} .mv .card.folded > :not(h3){display:none} .mv table{width:100%;border-collapse:collapse;font-size:13px} .mv td,.mv th{padding:3px 4px;border-bottom:1px solid var(--line);text-align:left}
   @media (min-width: 600px) {
     body{padding-left:16px;padding-right:16px}
@@ -642,6 +645,15 @@ function vTrades() {
   return wideNow() ? `<div class="boxwrap"><div>${h}</div><div class="side">${det}</div></div>` : det + h;
 }
 // a confirmation sheet with the full summary (the only way a trade is sent)
+// gem rank-up: only after this sheet on the phone (Mega never spends gems by itself)
+async function gemSheet(d) {
+  const ok = await confirmSheet(`<h3>Rank up ${N(+d.i)}?</h3>${img(+d.i, 64)}
+    ${row('Uses', `${d.n} ${esc(d.lb)} gem${+d.n > 1 ? 's' : ''}`)}${row('Rank', `${d.r} → ${+d.r + 1}`)}${row('Stats at Lv 100', `+${d.g}`)}
+    <div class="warn" style="margin:8px 0">It goes back to <b>Lv 5</b>${d.lv ? ` (it's Lv ${d.lv} now)` : ''} and has to level up again. This can't be undone.</div>${+d.ev ? `<div class="warn">⚠ It won't evolve any more once ranked.</div>` : ''}`, `Rank Up ${N(+d.i)}`);
+  if (!ok) return;
+  cmd('gem.rank', { uid: d.u, key: d.k, rank: +d.r }, `Rank up ${N(+d.i)}`);
+  MV.fastUntil = Date.now() + 60_000; MV.at.gems = 0;
+}
 function confirmSheet(html, okLabel) {
   return new Promise((res) => {
     const d = document.createElement('div');
@@ -687,15 +699,27 @@ function mvBox(tab) {
   if (!MV.html[tab]) return `<div class="card dim">Loading from your PC…</div>`;
   return `<div class="mv" data-mvtab="${tab}">${MV.html[tab]}</div>`;
 }
+const MV_FOLD = new Set(JSON.parse(localStorage.getItem('mr-mvfold') || '[]'));
+const foldKey = (tab, h3) => tab + '|' + h3.textContent.trim().slice(0, 40);
+function mvFolds() { for (const h of document.querySelectorAll('.mv .card > h3')) if (MV_FOLD.has(foldKey(h.closest('.mv').dataset.mvtab, h))) h.parentElement.classList.add('folded'); }
+function mvTab(tab) { return `<div class="dim" style="display:flex;justify-content:space-between;align-items:center;margin:0 2px 6px"><span>Mega's screen, live from your PC${MV.at[tab] ? ' · ' + (Date.now() - MV.at[tab] < 60_000 ? 'just now' : Math.round((Date.now() - MV.at[tab]) / 60_000) + ' min ago') : ''}</span><button class="btn sm" data-x="mvReload" data-t="${tab}">⟳</button></div>` + mvBox(tab); }
+// keep the open screen fresh: every 20 s, and every 3 s for a minute after a tap (sim progress, a run starting)
+setInterval(() => { const t = { box: 'box', act: 'act', dex: 'dex', sim: 'legends', gems: 'gems', fights: 'fights', set: 'engine' }[tab] || (tab === 'sim' ? 'league' : null); if (!t || document.hidden) return;
+  const fast = Date.now() < (MV.fastUntil || 0); if (Date.now() - (MV.at[t] || 0) > (fast ? 3000 : 20000)) mvLoad(t); }, 1000);
+let mvTyping = null;
+document.addEventListener('input', (e) => { const el = e.target.closest('.mv input'); if (!el || el.type === 'checkbox') return; clearTimeout(mvTyping); mvTyping = setTimeout(() => mvSend(el, 'input'), 450); }, true);
 function vFights() { return `<div class="card"><h3>Fights</h3><div class="dim">Mega's fight log and analysis, live from your PC.</div><button class="btn" data-x="mvReload" data-t="fights">⟳ Refresh</button></div>${mvBox('fights')}`; }
 function mvSend(el, kind) {
   const box = el.closest('.mv'); if (!box) return;
   const tab = box.dataset.mvtab, data = { ...el.dataset };
   if (data.act === 'fold-card') { el.closest('.card')?.classList.toggle('folded'); return; }
+  if (data.act === 'tab' && data.tab) { tab = MEGA_TAB[data.tab] || data.tab; store.set('mr-tab', tab); window.scrollTo(0, 0); render(); return; } // a link to another of Mega's screens
+  if (data.act === 'gem-rank') { gemSheet({ i: data.id, n: data.need, lb: data.label, r: data.rank, g: data.gain, lv: data.lv, ev: data.ev, u: data.uid, k: data.key }); return; }
+  MV.fastUntil = Date.now() + 60_000;
   cmd('ui.act', { tab, data, kind, checked: !!el.checked, value: el.value ?? '', tag: el.tagName.toLowerCase() }, el.textContent.trim().slice(0, 40) || data.act, (r, d) => { if (d && d.html != null) { MV.html[tab] = d.html; MV.at[tab] = Date.now(); render(); } });
 }
 document.addEventListener('click', (e) => {
-  const h3 = e.target.closest('.mv .card > h3'); if (h3 && !e.target.closest('[data-act]')) { h3.parentElement.classList.toggle('folded'); return; }
+  const h3 = e.target.closest('.mv .card > h3'); if (h3 && !e.target.closest('[data-act]')) { const c = h3.parentElement, k = foldKey(h3.closest('.mv').dataset.mvtab, h3); c.classList.toggle('folded'); if (c.classList.contains('folded')) MV_FOLD.add(k); else MV_FOLD.delete(k); localStorage.setItem('mr-mvfold', JSON.stringify([...MV_FOLD])); return; }
   const el = e.target.closest('.mv [data-act]'); if (!el) return;
   if (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox')) return;
   if (el.tagName !== 'INPUT') e.preventDefault();
@@ -851,12 +875,16 @@ function render() {
     <div class="dim" style="margin-top:10px">Or long-press the alert, copy its link and paste it here:</div><input type="text" id="pastePair" placeholder="https://murillo0211.github.io/mega-remote/#pair-…"><button class="btn gold" data-x="pastePair">Pair</button>
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
-  const V = { box: vBox, team: vTeam, act: vAct, now: vNow, plan: vPlan, dex: vDex, sim: vSim, fights: vFights, trades: vTrades, gems: vGems, set: vSet }[tab] || vNow;
+  // 1.0: Pokédex, PC, Simulate, Gems and Activity are Mega's own screens (Now, Plan and Trades keep their phone shape)
+  const V = { box: () => mvTab('box'), team: vTeam, act: () => mvTab('act'), now: vNow, plan: vPlan, dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:#c79a2b"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
+  const ae = document.activeElement, mvFocus = ae && ae.closest?.('.mv') && ae.matches('input') ? { tab: ae.closest('.mv').dataset.mvtab, sel: ae.className ? 'input.' + ae.className.trim().split(/\s+/)[0] : 'input', pos } : null;
   const why = relayWhy ? `<div class="card" style="border-color:#c0392b"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
   $('#main').className = ['now', 'act', 'plan', 'set', 'gems'].includes(tab) ? 'cols' : '';
   $('#main').innerHTML = why + (tab === 'set' ? '' : banner) + V();
+  if (mvFocus) { const el = document.querySelector(`.mv[data-mvtab="${mvFocus.tab}"] ${mvFocus.sel}`); if (el) { el.focus(); try { el.setSelectionRange(mvFocus.pos, mvFocus.pos); } catch {} } }
+  mvFolds();
   if (focus === 'trQ') { const el = $('#trQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'dxQ') { const el = $('#dxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   if (focus === 'bxQ') { const el = $('#bxQ'); el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
@@ -935,7 +963,8 @@ document.addEventListener('click', async (e) => {
     const rq = await cmd('sim.run', { id, asMax: ui.asMax }, 'Run simulator');
     watch.set(rq, (d) => { if (d && !d.running) { ui.simRes[id] = d; loadSims(); render(); return true; } return false; });
   }
-  if (x === 'gemRank') {
+  if (x === 'gemRank') { gemSheet(t.dataset); return; }
+  if (x === 'gemRankOld') {
     const d = t.dataset, ok = await confirmSheet(`<h3>Rank up ${N(+d.i)}?</h3>${img(+d.i, 64)}
       ${row('Uses', `${d.n} ${esc(d.lb)} gem${+d.n > 1 ? 's' : ''}`)}${row('Rank', `${d.r} → ${+d.r + 1}`)}${row('Stats at Lv 100', `+${d.g}`)}
       <div class="warn" style="margin:8px 0">It goes back to <b>Lv 5</b>${d.lv ? ` (it's Lv ${d.lv} now)` : ''} and has to level up again. This can't be undone.</div>${+d.ev ? `<div class="warn">⚠ It won't evolve any more once ranked.</div>` : ''}`, `Rank Up ${N(+d.i)}`);
