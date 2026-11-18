@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      1.3.3
+// @version      2.0.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.3';
+const VERSION = '2.0.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1319,20 +1319,22 @@ const Views = (() => {
  * ------------------------------------------------------------------------------------------- */
 const Icons = (() => {
   const ICON = { '✨': 'shiny', '⭐': 'star', '📍': 'pin', '🕒': 'clock', '⏳': 'clock', '🥚': 'egg', '🐣': 'egg', '🔔': 'bell', '💰': 'coin',
-    '🏆': 'trophy', '🎖': 'trophy', '⚔': 'fight', '🥊': 'fight', '🛡': 'shield', '⚠': 'warn', '⏸': 'pause', '👥': 'team' };
+    '🏆': 'trophy', '🎖': 'trophy', '⚔': 'fight', '🥊': 'fight', '🛡': 'shield', '⚠': 'warn', '⏸': 'pause', '👥': 'team',
+    '⛏': 'pick', '🗼': 'tower', '🍬': 'candy', '🌍': 'globe', '📘': 'book', '🎁': 'gift', '👻': 'ghost' };
   const GLYPH = { '⬆': '↑', '🔄': '⟳', '🟢': '●' };
-  const DROP = ['🎯', '💛', '⛏', '📱', '🗼', '📘', '💤', '🍬', '🌍', '✏', '👻', '🎁', '🩺', '🗂', '🔗', '📈', '🍓', '⚡'];
+  const DROP = ['🎯', '💛', '📱', '💤', '✏', '🩺', '🗂', '🔗', '📈', '🍓', '⚡'];
   const keys = [...Object.keys(ICON), ...Object.keys(GLYPH), ...DROP].sort((a, b) => b.length - a.length);
   const RE = new RegExp(`(${keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\uFE0F?( ?)`, 'gu');
   // in text: icon <i>, symbol, or nothing; inside <option> (no tags allowed there): symbol or nothing
   const one = (plain) => (m, k, sp) => ICON[k] ? (plain ? '' : `<i class="ic ic-${ICON[k]}"></i>${sp}`) : GLYPH[k] ? GLYPH[k] + sp : '';
   function swap(html) {
-    if (!html || !RE.test(html)) return html;
+    if (!html) return html;
     RE.lastIndex = 0;
     let inOpt = false;
     return String(html).split(/(<[^>]+>)/).map((part) => {
       if (part.startsWith('<')) { if (/^<option\b/i.test(part)) inOpt = true; else if (/^<\/option/i.test(part)) inOpt = false; return part; }
-      return part.replace(RE, one(inOpt));
+      // a spaced hyphen used as a dash reads as one ("won today – next raid 3 PM")
+      return part.replace(RE, one(inOpt)).replace(/ - /g, ' – ');
     }).join('');
   }
   return { swap };
@@ -2113,6 +2115,7 @@ const UI = (() => {
     if (!t) return '';
     const s = Math.max(0, Math.round((t - Date.now()) / 1000));
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    if (h >= 48) return `${Math.floor(h / 24)} days ${h % 24}h`;
     return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
   };
   // Mega's panel: its own frame (rail, header, tabs, scroll area) + the shared design system
@@ -2243,6 +2246,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .ic-warn{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2L1 21.5h22zm-1.1 7h2.2v6.2h-2.2zm0 7.8h2.2V19h-2.2z'/%3E%3C/svg%3E")}
 .ic-pause{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 4h4.5v16H6zm7.5 0H18v16h-4.5z'/%3E%3C/svg%3E")}
 .ic-team{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8.5 11a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zm8 0a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM1 20c0-3.6 3.4-6.5 7.5-6.5S16 16.4 16 20v1H1zm16.5 1v-1c0-2-.7-3.8-2-5.2 3.9-.4 7.5 1.8 7.5 5.2v1z'/%3E%3C/svg%3E")}
+.ic-pick{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14.8 3.2C10.6 1.6 6 2.3 2.5 5c4-.9 8-.3 11.4 1.6L3 17.5 6.5 21 17.4 10.1c1.9 3.4 2.5 7.4 1.6 11.4 2.7-3.5 3.4-8.1 1.8-12.3l1.2-1.2-6-6z'/%3E%3C/svg%3E")}
+.ic-tower{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 2h2v2h1V2h2v2h1V2h2v4l-1 2v12h2v2H7v-2h2V8L8 6zm3 9v4h2v-4z'/%3E%3C/svg%3E")}
+.ic-candy{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM6.3 8.6 1.5 6.5 3 12l-1.5 5.5 4.8-2.1a7.4 7.4 0 0 1 0-6.8zm11.4 0 4.8-2.1L21 12l1.5 5.5-4.8-2.1a7.4 7.4 0 0 0 0-6.8z'/%3E%3C/svg%3E")}
+.ic-globe{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 9h-3a15 15 0 0 0-1.4-6.3A8 8 0 0 1 18.9 11zM12 4.1c.9 1.3 1.8 3.7 1.9 6.9h-3.8c.1-3.2 1-5.6 1.9-6.9zM9.5 4.7A15 15 0 0 0 8.1 11h-3a8 8 0 0 1 4.4-6.3zM5.1 13h3a15 15 0 0 0 1.4 6.3A8 8 0 0 1 5.1 13zm6.9 6.9c-.9-1.3-1.8-3.7-1.9-6.9h3.8c-.1 3.2-1 5.6-1.9 6.9zm2.5-.6a15 15 0 0 0 1.4-6.3h3a8 8 0 0 1-4.4 6.3z'/%3E%3C/svg%3E")}
+.ic-book{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 2h13a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm2 4v2h9V6zm0 4v2h7v-2z'/%3E%3C/svg%3E")}
+.ic-gift{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8h18v4H3zm1 5h7v9H4zm9 0h7v9h-7zM11 8h2v14h-2zm-4.5-6C8.6 2 10.8 4.6 12 7c1.2-2.4 3.4-5 5.5-5A2.5 2.5 0 0 1 20 4.5C20 6.4 17 7 12 7 7 7 4 6.4 4 4.5A2.5 2.5 0 0 1 6.5 2z'/%3E%3C/svg%3E")}
+.ic-ghost{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a8 8 0 0 0-8 8v12l2.7-2 2.6 2 2.7-2 2.7 2 2.6-2L20 22V10a8 8 0 0 0-8-8zM9 8.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E")}
 
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
@@ -2312,7 +2322,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:90', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:91', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -2475,7 +2485,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:253', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:254', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -2496,7 +2506,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:274', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:275', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -2519,14 +2529,14 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:297', __e); } setTimeout(() => renderBody(true), 300); return; }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:298', __e); } return; }
+    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:298', __e); } setTimeout(() => renderBody(true), 300); return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:299', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:301', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:302', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:304', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:305', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -2569,8 +2579,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:347', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:348', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:348', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:349', __e); }
     renderBody(true, w);
   }
 
@@ -2585,7 +2595,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:363', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:364', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -2600,11 +2610,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:378', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:379', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:379', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:380', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:382', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:383', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4580,7 +4590,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
             if (uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
             if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:94', __e); } }
-            return `leveling the gym team in ${ST.CHAPTERS[tch]?.name}: ${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')} · then ${plan.gym} (best plan ${Math.round(plan.plan.win * 100)}%)`;
+            return `leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym} (the best team wins ${Math.round(plan.plan.win * 100)}%)`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
           const uids = plan.plan.team.map((t) => (t.kind === 'own' ? t.uid : sideOf(t.base)?.uid)).filter(Boolean);
@@ -5408,7 +5418,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const why = (() => { try { return c.why(); } catch { return null; } })();
       if (why === 'running') return { state: 'ready', why: null };
       if (why === 'played' && g && (() => { try { return c.last()?.day; } catch { return null; } })() && g.told !== c.last().day) { const l = c.last(); g.told = l.day; Plan.save(); Notify.send('daily', `Candy Factory: floor ${l.floor}`, `Today's ${l.type} run is done${(() => { try { return c.best() ? ` · best ever floor ${c.best()}` : ''; } catch { return ''; } })()}`); }
-      if (why === 'played') { const nd = (() => { try { return +E.get('Raids').nextDay(); } catch { return 0; } })(); return { state: 'wait', why: `done today${(() => { try { const l = c.last(); return l ? ` (${l.type}, floor ${l.floor})` : ''; } catch { return ''; } })()} - next run ${nd ? DexInfo.clock(nd) : 'after the daily reset'}` }; }
+      if (why === 'played') { const nd = (() => { try { return +E.get('Raids').nextDay(); } catch { return 0; } })(); return { state: 'wait', why: `done today${(() => { try { const l = c.last(); return l ? ` (${Casing.title(String(l.type))} day, floor ${l.floor})` : ''; } catch { return ''; } })()} · next run ${nd ? DexInfo.clock(nd) : 'after the daily reset'}` }; }
       if (why === 'day') return { state: 'wait', why: 'closed today' };
       if (why === 'locked') return { state: 'wait', why: 'locked' };
       return { state: 'ready', why: null };
@@ -5937,20 +5947,22 @@ const Plan = (() => {
   let timer = null, busy = false, lastEnter = 0, fails = 0, failsFor = null;
   const live = {}; // goal id -> { state, why, line }
   let top = ''; // one line for the whole plan
+  // status lines are written lowercase in the goals; screens show them as sentences
+  const cap = (s) => (typeof s === 'string' && s ? s[0].toUpperCase() + s.slice(1) : s);
 
   function load() {
     let p;
-    try { p = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('70-plan-20-engine:20', __e); }
+    try { p = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('70-plan-20-engine:22', __e); }
     p = p && Array.isArray(p.goals) ? p : { running: false, goals: [] };
     // 0.3.x: a running hunt becomes the first goal
     try {
       const h = JSON.parse(localStorage.getItem('mega-hunt') || 'null');
       if (h && h.target && !p.goals.some((g) => g.type === 'legend' && g.foe === h.target)) { p.goals.unshift(newGoal('legend', { foe: h.target })); p.running = true; }
       localStorage.removeItem('mega-hunt');
-    } catch (__e) { __h('70-plan-20-engine:27', __e); }
+    } catch (__e) { __h('70-plan-20-engine:29', __e); }
     return p;
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (__e) { __h('70-plan-20-engine:30', __e); } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (__e) { __h('70-plan-20-engine:32', __e); } }
   function newGoal(type, data) { return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), type, ...data, paused: false, done: null, added: Date.now() }; }
 
   const type = (g) => GoalTypes[g.type];
@@ -5991,7 +6003,7 @@ const Plan = (() => {
     return g;
   }
   function finish(g) { try { type(g)?.finish?.(g); } catch (e) { Log.add(`${name(g)}: could not put things back (${e?.message || e})`); } }
-  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan-20-engine:71', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
+  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan-20-engine:73', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
   function move(id, d) {
     const open = st.goals.filter((g) => !g.done), i = open.findIndex((g) => g.id === id), j = i + d;
     if (i < 0 || j < 0 || j >= open.length) return;
@@ -6026,7 +6038,7 @@ const Plan = (() => {
     let ok = false;
     { const why = Guard.team(E.read('Game.zoneTeam', [], +id) || [], { need: 1, minLevel: 1 }); if (why) { Guard.stop(`${E.get('Game.DEX')?.[id]?.name}'s zone`, why); return false; } }
     try { ok = E.call('Adventure.startZone', +id) !== false; } catch (e) { Log.add(`${E.get('Game.DEX')?.[id]?.name}: the game refused to enter (${e.message})`); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:106', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:108', __e); }
     await new Promise((r) => setTimeout(r, 800));
     if (ok && +(E.get('Game.S')?.adv?.zone?.id) === +id) { fails = 0; Log.add(`entered ${E.get('Game.DEX')?.[id]?.name}'s zone`); return true; }
     if (failsFor !== id) { failsFor = id; fails = 0; }
@@ -6048,7 +6060,7 @@ const Plan = (() => {
         const T = type(g);
         if (!T) { live[g.id] = { state: 'wait', why: 'unknown goal type' }; continue; }
         const c = (() => { try { return T.check(g); } catch (e) { Health.goalErr(g, e, name(g)); return { state: 'wait', why: 'error: ' + (e?.message || e) }; } })();
-        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:128', __e); } finish(g);
+        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:130', __e); } finish(g);
           if (['region', 'loot', 'souls', 'level'].includes(g.type)) Notify.send('win', `Done: ${name(g)}`, g.type === 'region' ? 'Every Pokémon of that region is in your Pokédex!' : c.why || 'goal finished'); live[g.id] = { state: 'done', why: c.why }; continue; }
         if (g.paused) { live[g.id] = { state: 'paused', why: null }; continue; }
         if (c.state !== 'ready') { live[g.id] = { state: 'wait', why: c.why }; if (!waitSince.has(g.id)) waitSince.set(g.id, { at: Date.now(), why: c.why }); else waitSince.get(g.id).why = c.why; continue; }
@@ -6077,9 +6089,9 @@ const Plan = (() => {
       }
       // idle only after 2 min with no screen goal, so a goal that waits a moment between runs doesn't flip-flop
       if (screenRuns || h) freeSince = 0; else if (!freeSince) freeSince = Date.now();
-      if (!screenRuns && !h && idleOn() && (st.idle || Date.now() - freeSince > 120_000)) { await idleStep(); top = (runs.length ? `running: ${runs.map(name).join(' + ')} · ` : '') + `idle: ${idleLine || 'leveling'}`; return; }
+      if (!screenRuns && !h && idleOn() && (st.idle || Date.now() - freeSince > 120_000)) { await idleStep(); top = (runs.length ? `running: ${runs.map(name).join(', ')} · ` : '') + `idle: ${idleLine || 'leveling'}`; return; }
       if (!runs.length) { top = h ? `waiting: ${h} is using the battle screen` : st.goals.some((g) => !g.done) ? 'every goal is waiting - see the reasons below' : 'nothing to do - add a goal'; return; }
-      top = `running: ${runs.map(name).join(' + ')}`;
+      top = `running: ${runs.map(name).join(', ')}`;
     } finally { busy = false; }
   }
 
@@ -6092,7 +6104,7 @@ const Plan = (() => {
       let uids = (S0.team || []).slice(0, 6), win = null, how = '';
       if (g.type === 'legend' || g.type === 'elite') { const zt = E.read('Game.zoneTeam', [], g.foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[g.foe]; if (sim?.final) { win = sim.final.ko; how = 'simulated'; } }
       else if (g.type === 'raid' && g.pick) { uids = g.pick.mine || uids; win = g.pick.ko ?? null; how = 'simulated with ally trainers'; }
-      else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; how = "the game's own gym estimate"; }
+      else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; how = "the game's win estimate"; }
       else if (g.type === 'special' && g.boss) { win = g.boss.win; how = 'simulated for this encounter'; }
       else if (g.type === 'wboss') how = "the game's pick - the most damage possible (damage grows with total power)";
       else if (g.type === 'under') how = "the game's own expedition simulation";
@@ -6131,14 +6143,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:211', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:213', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:218', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:220', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -6161,7 +6173,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:241', __e); }
+    } catch (__e) { __h('70-plan-20-engine:243', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -6176,7 +6188,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:256', __e); }
+    } catch (__e) { __h('70-plan-20-engine:258', __e); }
   }
   function formGoals() {
     try {
@@ -6186,7 +6198,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:266', __e); }
+    } catch (__e) { __h('70-plan-20-engine:268', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
@@ -6196,8 +6208,8 @@ const Plan = (() => {
   }
   return {
     boot, add, insertBefore, insertAfter, save, remove, move, toTop, pause, retry, clearDone, setRunning, oldOn, turnOldOff,
-    get goals() { return st.goals; }, get running() { return st.running; }, get top() { return top; },
-    live: (id) => live[id] || null, label: name,
+    get goals() { return st.goals; }, get running() { return st.running; }, get top() { return cap(top); },
+    live: (id) => { const L = live[id]; return L ? { ...L, why: cap(L.why), line: cap(L.line) } : null; }, label: name,
     get idle() { return st.idle ? { goal: st.idle, line: live.idle?.line || idleLine } : (live.idle ? { goal: null, line: live.idle.line } : null); },
     get idleOn() { return idleOn(); }, setIdle(v) { st.idleLevel = !!v; save(); if (!v && st.idle) idleStop('switched off'); },
     has: (foe) => st.goals.find((g) => g.type === 'legend' && g.foe === +foe && !g.done) || null,
