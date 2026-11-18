@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.0.5
+// @version      2.0.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.0.5';
+const VERSION = '2.0.6';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3680,6 +3680,9 @@ const GymPlan = (() => {
   }
   const fam = (id) => safe(() => [...(E.read('Game.familyOf', [], id) || [])].map(Number), [+id]);
   const win = (team, foes, power) => safe(() => +E.call('Adventure.winChance', team, foes, 'gym', 1, power) || 0, 0);
+  // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
+  const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
+  const grade = (team, foes, P) => LEVELS.reduce((s, [k, w]) => s + w * win(team, foes, 1 + (P - 1) * k), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
@@ -3717,9 +3720,10 @@ const GymPlan = (() => {
   // best 6 from `pool` (entries with .mon) against the gym; yields every few estimates
   async function search(pool, G, budget, tick) {
     const foes = G.foes, P = G.power, sp = (x) => Sim.species(x.mon);
-    // graded score: the estimate at the gym's power falls off a cliff (a whole box can score 0% against a 1.2
-    // gym), so the plain matchup (power 1) breaks ties - type advantages still rank teams when all read 0%
-    let n = 0; const W = async (t, f) => { if (++n % 12 === 0) { tick?.(n); await sleep(); } const ms = t.map((x) => x.mon); return win(ms, f, P) + 0.05 * win(ms, f, 1); };
+    // graded score: the estimate at the gym's full power falls off a cliff (a whole box can read 0% against a
+    // 1.2 gym and 100% at plain strength), so each team is also scored at power levels in between: a team that
+    // still wins when the gym is stronger ranks higher, even when every team reads 0% at full power
+    let n = 0; const W = async (t, f) => { if (++n % 12 === 0) { tick?.(n); await sleep(); } return grade(t.map((x) => x.mon), f, P); };
     const obj = async (t) => { let s = 0; for (let k = 1; k <= foes.length; k++) s += (await W(t, foes.slice(0, k))) * (k === foes.length ? foes.length : 1); return s; };
     // single matchups (the hardest foe counts double)
     const hard = []; for (const x of pool) { let s = 0; for (const f of foes) s += await W([x], [f]); hard.push(s); }
@@ -3736,7 +3740,7 @@ const GymPlan = (() => {
       }
       if (s > bs) { bs = s; best = t; }
     }
-    return { team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? win(best.map((x) => x.mon), foes, 1) : 0 };
+    return { team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0 };
   }
   // plan the gym of chapter `ch` (cached per gym + side). Returns the saved plan, or null while it's thinking.
   function get(ch, { force = false } = {}) {
@@ -3761,8 +3765,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})`); } catch (__e) { __h('66-gymplan:115', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:116', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})`); } catch (__e) { __h('66-gymplan:119', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:120', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3773,9 +3777,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:127', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:131', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:129', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:133', __e); } }
     }
     return out;
   }
@@ -3786,7 +3790,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:140', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:144', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
