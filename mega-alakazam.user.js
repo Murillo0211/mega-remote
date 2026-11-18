@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.1.6
+// @version      2.1.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.1.6';
+const VERSION = '2.1.7';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3513,18 +3513,25 @@ Views.league = (esc) => {
     if (s.gym) {
       h += `<div class="dim" style="margin-top:6px">${esc(Casing.title(s.gym.type || ''))} type · power ×${(+s.gym.power || 1).toFixed(2)}${s.cap ? ` · level cap ${s.cap}` : ''}${s.gym.byStarter ? ' · the leader depends on your starter' : ''}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.foes.map((f) => `<div style="text-align:center"><img src="${Engine.sprite(f.id)}" width="48" height="48" style="image-rendering:pixelated"><div style="font-size:12px">${nm(f.id)}</div><div class="dim" style="font-size:12px">Lv ${f.level}</div></div>`).join('')}</div>`;
-      if (s.win != null) h += `<div style="margin-top:8px">Your current team wins about <b>${Math.round(s.win * 100)}%</b> <span class="dim">(the game's battle simulation, Auto Switch order)</span></div>`;
+      const pctB = (x) => `<b class="${x >= 0.6 ? 'ok' : x >= 0.3 ? 'warn' : 'bad'}">${Math.round(x * 100)}%</b>`;
+      if (s.win != null) h += `<div style="margin-top:10px">Your current team: ${pctB(s.win)} to win right now</div>`;
+      // what Mega is doing about it, in its own words (the "Beat the League" goal)
+      const sg = (() => { try { return (Plan.goals || []).find((g) => !g.done && g.type === 'story') || null; } catch { return null; } })();
+      const sl = sg ? (() => { try { return Plan.live(sg.id); } catch { return null; } })() : null;
+      if (sl && (sl.line || sl.why)) h += `<div class="dim" style="margin-top:2px">Mega: ${esc(sl.line || sl.why)}</div>`;
       // the gym plan: best team from what you have + what you can catch, at the level cap
       if (!s.travel && s.foes.length) {
         const P = (() => { try { return GymPlan.get(s.ch); } catch { return null; } })(), B = (() => { try { return GymPlan.busy; } catch { return null; } })();
         const pct = (x) => `<b class="${x >= 0.6 ? 'ok' : x >= 0.3 ? 'warn' : 'bad'}">${Math.round(x * 100)}%</b>`;
-        h += `<div class="note" style="margin-top:10px"><b>Gym plan</b> <span class="dim">· the best team from your ${esc(s.reg?.name || '')} Pokémon plus everything you can catch in unlocked chapters, all at the level cap${s.cap ? ' (' + s.cap + ')' : ''} - scored with the game's battle simulation in Auto Switch order, tuned by your real gym wins and losses (power weighting ${GymPlan.calib().k.toFixed(2)})</span>`;
+        h += `<div class="note" style="margin-top:10px"><b>Gym plan</b> <span class="dim">· your Unova Pokémon and what you can catch, judged at the level cap${s.cap ? ' (Lv ' + s.cap + ')' : ''}</span>`;
         if (!P) h += `<div style="margin-top:6px">${B ? `Thinking… ${B.done} estimates so far` : 'Starting…'}</div>`;
         else {
-          h += P.plan.ready ? `<div style="margin-top:6px"><b>Suggested team</b>: ${pct(P.plan.win)} as they are today <span class="ok">- no training needed</span></div>`
-            : `<div style="margin-top:6px"><b>Suggested team</b>: ${P.today != null ? `${pct(P.today)} as they are today → ` : ''}${pct(P.plan.win)} once trained to Lv ${P.cap || s.cap}</div>`;
-          h += `<div class="dim" style="margin-top:2px">Best team from what's ready right now: ${pct(P.now.win)}. When teams win about the same, the one that needs less training is picked.</div>`;
-          h += `<div class="grid" style="margin-top:8px">${P.plan.team.map((t) => {
+          // only suggest a team when it's really better than the one you have (Jimmy: less training wins ties)
+          const curSet = new Set(Engine.get('Game.S')?.team || []), same = P.plan.team.every((t) => t.kind === 'own' && curSet.has(t.uid));
+          const keep = same || P.plan.ready && P.plan.team.every((t) => curSet.has(t.uid)) || (s.win != null && P.plan.win <= s.win + 0.03);
+          if (keep) h += `<div style="margin-top:6px"><b>Suggestion:</b> <span class="ok">keep your current team</span> <span class="dim">- nothing you could train or catch does better</span></div>`;
+          else h += `<div style="margin-top:6px"><b>A better team:</b> ${P.plan.ready ? `${pct(P.plan.win)} with no training` : `${P.today != null ? `${pct(P.today)} as they are today → ` : ''}${pct(P.plan.win)} once trained to Lv ${P.cap || s.cap}`}</div>`;
+          if (!keep) h += `<div class="grid" style="margin-top:8px">${P.plan.team.map((t) => {
             const own = t.kind === 'own' ? Engine.read('Game.getMon', null, t.uid) : null;
             const how = t.kind === 'catch' ? `catch ${nm(t.base)}<br><span class="dim">${esc(t.where || '')}</span>` : own && own.id !== t.id ? `your ${nm(own.id)} Lv ${own.level} → evolve` : own && s.cap && own.level < s.cap && !P.plan.ready ? `yours · level ${own.level} → ${s.cap}` : `<span class="ok">✓ ready${own ? ' · Lv ' + own.level : ''}</span>`;
             return `<div class="mon"><img src="${Engine.sprite(t.id)}" alt="">${nm(t.id)}<br><span style="font-size:12px">${how}</span></div>`; }).join('')}</div>`;
@@ -3532,7 +3539,7 @@ Views.league = (esc) => {
           const nx = (() => { try { return GymPlan.nextGym(s.ch); } catch { return null; } })(), NP = nx != null ? (() => { try { return GymPlan.saved[nx] || null; } catch { return null; } })() : null;
           if (NP) { const c = NP.plan.team.filter((t) => t.kind === 'catch'); h += `<div style="margin-top:8px"><b>Next: ${esc(NP.gym)}</b> · best possible ${pct(NP.plan.win)}${c.length ? ` · catch ${c.map((t) => `${nm(t.base)} <span class="dim">(${esc(t.where || '')})</span>`).join(', ')}` : ' · nothing new to catch'}</div>`; }
           else if (nx != null) h += `<div class="dim" style="margin-top:8px">The gym after this one gets planned once this plan is ready.</div>`;
-          h += `<div class="dim" style="margin-top:6px">The "Beat the League" goal fights as soon as your team wins 60%. Below that it follows this plan: catches what's quick to get right now, levels the team to the cap (evolving on the way, and anyone stuck at the cap), then fights. Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
+          h += `<div class="dim" style="margin-top:6px">Mega fights when your team wins 60% or more; below that it trains (or catches) toward this plan first. Estimates use the game's battle simulation in Auto Switch order, tuned by your real gym results (weighting ${GymPlan.calib().k.toFixed(2)}). Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
         }
         h += `<button class="btn" data-act="gymplan-run" data-ch="${s.ch}" style="margin-top:6px">${P ? 'Plan Again' : 'Plan Now'}</button></div>`;
       }
@@ -3727,7 +3734,7 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 7; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 8; // bump when the scoring changes: saved plans from before are redone
   const grade = (team, foes, P) => LEVELS.reduce((s, [k, w]) => s + w * win(team, foes, 1 + (P - 1) * k), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
@@ -3811,6 +3818,9 @@ const GymPlan = (() => {
       // now: the Pokémon you have, at their real levels
       const nowPool = sideMons().map((m) => ({ key: 'n' + m.uid, kind: 'own', uid: m.uid, id: m.id, from: m, mon: fresh(m) }));
       const now = await search(nowPool, G, 700, (n) => { busy.done = n; });
+      // your actual current team always competes too (the search samples, and could miss it)
+      const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
+      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw > now.win) Object.assign(now, { team: cur, win: cw, soft: cw, current: true }); }
       let plan = await search(pool, G, 1600, (n) => { busy.done = 700 + n; });
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
@@ -3823,8 +3833,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:174', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:175', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:177', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:178', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3835,9 +3845,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:186', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:189', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:188', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:191', __e); } }
     }
     return out;
   }
@@ -3848,7 +3858,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:199', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:202', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
