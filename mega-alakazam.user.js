@@ -3854,7 +3854,7 @@ const Mirror = (() => {
     const cut = Date.now() - ui.act.range * 3.6e6, H1 = History.since(cut - 1), rows = H1.rows.filter((r) => r[0] >= cut), col = (i) => rows.map((r) => [r[0], r[i]]);
     h += `<div class="card"><h3>History</h3>${chips([[6, '6 h'], [24, '24 h'], [168, '7 days']], ui.act.range, 'm-act-range')}</div>`;
     for (const [id, nm] of Object.entries(H1.names || {})) { if (nm[3] || !nm[1]) continue; const pts = rows.filter((r) => r[6]?.[id] != null).map((r) => [r[0], r[6][id]]); if (pts.length >= 2) h += chart(esc, nm[0], pts, { need: nm[1] }); }
-    h += chart(esc, 'Money', col(1), { fmt: (v) => '₽' + Math.round(v).toLocaleString() }) + chart(esc, 'Pokédex', col(2)) + chart(esc, 'Total Levels (All Pokémon)', col(5)) + chart(esc, 'Shinies', col(3)) + chart(esc, 'Lv 100 Pokémon', col(4));
+    h += chart(esc, 'Money', col(1), { fmt: (v) => (v < 0 ? '-₽' : '₽') + Math.abs(Math.round(v)).toLocaleString() }) + chart(esc, 'Pokédex', col(2)) + chart(esc, 'Total Levels (All Pokémon)', col(5)) + chart(esc, 'Shinies', col(3)) + chart(esc, 'Lv 100 Pokémon', col(4));
     const rx = FRX[ui.act.f], q = ui.act.q.trim().toLowerCase();
     const list = lines.filter((l) => (!rx || rx.test(l.text)) && (!q || l.text.toLowerCase().includes(q))).slice().reverse();
     h += `<div class="card"><h3>Log</h3><input class="q" data-mq="act" value="${esc(ui.act.q)}" placeholder="Search the log…">
