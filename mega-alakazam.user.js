@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      1.3.0
+// @version      1.3.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2190,7 +2190,7 @@ a{color:var(--acc)}
 .btn.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)}
 .btn.sm{min-height:34px;padding:6px var(--s2);font-size:var(--t-s);margin:0}
 .btns,.tools{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)} .btns .btn,.tools .btn{flex:1 1 0;width:auto;margin:0}
-.goal .tools{display:grid;grid-template-columns:repeat(5,1fr)}
+.goal .tools{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px} .goal .tools .btn{min-height:32px;padding:5px 2px;font-size:var(--t-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---- inputs ---- */
 input.q,select.sel,.field{all:unset;box-sizing:border-box;display:block;width:100%;font:var(--t-m)/20px var(--font);color:var(--ink);background:var(--well);border:1px solid var(--line-2);border-radius:var(--r-m);padding:9px var(--s3);margin:0 0 var(--s3)}
@@ -3620,7 +3620,7 @@ const Berries = (() => {
   function keep(fam, why, { strongest = true } = {}) {
     if (!on) return '';
     const a = active(fam);
-    if (a && a.left > 120_000) return ` · ${label(a.key).replace(/ berry$/, '')} ${Math.ceil(a.left / 60_000)} min`;
+    if (a && a.left > 120_000) return ` · ${Casing.title(label(a.key))} ${Math.ceil(a.left / 60_000)} min left`;
     const ber = Object.entries(all()).filter(([, v]) => v.family === fam).sort((x, y) => (strongest ? 1 : -1) * ((y[1].rank || 0) - (x[1].rank || 0)) || (strongest ? y[1].mult - x[1].mult : x[1].mult - y[1].mult));
     const aRank = a ? all()[a.key]?.rank || 0 : -1;
     for (const [key, v] of ber) {
@@ -5127,7 +5127,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       }
       const berry = Berries.keep('dex', `catching ${name(g.foe)}`) + Berries.keep('capture', `catching ${name(g.foe)}`, { strongest: false });
       const pct = Math.max(0, ...wildSpots(g.foe, g.ch).filter((x) => x.on).map((x) => x.pct));
-      return `${vs ? `${name(g.foe)} found - catching!` : `stop ${at + 1}/${nodes.length}`} · can appear at ${can.length} stop${can.length === 1 ? '' : 's'} (${Math.round(pct * 1000) / 10}%)${g.restarts ? ` · ${g.restarts} restarts` : ''}${berry}`;
+      return `${vs ? `${name(g.foe)} found - catching!` : `Stop ${at + 1} of ${nodes.length}`} · shows up at ${can.length} stop${can.length === 1 ? '' : 's'} (${Math.round(pct * 1000) / 10}% each)${g.restarts ? ` · chapter restarted ${g.restarts} time${g.restarts === 1 ? '' : 's'}` : ''}${berry}`;
     },
     finish(g) {
       const r = g.restore; if (!r) return;
