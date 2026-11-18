@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.0.2
+// @version      2.0.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.0.2';
+const VERSION = '2.0.3';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4331,12 +4331,24 @@ const GoalKit = (() => {
   const sideOf = (id) => { const f = new Set(safe(() => [...(E.read('Game.familyOf', [], id) || [])].map(Number), [+id])); f.add(+id); return (E.read('Game.sideMons', []) || []).filter((m) => f.has(+m.id)).sort((a, b) => b.level - a.level)[0] || null; };
   const lvl = (u) => E.read('Game.getMon', null, u)?.level ?? null;
   const capOf = (u) => { const m = E.read('Game.getMon', null, u); return Math.min(100, E.read('Game.capFor', 100, m) || 100); };
+  // Rule: a chapter team is always full. Goals pick the Pokémon that matter (trainees, carriers, the gym
+  // plan); any slot left over gets the strongest free Pokémon from this side (not in the Underground,
+  // not an egg, no repeats), so nothing ever fights with 4 or 5 by accident.
+  function fullTeam(uids) {
+    const out = [...new Set((uids || []).filter(Boolean))].slice(0, 6);
+    if (out.length >= 6) return out;
+    const away = awayNow(), have = new Set(out);
+    const spare = (E.read('Game.sideMons', []) || []).filter((m) => m && !m.egg && !have.has(m.uid) && !away.has(m.uid)).sort((a, b) => b.level - a.level);
+    for (const m of spare) { if (out.length >= 6) break; out.push(m.uid); }
+    return out;
+  }
   function setChapterTeam(uids) {
     const s = S();
+    uids = fullTeam(uids);
     s.team = uids.slice(0, 6);
     s.road = null; // the game rebuilds the road team from .team (same as its own team editor)
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:97', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:98', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:109', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:110', __e); }
     const now = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
     return uids.every((u) => now.includes(u));
   }
@@ -4355,8 +4367,8 @@ const GoalKit = (() => {
   function hatchMissing() {
     for (const e of [...(S().pension?.eggs || [])]) {
       if (E.read('Game.inDex', false, +e.id) || !E.read('Game.eggReady', false, e)) continue;
-      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:117', __e); }
-      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:118', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:118', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
+      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:129', __e); }
+      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:130', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:130', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
     }
   }
   const LZ = () => E.get('LegendZones');
@@ -4367,7 +4379,7 @@ const GoalKit = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:129', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:141', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -4395,10 +4407,10 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:157', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:158', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:169', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:170', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:160', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:172', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -4406,7 +4418,7 @@ const GoalKit = (() => {
   // otherwise (or if that's missing) step out and back - re-opening the same chapter just continues (Jimmy)
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:168', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:180', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -4415,7 +4427,7 @@ const GoalKit = (() => {
   const putBack = (g) => GoalTypes.wild.finish(g);
 
 
-  return { E, S, name, pending, holder, setTeam, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
+  return { E, S, name, pending, holder, setTeam, fullTeam, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
 })();
 Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, setChapterTeam: GoalKit.setChapterTeam, here: GoalKit.here, hatchMissing: GoalKit.hatchMissing });
 
@@ -4533,7 +4545,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const chs = safe(() => ST.chaptersOf(reg), []) || [];
       const un = +(a.unlocked ?? 0), front = Math.min(un, chs[chs.length - 1]);
       const deaths = +(a.deaths?.[front] ?? 0);
-      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
+      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
       const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
       const sp = (m) => Sim.species(m);
       // stuck: 2 wipes in the frontier chapter since the last try -> train for 30 minutes
@@ -4625,7 +4637,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:127', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length;
       return training ? `training in ${ST.CHAPTERS[ch]?.name} for ${Math.ceil((g.trainUntil - now) / 60_000)} more min (lost twice at ${ST.CHAPTERS[front]?.name})`
-        : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.deaths0 || 0)} loss${deaths - (g.deaths0 || 0) === 1 ? '' : 'es'} here`;
+        : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
     finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:132', __e); } },
   };
