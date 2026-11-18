@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      1.2.0
+// @version      1.3.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1300,7 +1300,7 @@ const Views = (() => {
         for (const t of A.ticks) h += row(`${t.st === 'burn' ? 'Burn' : 'Poison'} tick on ${esc(World.dex.name(id))}`, `<b class="ok">${Math.round(t.avg)}</b> <span class="dim">(${t.n} ticks)</span>`);
         if (A.statusShare != null && A.ticks.length) h += row('Damage from poison / burn', `<b>${Math.round(A.statusShare * 100)}%</b> <span class="dim">of all damage dealt</span>`);
         h += row('Counter-hit on one of yours', A.counter ? `${Math.round(A.counter)} <span class="dim">(${A.counterN})</span>` : '-');
-        h += `<div style="margin-top:6px;font-weight:700;color:#d9d3ff">Your damage per action</div>`;
+        h += `<div style="margin-top:6px;font-weight:700;color:var(--ink)">Your damage per action</div>`;
         for (const t of A.attackers) h += `<div class="row"><span class="k" style="display:flex;align-items:center;gap:6px"><img src="${Engine.sprite(t.id)}" width="28" height="28" style="image-rendering:pixelated">${esc(World.dex.name(t.id))}${t.shiny ? ' ✨' : ''}${t.rank ? ` r${t.rank}` : ''}</span><span class="v">${t.avg ? Math.round(t.avg) : '-'} <span class="dim">· ${t.n} actions${t.missRate ? `, ${Math.round(t.missRate * 100)}% no damage` : ''}</span></span></div>`;
       }
       h += `</div>`;
@@ -1309,6 +1309,33 @@ const Views = (() => {
   }
 
   return { now, dex, engine, fights, row };
+})();
+
+/* ---------------------------------------------------------------------------------------------
+ * Icons: one consistent set instead of colour emoji. Mega's screens were written with emoji as
+ * icons; swap() turns the ones that mean something into drawn icons (design/field.css .ic-*),
+ * turns a few into plain symbols, and drops the purely decorative ones. Only text is touched,
+ * never tags or attributes. Shared with Kinesis (copied in at publish), so both look the same.
+ * ------------------------------------------------------------------------------------------- */
+const Icons = (() => {
+  const ICON = { '✨': 'shiny', '⭐': 'star', '📍': 'pin', '🕒': 'clock', '⏳': 'clock', '🥚': 'egg', '🐣': 'egg', '🔔': 'bell', '💰': 'coin',
+    '🏆': 'trophy', '🎖': 'trophy', '⚔': 'fight', '🥊': 'fight', '🛡': 'shield', '⚠': 'warn', '⏸': 'pause', '👥': 'team' };
+  const GLYPH = { '⬆': '↑', '🔄': '⟳', '🟢': '●' };
+  const DROP = ['🎯', '💛', '⛏', '📱', '🗼', '📘', '💤', '🍬', '🌍', '✏', '👻', '🎁', '🩺', '🗂', '🔗', '📈', '🍓', '⚡'];
+  const keys = [...Object.keys(ICON), ...Object.keys(GLYPH), ...DROP].sort((a, b) => b.length - a.length);
+  const RE = new RegExp(`(${keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\uFE0F?( ?)`, 'gu');
+  // in text: icon <i>, symbol, or nothing; inside <option> (no tags allowed there): symbol or nothing
+  const one = (plain) => (m, k, sp) => ICON[k] ? (plain ? '' : `<i class="ic ic-${ICON[k]}"></i>${sp}`) : GLYPH[k] ? GLYPH[k] + sp : '';
+  function swap(html) {
+    if (!html || !RE.test(html)) return html;
+    RE.lastIndex = 0;
+    let inOpt = false;
+    return String(html).split(/(<[^>]+>)/).map((part) => {
+      if (part.startsWith('<')) { if (/^<option\b/i.test(part)) inOpt = true; else if (/^<\/option/i.test(part)) inOpt = false; return part; }
+      return part.replace(RE, one(inOpt));
+    }).join('');
+  }
+  return { swap };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -1871,7 +1898,7 @@ Views.plan = (w, ui, esc) => {
           <div style="flex:1;min-width:0"><b class="gt" style="font-size:16px">${esc(Plan.label(g))}</b>${bg ? ' <span class="dim gt" style="font-size:13px">· alongside</span>' : ''}</div>
         </div>
         <div class="${cls} st" style="margin:6px 0 0 30px">${dot} ${word}${L.why ? ' · ' + esc(L.why) : ''}${L.state === 'running' && L.line ? ' · ' + esc(L.line) : ''}</div>${L.state === 'running' && L.team && (L.team.win != null || L.team.how) ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">🛡️ ${L.team.win != null ? Math.round(L.team.win * 100) + '% · ' : ''}${esc(L.team.how || '')}</div>` : ''}
-        ${g.type === 'region' && g.rows?.length ? `<details style="margin:8px 0 0 30px" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:#c9a8ff">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
+        ${g.type === 'region' && g.rows?.length ? `<details style="margin:8px 0 0 30px" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
         <div class="tools">
           <button class="btn sm" data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move to the top">⤒ Top</button>
           <button class="btn sm" data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move up">↑ Up</button>
@@ -1901,7 +1928,7 @@ Views.plan = (w, ui, esc) => {
       <div class="dim" style="font-size:13px;margin-top:6px">${on.length ? `Hunting now: ${on.map((x) => esc(x.name)).join(', ')} · ` : ''}${have.length ? `You have: ${have.map((x) => esc(x.name)).join(', ')}` : ''}${later.length ? `<br>Not yet: ${later.map((x) => `${esc(x.name)} (${esc(x.spots[0]?.blockers[0] || 'locked')})`).join(', ')}` : ''}</div>`;
     if (it) {
       h += `<div style="margin-top:8px">${it.uses.length ? `<div>Used to: ${esc(it.uses.join(', '))}</div>` : ''}${it.need > 1 ? `<div>You collect up to ${it.need} (have ${it.have}).</div>` : ''}</div>`;
-      for (const L of it.spots.filter((x) => !x.blockers.length)) h += `<div style="padding:8px 0;border-top:1px solid #2b2450"><div><b>${esc(L.place)}</b> · ${esc(L.chapter)} <span class="dim">ch ${L.ch}</span> · ${DexInfo.pct(L.chance)} at its item stop</div>
+      for (const L of it.spots.filter((x) => !x.blockers.length)) h += `<div style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(L.place)}</b> · ${esc(L.chapter)} <span class="dim">ch ${L.ch}</span> · ${DexInfo.pct(L.chance)} at its item stop</div>
         ${L.blockers.length ? `<div class="warn">needs ${esc(L.blockers.join(' · '))}</div>` : ''}${L.skies ? `<div class="dim">only in ${esc(L.skies.join(' / '))}</div>` : ''}
         <button class="btn${L === it.spots[0] ? ' gold' : ''}" data-act="plan-add-item" data-item="${it.key}" data-ch="${L.ch}" data-place="${esc(L.place)}" data-need="${it.need}" ${Plan.goals.some((g) => !g.done && g.type === 'loot' && g.item === it.key) ? 'disabled' : ''}>Add: Hunt Here</button></div>`;
     }
@@ -1972,7 +1999,7 @@ const DexView = (() => {
     const stateTxt = h.registered ? '<span class="ok">registered</span>' : `<span class="bad">not registered</span>${h.state && h.state !== 'unknown' ? ` <span class="dim">(${esc(h.state)})</span>` : ''}`;
     let o = `<button class="btn sm" data-act="dexback" style="margin:0 0 10px">‹ Back to the Pokédex</button>`;
     o += `<div class="card"><div style="display:flex;gap:14px;align-items:center">
-      <img src="${Engine.sprite(id)}" width="96" height="96" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:14px;flex:none">
+      <img src="${Engine.sprite(id)}" width="96" height="96" style="image-rendering:pixelated;background:var(--well);border-radius:14px;flex:none">
       <div style="flex:1"><div style="font-size:20px;font-weight:800">${esc(h.name)}</div>
       <div class="dim">#${D[id]?.num ?? id} · ${h.types.map(esc).join(' / ')}${h.legendary ? ' · legendary' : h.mythical ? ' · mythical' : ''}</div>
       <div style="margin-top:4px">${stateTxt}${h.owned ? ` · you own ${h.owned}` : ''}</div>${!h.registered && DexInfo.availableNow(id) ? `<div class="ok" style="margin-top:4px">● ${esc(DexInfo.availableNow(id))}</div>` : ''}</div></div></div>`;
@@ -1986,12 +2013,12 @@ const DexView = (() => {
       o += `<div class="card"><h3>${ways.length > 1 ? 'Ways to Get It' : 'Best Way to Get It'}</h3>`;
       if (inPlan) o += `<div class="note" style="margin-bottom:8px">Already in your plan: ${esc(Plan.label(inPlan))} <button class="btn sm" data-act="tab" data-tab="plan">Open plan</button></div>`;
       ways.forEach((wy, k) => {
-        o += `<div style="${k ? 'border-top:1px solid #2b2450;margin-top:10px;padding-top:10px' : ''}">
+        o += `<div style="${k ? 'border-top:1px solid var(--line);margin-top:10px;padding-top:10px' : ''}">
           ${ways.length > 1 ? `<div class="dim" style="font-size:13px;font-weight:700">${k === 0 ? 'BEST' : 'OR'}</div>` : ''}
           <div>${esc(wy.text)}</div>`;
         if (wy.kind === 'wild') { // every chapter it lives in: pick the one to add
           const W = DexInfo.wild(id);
-          o += `<div style="margin-top:6px">${W.map((c) => `<div style="padding:8px 0;border-top:1px solid #2b2450">
+          o += `<div style="margin-top:6px">${W.map((c) => `<div style="padding:8px 0;border-top:1px solid var(--line)">
             <div><b>${esc(c.chapter)}</b> <span class="dim">ch ${c.ch}</span> · ${DexInfo.pct(c.best)}${c.open ? (c.now ? ' <span class="ok">● now</span>' : ' <span class="warn">not at this time / weather</span>') : ' <span class="dim">· not unlocked</span>'}</div>
             <div class="dim" style="font-size:13px">${c.spots.map((x) => `${esc(x.place)} (${DexInfo.pct(x.pct)}${x.when?.length ? ` · ${x.on ? '' : '<span class="warn">'}${esc(DexInfo.whenText(x.when))} only${x.on ? '' : '</span>'}` : ''}${x.fights ? ` · ${x.fights} wild fight${x.fights > 1 ? 's' : ''} per run` : ''})`).join(' · ')}</div>
             ${c.open && !inPlan ? `<button class="btn${c.ch === wy.ch ? ' gold' : ''}" data-act="dex-add-wild" data-id="${id}" data-ch="${c.ch}">Add: Catch Here</button>` : ''}</div>`).join('')}</div></div>`;
@@ -2088,92 +2115,160 @@ const UI = (() => {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
     return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
   };
+  // Mega's panel: its own frame (rail, header, tabs, scroll area) + the shared design system
+  // (design/field.css, put in by the build with SCOPE = .wrap). Theme: .th-night / .th-day on .wrap.
   const CSS = `
     :host{all:initial}
-    .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#eceaf6;display:flex}
-    .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;
-          background:linear-gradient(180deg,#171330,#0d0b18);border-right:1px solid #352d5a;cursor:pointer}
-    .rail img,.hd img{image-rendering:pixelated;filter:drop-shadow(0 0 6px #f6c744aa) drop-shadow(0 0 2px #fff6)}
-    .rail .open{color:#c9a8ff;font-size:22px;font-weight:800}
-    .panel{height:100%;display:flex;flex-direction:column;background:#141127;border-right:1px solid #352d5a;box-shadow:8px 0 30px #0007;position:relative;box-sizing:border-box}
-    .grip{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:ew-resize;z-index:2}
-    .grip:hover{background:linear-gradient(90deg,transparent,#7a5cff88,transparent)}
-    .hd{display:flex;align-items:center;gap:6px;padding:10px 10px;background:linear-gradient(90deg,#2a1f55,#171330);border-bottom:1px solid #352d5a;user-select:none}
-    .hd .t{font-weight:800;letter-spacing:.2px;font-size:16px;white-space:nowrap;background:linear-gradient(90deg,#ffe27a,#f6c744 40%,#c9a8ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-    .hd .v{color:#a39ec2;font-size:13px;margin-left:auto;margin-right:4px}
-    .hd .fold{all:unset;cursor:pointer;color:#cfc9ef;font-size:18px;font-weight:800;padding:2px 8px;border-radius:8px} .hd .fold:hover{background:#ffffff14} .hd .fold[disabled]{opacity:.35;cursor:default}
-    .dot{width:11px;height:11px;border-radius:50%;background:#5ad68a;box-shadow:0 0 8px #5ad68a;flex:none}
-    .dot.warn{background:#ffb547;box-shadow:0 0 8px #ffb547} .dot.err{background:#ff6b6b;box-shadow:0 0 8px #ff6b6b}
-    .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:10px 12px;border-bottom:1px solid #2b2450;background:#171330}
-    .tabs button{all:unset;cursor:pointer;text-align:center;padding:8px 4px;border-radius:10px;color:#b7b1d6;font-weight:700;font-size:15px;background:#1f1a38}
-    .tmwrap{container-type:inline-size} .tmgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 6px;text-align:center}
-    @container (min-width:380px){.tmgrid{grid-template-columns:repeat(6,minmax(0,1fr))}}
-    .tmname{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tabs button{touch-action:none}
-    .card h3.foldh{cursor:pointer;user-select:none;display:flex;align-items:center} .card h3.foldh::after{content:'▾';margin-left:auto;opacity:.6;font-size:14px;transition:transform .15s}
-    .card.folded h3.foldh::after{transform:rotate(-90deg)} .card.folded > :not(h3){display:none !important} .card.folded h3.foldh{margin-bottom:0} .hd .fold.upd{background:linear-gradient(90deg,#d4a017,#f5c542);color:#1b1533;font-weight:800;font-size:13px;padding:4px 9px} .tabs button.drag{opacity:.4} .tabs button.dropto{outline:2px dashed #b59cff;outline-offset:-2px}
-    .hd{position:relative} .hd .vtip{position:absolute;left:8px;top:100%;margin-top:2px;padding:3px 8px;border-radius:8px;background:#2a2350;color:#fff;font-size:12px;font-weight:700;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:5;box-shadow:0 2px 10px #0008}
+    /* =============================================================================================
+ * Field Device — the one design system for Mega (PC panel) and Kinesis (phone).
+ * A handheld Pokédex: a red shell (header, tabs) around a calm LCD screen (everything else).
+ * Night = dark green-black screen, Day = paper screen. The shell colour is for chrome only;
+ * content uses the screen's own colours, with gold for the one main action on a card.
+ *
+ * Written once here. The build swaps .wrap for the root: .wrap in Mega's panel, html in Kinesis.
+ * ============================================================================================= */
+
+/* ---- tokens ---- */
+.wrap {
+  --shell-hi:#d23446; --shell:#b0202f; --shell-lo:#7d1222; --seam:#4a0a14; --on-shell:#fff; --on-shell-dim:#ffd9de;
+  --gold:#f2c14e; --gold-lo:#c99a1c; --on-gold:#2b1d00;
+  --r-s:8px; --r-m:10px; --r-l:14px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px;
+  --t-xs:12px; --t-s:13px; --t-m:15px; --t-l:17px; --t-xl:22px;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+.wrap.th-night {
+  --bg:#0c1719; --card:#112427; --well:#0a1517; --line:#1f4144; --line-2:#2a5654;
+  --ink:#dffcf2; --mute:#8db7ad; --faint:#5f8c84; --acc:#4fe0bc; --acc-ink:#062a22;
+  --ok:#5ee8a0; --warn:#ffc365; --bad:#ff8080; --shiny:#ffd76a; --focus:#4fe0bc66;
+  color-scheme:dark;
+}
+.wrap.th-day {
+  --bg:#f2ecdb; --card:#fffbf2; --well:#ece3cb; --line:#e0d3b0; --line-2:#cbb98c;
+  --ink:#2a231e; --mute:#6b6052; --faint:#998c78; --acc:#0f7a68; --acc-ink:#fff;
+  --ok:#147a40; --warn:#9a5c06; --bad:#b4232c; --shiny:#b07d00; --focus:#0f7a6855;
+  color-scheme:light;
+}
+
+/* ---- text ---- */
+.dim{color:var(--mute)} .faint{color:var(--faint)} .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+.lbl{font-size:var(--t-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.big{font-size:var(--t-xl);font-weight:800;letter-spacing:-.01em}
+.num,.row .v{font-variant-numeric:tabular-nums}
+code{font:var(--t-s)/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--acc)}
+a{color:var(--acc)}
+
+/* ---- cards ---- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);padding:var(--s3) var(--s4);margin:0 0 var(--s3);box-shadow:0 1px 0 #0000000f}
+.card h3,h3.card-title{all:unset;display:flex;align-items:center;gap:var(--s2);font-size:var(--t-xs);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:0 0 var(--s2);padding:0 0 var(--s2);border-bottom:1px solid var(--line)}
+.card h3 .ic{font-size:14px}
+.card.folded h3{border-bottom:0;padding-bottom:0;margin-bottom:0}
+.card.folded > :not(h3){display:none !important}
+.card h3.foldh,.mv .card > h3{cursor:pointer;user-select:none}
+.card h3.foldh::after,.mv .card > h3::after{content:'';margin-left:auto;width:8px;height:8px;border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}
+.card.folded h3.foldh::after,.mv .card.folded > h3::after{transform:rotate(-45deg)}
+.note{font-size:var(--t-s);color:var(--ink);background:var(--well);border:1px solid var(--line);border-radius:var(--r-m);padding:var(--s2) var(--s3);margin:0 0 var(--s3)}
+.note.warn,.card.warn{border-color:color-mix(in srgb,var(--warn) 55%,var(--line))}
+.card.ok{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+
+/* ---- rows: label on the left, value on the right; a long value drops below, full width ---- */
+.row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;column-gap:var(--s3);row-gap:2px;padding:7px 0;border-top:1px solid var(--line)}
+.row:first-of-type,h3 + .row{border-top:0}
+.row .k{flex:0 1 auto;color:var(--mute);white-space:nowrap}
+.row .v{flex:1 1 150px;text-align:right;min-width:0;overflow-wrap:anywhere}
+
+/* ---- buttons: gold = the main action, plain = secondary (screen-coloured), danger = can't be undone ---- */
+.btn{all:unset;box-sizing:border-box;display:block;width:100%;text-align:center;cursor:pointer;user-select:none;
+  font:700 var(--t-m)/20px var(--font);padding:9px var(--s3);min-height:40px;margin:var(--s2) 0 0;border-radius:var(--r-m);
+  color:var(--ink);background:var(--well);border:1px solid var(--line-2);box-shadow:0 1px 0 #0000001a;transition:background .12s,border-color .12s}
+.btn:hover{border-color:var(--acc)} .btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.btn[disabled],.btn:disabled{opacity:.45;cursor:default;transform:none}
+.btn.gold{color:var(--on-gold);background:linear-gradient(180deg,var(--gold),var(--gold-lo));border-color:var(--gold-lo)}
+.btn.gold:hover{filter:brightness(1.06)}
+.btn.danger{color:var(--bad);background:transparent;border-color:color-mix(in srgb,var(--bad) 55%,transparent)}
+.btn.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.btn.sm{min-height:34px;padding:6px var(--s2);font-size:var(--t-s);margin:0}
+.btns,.tools{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)} .btns .btn,.tools .btn{flex:1 1 0;width:auto;margin:0}
+.goal .tools{display:grid;grid-template-columns:repeat(5,1fr)}
+
+/* ---- inputs ---- */
+input.q,select.sel,.field{all:unset;box-sizing:border-box;display:block;width:100%;font:var(--t-m)/20px var(--font);color:var(--ink);background:var(--well);border:1px solid var(--line-2);border-radius:var(--r-m);padding:9px var(--s3);margin:0 0 var(--s3)}
+input.q:focus,select.sel:focus,.field:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--focus)}
+input.q::placeholder{color:var(--faint)}
+select.sel{appearance:auto;-webkit-appearance:menulist}
+label.chk{display:flex;gap:var(--s2);align-items:flex-start;margin:var(--s2) 0 0;color:var(--ink);cursor:pointer;line-height:1.4}
+label.chk input{flex:none;margin:2px 0 0;width:17px;height:17px;accent-color:var(--acc)}
+
+/* ---- chips (filters) ---- */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:var(--s2) 0}
+.chip{all:unset;cursor:pointer;padding:5px 11px;border-radius:999px;font-size:var(--t-s);font-weight:600;color:var(--ink);background:var(--well);border:1px solid var(--line)}
+.chip.on{color:var(--on-shell);background:var(--shell);border-color:var(--seam)}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:var(--t-xs);font-weight:800;color:var(--on-shell);background:var(--shell)}
+
+/* ---- Pokémon tiles ---- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:var(--s2)}
+.mon{background:var(--well);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 4px;text-align:center;font-size:var(--t-s);line-height:1.3;color:var(--ink)}
+.mon img{width:56px;height:56px;image-rendering:pixelated;display:block;margin:0 auto}
+.mon.leg{border-color:var(--line-2)} .mon.now{border:2px solid var(--ok)} .mon.unk img{filter:brightness(0) opacity(.35)} .mon.unk{color:var(--faint)}
+img.sp{image-rendering:pixelated;background:var(--well);border-radius:var(--r-m);flex:none}
+.tmwrap{container-type:inline-size} .tmgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2) 6px;text-align:center}
+@container (min-width:380px){.tmgrid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.tmname{font-size:var(--t-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- progress ---- */
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--acc)}
+.pips span{display:inline-block;width:18px;height:6px;border-radius:3px;margin-right:3px;background:var(--line)} .pips .w{background:var(--ok)} .pips .n{background:var(--gold)}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left} th{color:var(--mute);font-weight:700}
+
+/* ---- layout helpers ---- */
+.flex{display:flex;gap:var(--s3);align-items:center} .grow{flex:1;min-width:0}
+
+/* ---- icons: drawn, one colour, sized to the text (Icons.swap turns the old emoji into these) ---- */
+.ic{display:inline-block;width:1em;height:1em;vertical-align:-.14em;background:currentColor;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat;flex:none}
+.ic-shiny{color:var(--shiny)}
+.ic-shiny{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l2.6 7.1 7.4 2.9-7.4 2.9L12 21.5l-2.6-7.1L2 11.5l7.4-2.9z'/%3E%3C/svg%3E")}
+.ic-star{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.8 5.7 21.4l1.5-7.1L1.8 9.4 9 8.6z'/%3E%3C/svg%3E")}
+.ic-pin{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5a7.5 7.5 0 0 0-7.5 7.5c0 5.4 7.5 13.5 7.5 13.5s7.5-8.1 7.5-13.5A7.5 7.5 0 0 0 12 1.5zm0 10.2a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4z'/%3E%3C/svg%3E")}
+.ic-clock{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2.2a7.8 7.8 0 1 1 0 15.6 7.8 7.8 0 0 1 0-15.6zM11 6v6.6l4.6 2.8 1-1.7-3.4-2V6z'/%3E%3C/svg%3E")}
+.ic-egg{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5c-4 0-7.5 7.3-7.5 12.5a7.5 7.5 0 0 0 15 0C19.5 8.8 16 1.5 12 1.5z'/%3E%3C/svg%3E")}
+.ic-bell{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 22.5a2.6 2.6 0 0 0 2.6-2.5H9.4a2.6 2.6 0 0 0 2.6 2.5zM19 16v-5a7 7 0 0 0-5.3-6.8V3.3a1.7 1.7 0 0 0-3.4 0v.9A7 7 0 0 0 5 11v5l-2 2v1h18v-1z'/%3E%3C/svg%3E")}
+.ic-coin{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zm0 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z'/%3E%3C/svg%3E")}
+.ic-trophy{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 2h12v2h4v3a5 5 0 0 1-4.7 5 6 6 0 0 1-4.3 3.9V19h4v3H7v-3h4v-3.1A6 6 0 0 1 6.7 12 5 5 0 0 1 2 7V4h4zm-2 4v1a3 3 0 0 0 2 2.8V6zm16 0h-2v3.8A3 3 0 0 0 20 7z'/%3E%3C/svg%3E")}
+.ic-fight{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 2h5l8.3 8.3-2.4 2.4L4.6 4.4V2.1zm20 0v5l-6.1 6.1 2.6 2.6 1.6-1.6 1.4 1.4-2.3 2.3 2.8 2.8-2.1 2.1-2.8-2.8-2.3 2.3-1.4-1.4 1.6-1.6-2.6-2.6L9.7 19.3 8.3 18l2.6-2.6-2.6-2.6L6.7 14.4 5.3 13l2.3-2.3L17 2z'/%3E%3C/svg%3E")}
+.ic-shield{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l8.5 3.2v6.1c0 5.7-3.6 10.1-8.5 11.7-4.9-1.6-8.5-6-8.5-11.7V4.7z'/%3E%3C/svg%3E")}
+.ic-warn{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2L1 21.5h22zm-1.1 7h2.2v6.2h-2.2zm0 7.8h2.2V19h-2.2z'/%3E%3C/svg%3E")}
+.ic-pause{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 4h4.5v16H6zm7.5 0H18v16h-4.5z'/%3E%3C/svg%3E")}
+.ic-team{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8.5 11a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zm8 0a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM1 20c0-3.6 3.4-6.5 7.5-6.5S16 16.4 16 20v1H1zm16.5 1v-1c0-2-.7-3.8-2-5.2 3.9-.4 7.5 1.8 7.5 5.2v1z'/%3E%3C/svg%3E")}
+
+    .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
+    .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
+      background:linear-gradient(180deg,var(--shell),var(--shell-lo));border-right:3px solid var(--seam)}
+    .rail img,.hd img{image-rendering:pixelated;filter:drop-shadow(0 1px 0 #0006)}
+    .rail .open{color:var(--on-shell);font-size:22px;font-weight:800}
+    .panel{height:100%;display:flex;flex-direction:column;background:var(--bg);border-right:3px solid var(--seam);box-shadow:8px 0 30px #0006;position:relative;box-sizing:border-box}
+    .grip{position:absolute;top:0;right:-5px;width:8px;height:100%;cursor:ew-resize;z-index:2}
+    .grip:hover{background:linear-gradient(90deg,transparent,var(--focus),transparent)}
+    .hd{position:relative;display:flex;align-items:center;gap:6px;padding:8px 10px;color:var(--on-shell);user-select:none;
+      background:linear-gradient(180deg,var(--shell-hi),var(--shell-lo));border-bottom:3px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff40}
+    .hd .t{font-weight:800;font-size:14px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 0 #0005}
+    .hd .v{color:var(--on-shell-dim);font-size:12px;margin-left:auto;margin-right:2px}
+    .hd .fold{all:unset;cursor:pointer;color:var(--on-shell);font-size:14px;font-weight:800;padding:3px 8px;border-radius:8px} .hd .fold:hover{background:#ffffff24} .hd .fold[disabled]{opacity:.35;cursor:default}
+    .hd .fold.upd{background:linear-gradient(180deg,var(--gold),var(--gold-lo));color:var(--on-gold);font-size:12px;padding:4px 9px}
+    .hd .vtip{position:absolute;left:8px;top:100%;margin-top:2px;padding:3px 8px;border-radius:8px;background:#1d0a0e;color:#fff;font-size:12px;font-weight:700;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:5;box-shadow:0 2px 10px #0008}
     .hd img.ver:hover + .vtip{opacity:1}
-    .tabs button:hover{background:#2a2350;color:#fff} .tabs button.on{background:linear-gradient(90deg,#5b3fd6,#7a5cff);color:#fff;box-shadow:0 2px 10px #7a5cff55}
-    .body{padding:12px;overflow:auto;flex:1;scrollbar-width:thin;scrollbar-color:#3a3260 transparent}
-    .note{font-size:14px;color:#cdc7ee;background:#221c40;border:1px solid #3a3260;border-radius:12px;padding:9px 12px;margin-bottom:10px}
-    .card{background:#1d1836;border:1px solid #2e2752;border-radius:14px;padding:12px 14px;margin-bottom:10px}
-    .card h3{all:unset;display:block;font-weight:800;font-size:16px;color:#e4dfff;margin-bottom:8px;letter-spacing:.2px}
-    .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid #ffffff0d} .row:first-of-type{border-top:0}
-    .row .k{color:#b0aacf} .row .v{text-align:right}
-    .ok{color:#62e096} .warn{color:#ffbe5c} .bad{color:#ff7a7a} .dim{color:#a39ec2}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
-    .mon{background:#16122b;border:1px solid #2e2752;border-radius:12px;padding:6px 4px;text-align:center;font-size:13px;line-height:1.3;color:#dcd7f5}
-    .mon img{width:56px;height:56px;image-rendering:pixelated;display:block;margin:0 auto}
-    .mon.leg{border-color:#7a5cff} .mon.now{border:2px solid #3ddc84;box-shadow:0 0 10px #3ddc8466} .mon.seen{opacity:.95} .mon.unk img{filter:brightness(0) invert(.35)}
-    .bar{height:8px;border-radius:5px;background:#2e2752;overflow:hidden;margin-top:6px} .bar i{display:block;height:100%;background:linear-gradient(90deg,#7a5cff,#f6c744)}
-    input.q{all:unset;box-sizing:border-box;width:100%;background:#16122b;border:1px solid #3a3260;border-radius:10px;padding:10px 12px;color:#fff;margin-bottom:10px;font-size:15px}
-    .btn{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;text-align:center;background:#2e2752;color:#fff;border-radius:12px;padding:12px 14px;margin:10px 0 0;font-weight:700;font-size:16px;min-height:46px;line-height:22px}
-    .btn:hover{background:#3d3470} .btn[disabled]{opacity:.4;cursor:default} .btn.sm{padding:10px 4px;margin:0;font-size:14px;min-height:44px}
-    .btn.danger{background:#4a2233} .btn.danger:hover{background:#5e2a40}
-    .btn.gold{background:linear-gradient(90deg,#7a5cff,#c79a2b);margin-top:12px;font-size:17px}
-    label.chk{display:block;margin-top:10px;color:#dcd7f5;cursor:pointer} label.chk input{vertical-align:middle;margin-right:6px;width:17px;height:17px}
-    .goal .tools{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px} .goal .tools .btn{width:100%}
-    .goal .st{font-size:14px;margin-top:2px}
-    select.sel{box-sizing:border-box;width:100%;background:#16122b;border:1px solid #3a3260;border-radius:10px;padding:9px 10px;color:#fff;margin-bottom:10px;font-size:15px}
-    code{font:13px ui-monospace,Menlo,Consolas,monospace;color:#c9a8ff}
-    /* ===== Field Device theme: a glossy handheld shell around LCD-style screens. Night = dark screen, Day = paper screen ===== */
-    .wrap.th-night,.wrap.th-day{--shell1:#c4283a;--shell2:#7d1222;--seam:#4a0a14}
-    .th-night .panel,.th-day .panel{border-right:3px solid var(--seam)}
-    .th-night .hd,.th-day .hd{background:linear-gradient(180deg,var(--shell1),var(--shell2));border-bottom:3px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff40,inset 0 -6px 12px #0003}
-    .th-night .hd .t,.th-day .hd .t{background:none;color:#fff;-webkit-background-clip:initial;background-clip:initial;text-shadow:0 1px 0 #0006;letter-spacing:1px}
-    .th-night .hd .fold,.th-day .hd .fold{color:#ffe9ec}
-    .th-night .hd .dot,.th-day .hd .dot{width:13px;height:13px;border:2px solid #ffffffb0;box-sizing:border-box}
-    .th-night .rail,.th-day .rail{background:linear-gradient(180deg,var(--shell1),var(--shell2));border-right:3px solid var(--seam)}
-    .th-night .rail .open,.th-day .rail .open{color:#fff}
-    .th-night .tabs,.th-day .tabs{background:var(--shell2);border-bottom:3px solid var(--seam)}
-    .th-night .tabs button,.th-day .tabs button{background:#00000030;color:#ffdfe3;border:1px solid #ffffff22;box-shadow:inset 0 -2px 0 #0003}
-    .th-night .tabs button:hover,.th-day .tabs button:hover{background:#ffffff26;color:#fff}
-    .th-night .tabs button.on,.th-day .tabs button.on{background:var(--scr);color:var(--ink);border-color:var(--scrEdge);box-shadow:inset 0 0 0 1px var(--scrEdge),0 0 10px var(--glow)}
-    /* night: dark LCD */
-    .wrap.th-night{--well:#0a1517;--scr:#0e1b1d;--scrEdge:#2a5c5a;--card:#12262a;--line:#214448;--ink:#d8fff3;--mute:#86b8ae;--acc:#4fe0bc;--glow:#4fe0bc55;color:var(--ink)}
-    /* day: paper screen */
-    .wrap.th-day{--well:#ebe2c8;--scr:#f3eddc;--scrEdge:#c8b98f;--card:#fffaf0;--line:#e3d6b6;--ink:#2b2420;--mute:#6f6455;--acc:#0f7a68;--glow:#0f7a6833;color:var(--ink)}
-    .th-night .panel,.th-day .panel{background:var(--scr)}
-    .th-night .body,.th-day .body{background:var(--scr);scrollbar-color:var(--scrEdge) transparent}
-    .th-night .card,.th-day .card{background:var(--card);border:1px solid var(--line);box-shadow:inset 0 0 0 1px #ffffff08,0 1px 0 #0002}
-    .th-night .card h3,.th-day .card h3{color:var(--ink);text-transform:uppercase;font-size:14px;letter-spacing:1.2px;border-bottom:2px solid var(--line);padding-bottom:6px}
-    .th-night .card.folded h3,.th-day .card.folded h3{border-bottom:0;padding-bottom:0}
-    .th-night .row,.th-day .row{border-top:1px dashed var(--line)} .th-night .row .k,.th-day .row .k{color:var(--mute)}
-    .th-night .dim,.th-day .dim{color:var(--mute)}
-    .th-night .note,.th-day .note{background:var(--card);border:1px solid var(--line);color:var(--ink)}
-    .th-night .mon,.th-day .mon{background:var(--scr);border:1px solid var(--line);color:var(--ink)}
-    .th-night .bar,.th-day .bar{background:var(--line)} .th-night .bar i,.th-day .bar i{background:linear-gradient(90deg,var(--acc),#f6c744)}
-    .th-night .btn,.th-day .btn{background:var(--shell2);color:#fff;border:1px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff30,0 2px 0 var(--seam)}
-    .th-night .btn:hover,.th-day .btn:hover{background:var(--shell1)}
-    .th-night .btn.gold,.th-day .btn.gold{background:linear-gradient(180deg,#f5c542,#d4a017);color:#2b1d00;border-color:#9a7410;box-shadow:inset 0 1px 0 #fff8,0 2px 0 #9a7410}
-    .th-night .btn.danger,.th-day .btn.danger{background:#3a3a3a;border-color:#222}
-    .th-night input.q,.th-day input.q,.th-night select.sel,.th-day select.sel{background:var(--card);border:1px solid var(--scrEdge);color:var(--ink)}
-    .th-night label.chk,.th-day label.chk{color:var(--ink)} .th-night code,.th-day code{color:var(--acc)}
-    .th-day .ok{color:#137a3e} .th-day .warn{color:#a8650a} .th-day .bad{color:#b4232c}
-    .th-night .ok{color:#5ef0a0}
-    .th-day .hd .vtip,.th-night .hd .vtip{background:#1d0a0e}
-    .hd .fold.theme{font-size:16px}
+    .dot{width:12px;height:12px;border-radius:50%;flex:none;box-sizing:border-box;border:2px solid #ffffffb0;background:#5ad68a;box-shadow:0 0 8px #5ad68a}
+    .dot.warn{background:#ffb547;box-shadow:0 0 8px #ffb547} .dot.err{background:#ff6b6b;box-shadow:0 0 8px #ff6b6b}
+    .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px 10px;background:var(--shell-lo);border-bottom:3px solid var(--seam)}
+    .tabs button{all:unset;cursor:pointer;touch-action:none;text-align:center;padding:5px 2px;border-radius:8px;font-weight:700;font-size:13px;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
+    .tabs button:hover{background:#ffffff1f;color:#fff}
+    .tabs button.on{background:var(--bg);color:var(--ink);border-color:var(--line-2);box-shadow:0 0 8px var(--focus)}
+    .tabs button.drag{opacity:.4} .tabs button.dropto{outline:2px dashed #fff;outline-offset:1px}
+    .body{padding:12px;overflow:auto;flex:1;background:var(--bg);scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+    .goal .st{font-size:var(--t-s);margin-top:2px}
   `;
   let host, root, timer;
   const W_MIN = 340, W_MAX = 900, RAIL = 64;
@@ -2217,7 +2312,7 @@ const UI = (() => {
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:146', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:90', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -2239,12 +2334,29 @@ const UI = (() => {
   const MV = { engine: (w) => Views.engine(w, esc), fights: (w) => Views.fights(w, fightData, prefs, esc), league: () => Views.league(esc),
     dex: (w) => Views.dex(w, prefs, esc, dexUi), box: (w) => (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>'),
     legends: (w) => Views.legends(w, legUi, esc), gems: (w) => (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>'), act: () => Views.activity(esc) };
+  // ---- the phone has its own screen state: the open Pokémon, searches, filters and picks it changes
+  // don't move Mega's panel on the PC (and the other way round). Swapped in only around a phone draw
+  // or tap; the PC panel doesn't redraw while it's swapped. Shared on purpose: running simulations.
+  const PREF_KEYS = ['tab', 'q', 'foe', 'leg', 'simMode', 'asMax'], LEG_KEYS = ['pick', 'asMax', 'mode'];
+  let phoneSwap = false, PHONE = null;
+  const pickKeys = (o, ks) => Object.fromEntries(ks.map((k) => [k, o[k]]));
+  function asPhone(fn) {
+    if (!PHONE) PHONE = { dex: { dexOpen: null }, leg: { pick: legUi.pick, asMax: false, mode: 'legendary' }, prefs: pickKeys(prefs, PREF_KEYS), mirror: JSON.parse(JSON.stringify(Mirror.ui)) };
+    const pc = { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), prefs: pickKeys(prefs, PREF_KEYS), mirror: JSON.parse(JSON.stringify(Mirror.ui)) };
+    const load = (st) => { Object.assign(dexUi, st.dex); Object.assign(legUi, st.leg); Object.assign(prefs, st.prefs); for (const k of Object.keys(st.mirror)) Object.assign(Mirror.ui[k], st.mirror[k]); };
+    phoneSwap = true; load(PHONE);
+    try { return fn(); } finally {
+      PHONE = { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), prefs: pickKeys(prefs, PREF_KEYS), mirror: JSON.parse(JSON.stringify(Mirror.ui)) };
+      load(pc); phoneSwap = false; savePrefs();
+    }
+  }
   async function mvHtml(tab) {
     if (!MV[tab]) throw new Error('that screen is not on the phone');
     if (tab === 'fights' && !fightData) { try { fightData = { list: await Recorder.all(), at: Date.now() }; } catch { fightData = { list: [], at: Date.now() }; } }
     // English for the phone: Mega's own panel translates on screen (Casing.apply); this html goes as text
     // (names like "Forêt d'Empoigne" are escaped, so match them with a plain ' and escape it back)
-    return Casing.names(String(MV[tab](World.build()) ?? '').replace(/&#39;/g, "'")).replace(/'/g, '&#39;');
+    const w = World.build();
+    return Icons.swap(Casing.names(String(asPhone(() => MV[tab](w)) ?? '').replace(/&#39;/g, "'")).replace(/'/g, '&#39;'));
   }
   async function mvAct(d) {
     const data = { ...(d.data || {}) }, act = data.act;
@@ -2255,7 +2367,7 @@ const UI = (() => {
     // spending gems needs the phone's own confirmation sheet (Kinesis sends gem.rank); never a pop-up on the PC
     if (act === 'gem-rank' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch') return 'confirm on the phone';
     if (act === 'fights-reload' || (d.tab === 'fights' && /^f-?/.test(act || ''))) fightData = null;
-    if (d.kind === 'change' && changeH) changeH({ target: t }); else if (d.kind === 'input' && inputH) inputH({ target: t }); else onClick({ target: { closest: () => t }, preventDefault() {}, stopPropagation() {} });
+    asPhone(() => { if (d.kind === 'change' && changeH) changeH({ target: t }); else if (d.kind === 'input' && inputH) inputH({ target: t }); else onClick({ target: { closest: () => t }, preventDefault() {}, stopPropagation() {} }); });
     await new Promise((r) => setTimeout(r, 400));
     return 'ok';
   }
@@ -2349,8 +2461,8 @@ const UI = (() => {
     if (act === 'elite-add') { Plan.add('elite', { foe: +t.dataset.id, upTo: 5 }); renderBody(true); }
     if (act === 'league-add') { Plan.add('league', { reg: t.dataset.reg, upTo: 5 }); renderBody(true); }
     if (act === 'plan-add-wboss') { Plan.add('wboss', {}); renderBody(true); }
-    if (act === 'sim-mode') { legUi.mode = t.dataset.mode || 'legendary'; prefs.simMode = legUi.mode; savePrefs(); renderBody(true); root.querySelector('.body')?.scrollTo?.(0, 0); }
-    if (act === 'tr-pick') { Trades.pick = { id: +t.dataset.id, shiny: !!t.dataset.shiny }; Trades.openMsg = ''; renderBody(true); root.querySelector('.body')?.scrollTo?.(0, 0); }
+    if (act === 'sim-mode') { legUi.mode = t.dataset.mode || 'legendary'; prefs.simMode = legUi.mode; savePrefs(); renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
+    if (act === 'tr-pick') { Trades.pick = { id: +t.dataset.id, shiny: !!t.dataset.shiny }; Trades.openMsg = ''; renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'tr-back') { Trades.pick = null; Trades.openMsg = ''; renderBody(true); }
     if (act === 'tr-shiny') { Trades.setShiny(t.checked); setTimeout(() => renderBody(true), 50); }
     const id = legUi.pick;
@@ -2363,10 +2475,10 @@ const UI = (() => {
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:292', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:253', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
-    if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root.querySelector('.body')?.scrollTo?.(0, 0); }
+    if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'dexback') { dexUi.dexOpen = null; renderBody(true); }
     if (act === 'plan-add-item') { Plan.add('loot', { item: t.dataset.item, ch: +t.dataset.ch, place: t.dataset.place, need: +t.dataset.need || 1 }); renderBody(true); }
     if (act === 'dex-add-wild') { Plan.add('wild', { foe: +t.dataset.id, ch: +t.dataset.ch }); DexView.clear(); renderBody(true); }
@@ -2384,9 +2496,9 @@ const UI = (() => {
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:313', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:274', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
-    if (act === 'plan-add-money') { const sel = root.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
+    if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-tower') { Plan.add('tower', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-candy') { Plan.add('candy', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -2407,14 +2519,14 @@ const UI = (() => {
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:336', __e); } setTimeout(() => renderBody(true), 300); return; }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:337', __e); } return; }
+    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:297', __e); } setTimeout(() => renderBody(true), 300); return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:298', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:340', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:301', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:343', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:304', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -2436,8 +2548,9 @@ const UI = (() => {
   const THEMES = ['auto', 'day', 'night'];
   const themeNow = () => { const t = prefs.theme || 'auto'; if (t !== 'auto') return t; const h = new Date().getHours(); return h >= 7 && h < 19 ? 'day' : 'night'; };
   function render() {
+    if (phoneSwap) return; // drawing for the phone right now: the PC panel keeps its own state
     const w = World.build();
-    const wrap = root.querySelector('.wrap');
+    const wrap = root?.querySelector('.wrap');
     wrap.classList.remove('th-day', 'th-night'); wrap.classList.add('th-' + themeNow());
     const [cls, tip] = health(w);
     layout();
@@ -2449,30 +2562,31 @@ const UI = (() => {
         <button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
       <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}</button>`).join('')}</div>
       <div class="body"></div></div>`;
-    const grip = root.querySelector('.grip'), panel = root.querySelector('.panel');
+    const grip = root?.querySelector('.grip'), panel = root?.querySelector('.panel');
     grip.onpointerdown = (e) => {
       e.preventDefault(); grip.setPointerCapture(e.pointerId);
       const move = (ev) => { prefs.width = Math.max(W_MIN, Math.min(W_MAX, ev.clientX)); panel.style.width = Math.round(prefs.width / scale()) + 'px'; layout(); };
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:385', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:386', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:347', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:348', __e); }
     renderBody(true, w);
   }
 
   function renderBody(force, w = World.build()) {
-    const body = root.querySelector('.body');
+    if (phoneSwap) return;
+    const body = root?.querySelector('.body');
     if (!body) return;
     // keep the search box focused while typing
     const focused = root.activeElement && root.activeElement.matches('input.q, select.sel');
     if (focused && !force) return;
     const html = prefs.tab === 'act' ? Views.activity(esc) : prefs.tab === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'team' ? Views.teamEdit(esc) : prefs.tab === 'plan' ? Views.plan(w, planUi, esc) : prefs.tab === 'legends' ? Views.legends(w, legUi, esc) : prefs.tab === 'dex' ? Views.dex(w, prefs, esc, dexUi) : prefs.tab === 'engine' ? Views.engine(w, esc) : prefs.tab === 'fights' ? Views.fights(w, fightData, prefs, esc) : prefs.tab === 'trades' ? Views.trades(esc) : prefs.tab === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
     if (body.dataset.html === html) return;
-    body.innerHTML = html; body.dataset.html = html;
+    body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:400', __e); }
-    if (focused) { const q = root.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:363', __e); }
+    if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
   // self-test: draw every tab's screen (no DOM) and report the ones that throw
@@ -2486,11 +2600,11 @@ const UI = (() => {
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:415', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:416', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:378', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:379', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, refresh: () => { try { render(); } catch (__e) { __h('60-ui:419', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:382', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -2712,9 +2826,9 @@ const Trades = (() => {
       for (const t of document.querySelectorAll('.mega-pick')) { t.classList.remove('mega-pick'); t.querySelector('.mega-pick-tag')?.remove(); }
       if (!document.getElementById('mega-pick-css')) {
         const c = document.createElement('style'); c.id = 'mega-pick-css';
-        c.textContent = `.mega-pick{outline:4px solid #ffd45e !important;outline-offset:2px;box-shadow:0 0 0 8px #ffd45e55,0 0 24px #ffd45e !important;animation:megaPick 1.2s ease-in-out 6}
-          @keyframes megaPick{50%{box-shadow:0 0 0 14px #ffd45e22,0 0 34px #ffd45e}}
-          .mega-pick-tag{position:absolute;left:50%;top:-12px;transform:translateX(-50%);z-index:5;background:#ffd45e;color:#1a1405;font:800 12px/1 Inter,system-ui,sans-serif;padding:4px 10px;border-radius:99px;white-space:nowrap;pointer-events:none}`;
+        c.textContent = `.mega-pick{outline:4px solid var(--gold) !important;outline-offset:2px;box-shadow:0 0 0 8px color-mix(in srgb,var(--gold) 33%,transparent),0 0 24px var(--gold) !important;animation:megaPick 1.2s ease-in-out 6}
+          @keyframes megaPick{50%{box-shadow:0 0 0 14px color-mix(in srgb,var(--gold) 13%,transparent),0 0 34px var(--gold)}}
+          .mega-pick-tag{position:absolute;left:50%;top:-12px;transform:translateX(-50%);z-index:5;background:var(--gold);color:var(--on-gold);font:800 12px/1 Inter,system-ui,sans-serif;padding:4px 10px;border-radius:99px;white-space:nowrap;pointer-events:none}`;
         document.head.appendChild(c);
       }
       if (!tile) { mine()[0]?.scrollIntoView({ block: 'center' }); return who ? `opened ${name(id)} - that offer is gone, here are the others` : `opened ${name(id)}`; }
@@ -2873,7 +2987,7 @@ const Trades = (() => {
 })();
 
 Views.trades = (esc) => {
-  const d = Trades.data, nm = (id) => esc(Trades.name(id)), sp = (id) => `<img src="${Engine.sprite(id)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:12px;flex:none">`;
+  const d = Trades.data, nm = (id) => esc(Trades.name(id)), sp = (id) => `<img src="${Engine.sprite(id)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well);border-radius:12px;flex:none">`;
   const ago = (t) => { const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
   let o = `<div class="card"><h3>Trade Board</h3>
     <div class="dim">Pokémon you don't own on the board. Tap one for its offers.</div>
@@ -2897,7 +3011,7 @@ Views.trades = (esc) => {
   const open = Trades.pick && T.find((t) => t.id === Trades.pick.id && t.shiny === Trades.pick.shiny);
   if (!open) {
     const TAG = { spare: ['ok', '✓ spare'], last: ['warn', 'your last'], busy: ['warn', 'in use'], none: ['dim', 'need it'] };
-    if (T.length) o += `<div class="grid">${T.map((t) => { const [cls, txt] = TAG[t.best] || TAG.none; return `<div class="mon" data-act="tr-pick" data-id="${t.id}" data-shiny="${t.shiny ? 1 : ''}" style="cursor:pointer;${t.best === 'spare' ? 'border-color:#2f8f5b' : ''}">
+    if (T.length) o += `<div class="grid">${T.map((t) => { const [cls, txt] = TAG[t.best] || TAG.none; return `<div class="mon" data-act="tr-pick" data-id="${t.id}" data-shiny="${t.shiny ? 1 : ''}" style="cursor:pointer;${t.best === 'spare' ? 'border-color:var(--ok)' : ''}">
       <img src="${Engine.sprite(t.id)}" loading="lazy">${t.shiny ? '✨' : ''}${nm(t.id)}
       <div style="font-size:12px">${(t.list || []).length} offer${(t.list || []).length === 1 ? '' : 's'}</div>
       <div style="font-size:12px"><span class="${t.can ? 'ok' : 'dim'}">${t.can} can do</span> · <span class="dim">${(t.list || []).length - t.can} can't</span></div>
@@ -2917,7 +3031,7 @@ Views.trades = (esc) => {
     <button class="btn" data-act="tr-open" data-id="${t.id}" data-shiny="${t.shiny ? 1 : ''}">Open All in Game</button>
     <button class="btn" data-act="dexinfo" data-id="${t.newGet ? t.id : t.to}">Pokédex Page</button></div>`;
   for (const x of t.list || []) {
-    o += `<div class="card" style="${x.j.kind === 'spare' ? 'border-color:#2f8f5b' : ''}">
+    o += `<div class="card" style="${x.j.kind === 'spare' ? 'border-color:var(--ok)' : ''}">
       <div><b>${esc(x.who)}</b> wants <b>${x.want ? nm(x.want) : 'any shiny of the same rarity'}</b></div>
       <div class="dim">Theirs is Lv ${x.lv ?? '?'}${x.egg ? ' (from an egg)' : ''} · ends ${DexInfo.clock(x.until)}${x.fee ? ` · ₽${x.fee.toLocaleString()} to accept` : ''}</div>
       <div style="margin-top:4px">${BADGE[x.j.kind](x.j)}</div>
@@ -2942,7 +3056,7 @@ Views.now = (w, esc, fmtIn) => {
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const bar = (p) => `<div class="bar" style="margin-top:8px"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
   const icon = (g) => ({ under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
-  const pic = (g, size = 52) => { const sp = GoalTypes[g.type]?.sprite?.(g); return sp ? `<img src="${E.sprite(sp)}" width="${size}" height="${size}" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px">` : `<span style="width:${size}px;text-align:center;font-size:${Math.round(size * 0.55)}px;flex:none">${icon(g)}</span>`; };
+  const pic = (g, size = 52) => { const sp = GoalTypes[g.type]?.sprite?.(g); return sp ? `<img src="${E.sprite(sp)}" width="${size}" height="${size}" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : `<span style="width:${size}px;text-align:center;font-size:${Math.round(size * 0.55)}px;flex:none">${icon(g)}</span>`; };
   // progress: the goal's own numbers if it has them, else "x/y" read from its status line
   const prog = (g, L) => {
     const pc = (Views.__nowProg ||= new Map()), c = pc.get(g.id);
@@ -2970,12 +3084,12 @@ Views.now = (w, esc, fmtIn) => {
   try { const pend = E.get('LegendZones')?.leaguePending?.() || []; if (pend.length) problems.push(`Pick your Legendary gem in the game: Elite League ${pend.map((p) => `${esc(p.reg)} tier ${p.tier}`).join(', ')}.`); } catch (__e) { __h('62-nowview:41', __e); }
   for (const f of Guard.failures()) problems.push(`Safety check: ${esc(f.label)} looks wrong (${esc(f.why)}) - goals that use it are paused until it looks right. Probably a game update.`);
   const miss = E.audit().missing || []; if (miss.length) problems.push(`${miss.length} game functions are missing after a game update - some goals may not work.`);
-  h += `<div class="card" style="border-color:${Plan.running ? '#2f8f5b' : '#8a6d1f'}">
+  h += `<div class="card" style="border-color:${Plan.running ? 'var(--ok)' : 'var(--gold-lo)'}">
     <div style="display:flex;align-items:center;gap:10px"><span style="font-size:26px">${Plan.running ? '🟢' : '⏸️'}</span>
     <div style="flex:1"><div style="font-size:18px;font-weight:800">${Plan.running ? 'Plan running' : 'Plan paused'}</div>
     <div class="dim">${open.length} goal${open.length === 1 ? '' : 's'} left · updated ${at(Date.now())}</div></div></div>
     ${Plan.running ? '' : `<button class="btn gold" data-act="plan-run">▶ Start Plan</button>`}</div>`;
-  if (problems.length) h += `<div class="card" style="border-color:#c0392b"><h3>⚠️ Needs You</h3>${problems.map((p) => `<div class="warn" style="margin:4px 0">${p}</div>`).join('')}</div>`;
+  if (problems.length) h += `<div class="card" style="border-color:var(--bad)"><h3>⚠️ Needs You</h3>${problems.map((p) => `<div class="warn" style="margin:4px 0">${p}</div>`).join('')}</div>`;
 
   // ---- 2. today: what it's working on + the dailies ----
   // ---- 2. working on now: the screen goal + where the game is ----
@@ -3000,7 +3114,7 @@ Views.now = (w, esc, fmtIn) => {
   } else if (Plan.running && Plan.idle) {
     const I = Plan.idle, g = I.goal, lead = g?.uids?.[0] ? E.read('Game.getMon', null, g.uids[0]) : null;
     h += `<div class="card"><h3>Today</h3><div class="dim" style="font-size:13px;font-weight:700;letter-spacing:.04em">WORKING ON NOW · IDLE</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">
-      ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
+      ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
       <div style="flex:1;min-width:0"><div style="font-size:17px;font-weight:800">${g ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</div>
       ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${m.rank ? ' ★' + m.rank : ''}${m.shiny ? ' ✨' : ''} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
       ${I.line ? `<div class="dim" style="margin-top:8px">${esc(I.line)}</div>` : ''}
@@ -3012,7 +3126,7 @@ Views.now = (w, esc, fmtIn) => {
 
   // ---- 6. today: dailies ----
   const d = w.dailies, ug = d.underground, wb = d.worldBoss;
-  h += `<div style="border-top:1px solid #2b2450;margin-top:12px;padding-top:6px"></div>`;
+  h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:6px"></div>`;
   if (ug) h += row('Underground', `${ug.left} of ${ug.perDay} left · ${ug.running}/${ug.slotsMax} bays busy${ug.finished ? ` · <span class="warn">${ug.finished} ready to collect</span>` : ug.nextBack ? ` · back in ${fmtIn(ug.nextBack)}` : ''}`);
   if (d.candy) {
     // like the raid: the day's type is only fetched when the game's Candy Factory screen opens, and until
@@ -3070,7 +3184,7 @@ Views.now = (w, esc, fmtIn) => {
       h += `<div class="card"><h3>🥚 Day Care</h3><div class="dim">Incubator ${dc.used} of ${dc.max || '?'}${dc.full ? ' · full - hatch one to make room' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : dc.mons.length ? ' · no egg coming (these can\'t breed)' : ''}</div>`;
       for (const e of dc.eggs) {
         const pct = e.ready ? 1 : 1 - e.left / Math.max(1, e.hatchAt - e.laidAt);
-        h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img src="${E.sprite(e.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none;background:var(--well,#16122b);border-radius:12px;${e.ready ? '' : 'filter:grayscale(1);opacity:.5'}"><div style="flex:1;min-width:0"><b>${nm(e.id)}</b>${e.shinyParent ? ' <span title="shiny parent - better shiny odds">✨</span>' : ''}
+        h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img src="${E.sprite(e.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px;${e.ready ? '' : 'filter:grayscale(1);opacity:.5'}"><div style="flex:1;min-width:0"><b>${nm(e.id)}</b>${e.shinyParent ? ' <span title="shiny parent - better shiny odds">✨</span>' : ''}
           <div class="${e.ready ? 'ok' : 'dim'}">${e.ready ? '● ready to hatch' : `${DayCare.left(e.left)} left · hatches ${at2(e.hatchAt)}`}</div>${e.ready ? '' : bar(pct)}</div>${e.ready ? `<button class="btn sm gold" style="width:auto;padding:10px 14px;margin:0" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">🐣 Hatch</button>` : ''}</div>`;
       }
       if (dc.eggs.filter((e) => e.ready).length > 1) h += `<button class="btn gold" data-act="m-egg-hatch" data-uid="">🐣 Hatch All Ready (${dc.eggs.filter((e) => e.ready).length})</button>`;
@@ -3230,9 +3344,9 @@ const EliteInfo = (() => {
     if (!modal) return 'the Pokémon card did not open';
     if (!document.getElementById('mega-pick-css')) {
       const c = document.createElement('style'); c.id = 'mega-pick-css';
-      c.textContent = `.mega-pick{outline:4px solid #ffd45e !important;outline-offset:2px;box-shadow:0 0 0 8px #ffd45e55,0 0 24px #ffd45e !important;animation:megaPick 1.2s ease-in-out 6}
-        @keyframes megaPick{50%{box-shadow:0 0 0 14px #ffd45e22,0 0 34px #ffd45e}}
-        .mega-pick-tag{position:absolute;left:50%;top:-12px;transform:translateX(-50%);z-index:5;background:#ffd45e;color:#1a1405;font:800 12px/1 Inter,system-ui,sans-serif;padding:4px 10px;border-radius:99px;white-space:nowrap;pointer-events:none}`;
+      c.textContent = `.mega-pick{outline:4px solid var(--gold) !important;outline-offset:2px;box-shadow:0 0 0 8px color-mix(in srgb,var(--gold) 33%,transparent),0 0 24px var(--gold) !important;animation:megaPick 1.2s ease-in-out 6}
+        @keyframes megaPick{50%{box-shadow:0 0 0 14px color-mix(in srgb,var(--gold) 13%,transparent),0 0 34px var(--gold)}}
+        .mega-pick-tag{position:absolute;left:50%;top:-12px;transform:translateX(-50%);z-index:5;background:var(--gold);color:var(--on-gold);font:800 12px/1 Inter,system-ui,sans-serif;padding:4px 10px;border-radius:99px;white-space:nowrap;pointer-events:none}`;
       document.head.appendChild(c);
     }
     const btn = modal.querySelector('.rk-btn');
@@ -3258,9 +3372,9 @@ Views.elite = (esc) => {
     <div class="dim" style="margin-top:6px">You must knock it out - no catching. Tiers unlock one after another and get harder: more HP and power, your status moves land less often, and its poison / burn hits harder. Tiers 1, 2 and 4 give a Legendary gem of its type (to rank up your legendaries of that type), 3 and 5 a frame. A loss locks that legendary's elite fights for ${d.freezeMin} min.</div>
     <div class="note dim" style="margin-top:8px">Simulate a tier to see the best team, then "Add: Beat Its Tiers" - Mega fights tier after tier (the game retries a lost fight by itself), simulating each new tier first, and tells you on your phone when one falls.</div></div>`;
   for (const r of d.rows) {
-    const pips = d.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? '#5ad68a' : t === r.next ? '#ffd45e' : '#2e2752'}"></span>`).join('');
+    const pips = d.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? 'var(--ok)' : t === r.next ? 'var(--gold)' : 'var(--line)'}"></span>`).join('');
     h += `<div class="card"><div style="display:flex;gap:12px;align-items:center">
-      <img src="${Engine.sprite(r.foe)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:12px;flex:none">
+      <img src="${Engine.sprite(r.foe)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well);border-radius:12px;flex:none">
       <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:800">${nm(r.foe)}${r.foe !== r.id ? ` <span class="dim" style="font-size:13px">(this week's form)</span>` : ''}</div>
       <div style="margin:4px 0">${pips} <span class="dim">${r.best}/${d.tiers.length}</span></div>
       ${r.next ? `<div>Next: <b>Tier ${r.next}</b> → ${r.reward === 'gem' ? `<span class="ok">${esc(EliteInfo.gemLabel(r.gem))} gem</span>` : 'a frame'}${r.open && r.can ? '' : ` <span class="warn">· ${r.open ? 'locked for now (recent loss)' : 'zone closed now'}</span>`}</div>` : '<div class="ok">All tiers beaten ✔</div>'}
@@ -3286,7 +3400,7 @@ Views.gems = (esc) => {
   if (!g.rows.length) return h + `<div class="note">No gems yet. They come from the Underground and from elite legendary tiers 1, 2 and 4.</div>`;
   const role = (c) => (c.use >= 2 ? 'your team' : c.use ? 'a legend team' : '');
   if (g.top.length) {
-    h += `<div class="card" style="border-color:#2f8f5b"><h3>Strongest Get Stronger</h3><div class="dim" style="margin-bottom:4px">Ready to rank up today: highest base stats first, then the biggest stat gain. Ranking up sends it back to Lv 5</div>`;
+    h += `<div class="card" style="border-color:var(--ok)"><h3>Strongest Get Stronger</h3><div class="dim" style="margin-bottom:4px">Ready to rank up today: highest base stats first, then the biggest stat gain. Ranking up sends it back to Lv 5</div>`;
     g.top.forEach((c, i) => {
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b>
         <img src="${Engine.sprite(c.m.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none">
@@ -3420,7 +3534,7 @@ Views.league = (esc) => {
       <div class="dim" style="margin-top:6px">Each region's Elite Four + Champion again, in tiers 1-5, one after another. Tiers 3 and 5 give a frame; the others let you <b>pick a Legendary gem</b> from that League's types (to rank up your legendaries).</div>
       <div class="note dim" style="margin-top:8px">Every trainer Pokémon is ranked as high as the tier. "Add: Win Its Tiers" fights tier after tier with your strongest six (the game retries a lost fight by itself), reminds you on your phone to pick each gem, and steps back if a tier is lost 10 times. No win odds here: the game's quick estimator says 0% even for the Champion you've already beaten, so Mega goes by real results.</div></div>`;
     for (const r of L) {
-      const pips = r.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? '#5ad68a' : t === r.next ? '#ffd45e' : '#2e2752'}"></span>`).join('');
+      const pips = r.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? 'var(--ok)' : t === r.next ? 'var(--gold)' : 'var(--line)'}"></span>`).join('');
       h += `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">${esc(r.name)} League</b><span>${pips} <span class="dim">${r.best}/5</span></span></div>
         ${r.pending.length ? `<div class="warn" style="margin-top:6px">⚠ Tier ${r.pending.join(', ')} won - pick your gem in the game!</div>` : ''}
         ${r.next ? `<div style="margin-top:6px">Next: <b>Tier ${r.next}</b> → ${r.frame ? 'a frame' : `<span class="ok">a Legendary gem</span> of your choice: ${r.types.map((t) => esc(LeagueInfo.cap(t))).join(', ')}`}</div>` : '<div class="ok" style="margin-top:6px">All tiers won ✔</div>'}
@@ -3685,11 +3799,11 @@ const Mirror = (() => {
     tm: { draft: null, slot: 0, q: '', add: null },
   };
   const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-  const sp = (id, n = 52, dark = false) => `<img src="${E.sprite(id)}" width="${n}" height="${n}" style="image-rendering:pixelated;background:var(--well,#16122b);border-radius:12px;flex:none;${dark ? 'filter:brightness(0);opacity:.45' : ''}">`;
+  const sp = (id, n = 52, dark = false) => `<img src="${E.sprite(id)}" width="${n}" height="${n}" style="image-rendering:pixelated;background:var(--well);border-radius:12px;flex:none;${dark ? 'filter:brightness(0);opacity:.45' : ''}">`;
   const hm = (ms) => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `${Math.round(m / 1440)} days`; };
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const cap1 = (w) => String(w || '').charAt(0).toUpperCase() + String(w || '').slice(1);
-  const chips = (list, cur, act) => `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">${list.map(([k, l]) => `<button class="btn sm" style="width:auto;padding:8px 12px;${cur === k ? 'background:linear-gradient(90deg,#5b3fd6,#7a5cff)' : ''}" data-act="${act}" data-v="${k}">${l}</button>`).join('')}</div>`;
+  const chips = (list, cur, act) => `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">${list.map(([k, l]) => `<button class="btn sm" style="width:auto;padding:8px 12px;${cur === k ? 'background:linear-gradient(90deg,var(--acc),var(--acc))' : ''}" data-act="${act}" data-v="${k}">${l}</button>`).join('')}</div>`;
 
   // ---- "since you last looked": the moment the game tab was hidden or Mega's panel was closed ----
   const AWAY = 'mega-away-at';
@@ -3707,7 +3821,7 @@ const Mirror = (() => {
     const ch = pts[pts.length - 1][1] - pts[0][1], hrs = (t1 - t0) / 3.6e6, rate = hrs > 0.3 ? ch / hrs : null, f = opt.fmt || ((v) => Math.round(v).toLocaleString());
     const eta = opt.need && rate > 0 && pts[pts.length - 1][1] < opt.need ? ` · done in about ${hm((opt.need - pts[pts.length - 1][1]) / rate * 3.6e6)}` : '';
     return `<div class="card"><h3>${esc(title)}</h3><div style="display:flex;justify-content:space-between"><b style="font-size:19px">${f(pts[pts.length - 1][1])}${opt.need ? ` <span class="dim" style="font-size:14px">of ${f(opt.need)}</span>` : ''}</b><span class="${ch > 0 ? 'ok' : ch < 0 ? 'warn' : 'dim'}">${ch > 0 ? '+' : ''}${f(ch)}</span></div>
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:var(--well,#16122b);border-radius:12px">${opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="#c79a2b" stroke-dasharray="4 4"/>` : ''}<path d="${d}" fill="none" stroke="#9c86ff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:var(--well);border-radius:12px">${opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="var(--gold-lo)" stroke-dasharray="4 4"/>` : ''}<path d="${d}" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round"/></svg>
       ${rate != null && ch ? `<div class="dim">${rate >= 0 ? '+' : ''}${Math.abs(rate) < 10 && !opt.fmt ? rate.toFixed(1).replace(/\.0$/, '') : f(rate)} per hour${eta}</div>` : ''}</div>`;
   }
   // ---- Activity tab ----
@@ -3723,7 +3837,7 @@ const Mirror = (() => {
         for (const [id, v] of Object.entries(b[6] || {})) { const was = a[6]?.[id], nm = H0.names?.[id]; if (was != null && v !== was && nm) deltas.push(`<b class="ok">${v > was ? '+' : ''}${(v - was).toLocaleString()}</b> ${esc(nm[0])}`); }
       }
       const key = lines.filter((l) => l.at > since && /caught|won|done|shiny|hatched|started|reached|badge|finished|raid|traded|posted/i.test(l.text)).slice(-8).reverse();
-      h += `<div class="card" style="border-color:#5b3fd6"><h3>Since You Last Looked · ${hm(Date.now() - since)}</h3>${deltas.length ? `<div style="line-height:1.9">${deltas.join('<br>')}</div>` : '<div class="dim">No changes in the numbers.</div>'}
+      h += `<div class="card" style="border-color:var(--acc)"><h3>Since You Last Looked · ${hm(Date.now() - since)}</h3>${deltas.length ? `<div style="line-height:1.9">${deltas.join('<br>')}</div>` : '<div class="dim">No changes in the numbers.</div>'}
         ${key.length ? `<div class="dim" style="margin-top:8px;font-weight:700">HIGHLIGHTS</div>${key.map((l) => `<div style="margin:3px 0"><span class="dim">${at(l.at)}</span> ${esc(Casing.names(l.text))}</div>`).join('')}` : ''}
         <button class="btn sm" style="margin-top:8px" data-act="m-away-ok">Got It</button></div>`;
     }
@@ -3761,7 +3875,7 @@ const Mirror = (() => {
       ${chips([['all', 'All'], ['shiny', '✨ Shiny'], ['l100', 'Lv 100'], ['under100', 'Under 100'], ['ranked', '★ Ranked'], ['busy', 'Team / Away']], B.f, 'm-box-f')}
       <div style="display:flex;gap:8px"><select class="sel" data-msel="sort">${[['level', 'Sort: Level'], ['newest', 'Sort: Newest'], ['rank', 'Sort: Rank'], ['name', 'Sort: Name'], ['dex', 'Sort: Pokédex No.']].map(([k, l]) => `<option value="${k}" ${B.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <select class="sel" data-msel="type"><option value="">All types</option>${TYPES.map((t) => `<option value="${t}" ${B.type === t ? 'selected' : ''}>${cap1(t)}</option>`).join('')}</select></div>
-      <div class="grid">${list.slice(0, B.show).map(({ m, where, buddy }) => `<div class="mon" data-act="m-box-open" data-uid="${esc(m.uid)}" style="cursor:pointer;position:relative;${B.sel === m.uid ? 'border-color:#9c86ff;box-shadow:0 0 0 2px #9c86ff55' : ''}">${ic[where] ? `<span style="position:absolute;top:3px;right:5px;font-size:12px">${ic[where]}</span>` : ''}<img src="${E.sprite(m.id)}" loading="lazy">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${m.rank ? ' ★' + m.rank : ''}${m.shiny ? ' ✨' : ''}${buddy ? ' 💛' : ''}</div></div>`).join('') || '<div class="dim">Nothing matches.</div>'}</div>
+      <div class="grid">${list.slice(0, B.show).map(({ m, where, buddy }) => `<div class="mon" data-act="m-box-open" data-uid="${esc(m.uid)}" style="cursor:pointer;position:relative;${B.sel === m.uid ? 'border-color:var(--acc);box-shadow:0 0 0 2px var(--focus)' : ''}">${ic[where] ? `<span style="position:absolute;top:3px;right:5px;font-size:12px">${ic[where]}</span>` : ''}<img src="${E.sprite(m.id)}" loading="lazy">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${m.rank ? ' ★' + m.rank : ''}${m.shiny ? ' ✨' : ''}${buddy ? ' 💛' : ''}</div></div>`).join('') || '<div class="dim">Nothing matches.</div>'}</div>
       ${list.length > B.show ? `<button class="btn" data-act="m-box-more">Show More (${list.length - B.show})</button>` : ''}</div>`;
     return h;
   }
@@ -3776,7 +3890,7 @@ const Mirror = (() => {
     const stats = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].map((k) => Math.round(+st[k] || 0)), mx = Math.max(...stats, 1), names = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'];
     const lvGoal = Plan.goals.some((g) => !g.done && g.type === 'level' && (g.uids || []).includes(uid));
     const team = (S0.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-    return `<div class="card" style="border-color:#7a5cff"><div style="display:flex;gap:12px;align-items:center">${sp(m.id, 72)}<div style="flex:1"><div style="font-size:19px;font-weight:800">${esc(d.name || '#' + m.id)}${m.shiny ? ' ✨' : ''}${S0.buddy?.uid === uid ? ' 💛' : ''}</div><div class="dim">${esc(d.genus || '')}</div><div>${(d.types || []).map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-act="m-box-close">✕</button></div>
+    return `<div class="card" style="border-color:var(--acc)"><div style="display:flex;gap:12px;align-items:center">${sp(m.id, 72)}<div style="flex:1"><div style="font-size:19px;font-weight:800">${esc(d.name || '#' + m.id)}${m.shiny ? ' ✨' : ''}${S0.buddy?.uid === uid ? ' 💛' : ''}</div><div class="dim">${esc(d.genus || '')}</div><div>${(d.types || []).map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-act="m-box-close">✕</button></div>
       ${row('Level', `${m.level}${cap > m.level ? ` <span class="dim">(cap ${cap})</span>` : ''}`)}${m.rank ? row('Rank', '★' + m.rank) : ''}${row('Where', where)}
       ${m.where ? row('Caught', `${esc(Casing.names(m.where))}${m.caughtAt ? ` <span class="dim">· ${new Date(m.caughtAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}`) : ''}${m.ot ? row('From', esc(m.ot)) : ''}
       <div class="dim" style="margin-top:8px;font-weight:700">STATS</div>
@@ -3807,7 +3921,7 @@ const Mirror = (() => {
     const hunts = new Set(Plan.goals.filter((g) => !g.done && ['shinyWild', 'shinyBreed'].includes(g.type)).map((g) => +(g.target || g.foe)));
     const ids = DexInfo.regionIds(R.key), reg = (id) => World.dex.registered(id);
     const list = ids.filter((id) => ui.dex.f === 'all' || (ui.dex.f === 'missing' && !reg(id)) || (ui.dex.f === 'noshiny' && !shiny.has(+id)) || (ui.dex.f === 'shiny' && shiny.has(+id)) || (ui.dex.f === 'hunt' && hunts.has(+id)));
-    return `<div class="card"><div style="display:flex;flex-wrap:wrap;gap:6px">${regs.map((r) => { const l = DexInfo.regionIds(r.key); return `<button class="btn sm" style="width:auto;padding:8px 12px;${r.key === R.key ? 'background:linear-gradient(90deg,#5b3fd6,#7a5cff)' : ''}" data-act="m-dex-reg" data-v="${r.key}">${esc(r.name)} ${l.filter(reg).length}/${l.length}</button>`; }).join('')}</div>
+    return `<div class="card"><div style="display:flex;flex-wrap:wrap;gap:6px">${regs.map((r) => { const l = DexInfo.regionIds(r.key); return `<button class="btn sm" style="width:auto;padding:8px 12px;${r.key === R.key ? 'background:linear-gradient(90deg,var(--acc),var(--acc))' : ''}" data-act="m-dex-reg" data-v="${r.key}">${esc(r.name)} ${l.filter(reg).length}/${l.length}</button>`; }).join('')}</div>
       <div class="dim" style="margin-top:8px">${esc(R.name)}: ${ids.filter(reg).length} of ${ids.length} registered · ✨ ${ids.filter((id) => shiny.has(+id)).length} shiny</div>
       ${chips([['all', 'All'], ['missing', 'Missing'], ['noshiny', 'No Shiny Yet'], ['shiny', '✨ Have Shiny'], ['hunt', '🎯 Hunting']], ui.dex.f, 'm-dex-f')}
       <div class="grid">${list.slice(0, ui.dex.show).map((id) => `<div class="mon" data-act="dexinfo" data-id="${id}" style="cursor:pointer;position:relative">${shiny.has(+id) ? '<span style="position:absolute;top:3px;right:5px">✨</span>' : hunts.has(+id) ? '<span style="position:absolute;top:3px;right:5px">🎯</span>' : ''}<img src="${E.sprite(id)}" loading="lazy" style="${reg(id) ? '' : 'filter:brightness(0);opacity:.45'}"><span class="${reg(id) ? '' : 'dim'}">${esc(nmRaw(id))}</span><div class="dim">#${id % 10000}</div></div>`).join('') || '<div class="dim">Nothing here.</div>'}</div>
@@ -3859,7 +3973,7 @@ const Mirror = (() => {
     const cell = (m, big) => `<img src="${E.sprite(m.id)}" style="width:${big ? 48 : 40}px;height:${big ? 48 : 40}px">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${m.rank ? ' ★' + m.rank : ''}${m.shiny ? ' ✨' : ''}</div>`;
     const busy = Plan.goals.filter((g) => !g.done && Plan.live(g.id)?.state === 'running' && GoalTypes[g.type]?.uses === 'screen').map((g) => Plan.label(g));
     let h = `<div class="card"><h3>Change Team</h3><div class="dim">Click a slot, then a Pokémon below. Pokémon in the Underground aren't listed.</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const m = T.draft[i] && mon(T.draft[i]); return `<div class="mon" data-act="m-tm-slot" data-v="${i}" style="cursor:pointer;min-height:80px;${T.slot === i ? 'border:2px solid #9c86ff' : ''}">${m ? cell(m, true) + `<div class="dim" data-act="m-tm-drop" data-v="${i}" style="cursor:pointer">✕ remove</div>` : '<div class="dim" style="padding-top:24px">empty</div>'}</div>`; }).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const m = T.draft[i] && mon(T.draft[i]); return `<div class="mon" data-act="m-tm-slot" data-v="${i}" style="cursor:pointer;min-height:80px;${T.slot === i ? 'border:2px solid var(--acc)' : ''}">${m ? cell(m, true) + `<div class="dim" data-act="m-tm-drop" data-v="${i}" style="cursor:pointer">✕ remove</div>` : '<div class="dim" style="padding-top:24px">empty</div>'}</div>`; }).join('')}</div>
       ${busy.length ? `<div class="warn" style="margin-top:8px">Mega is running ${esc(busy.join(', '))} - it may use its own team for that and put yours back after.</div>` : ''}
       <button class="btn gold" data-act="m-tm-save" ${T.draft.filter(Boolean).length ? '' : 'disabled'}>Save Team</button><button class="btn" data-act="m-tm-cancel">Cancel</button></div>`;
     const q = T.q.trim().toLowerCase();
