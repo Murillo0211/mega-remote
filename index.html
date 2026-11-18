@@ -347,7 +347,7 @@ async function onPart(text) {
     try {
       const s = await open(p.join(''));
       if (s.k === 'tick') { mergeTick(s); return; }
-      if (!snap || s.at >= snap.at) { const live = snap?.live; snap = s; if (live && live.at > s.at) snap.live = live; store.set('mr-snap', s); onSnap(); }
+      if (!snap || s.at >= snap.at) { const live = snap?.live; snap = s; if (live && Date.now() - live.at < 15000) snap.live = live; /* keep the battle: full updates do not carry it */ store.set('mr-snap', s); onSnap(); }
     } catch {}
   }
 }
@@ -395,6 +395,9 @@ const watch = new Map();
 let lastPaint = 0;
 function mergeTick(t) {
   if (!snap || t.at < (snap.live?.at || 0)) return;
+  const was = snap.live;
+  if (!t.foes?.length && was?.foes?.length && t.at - (was.foesAt || was.at) < 2500 && String(t.node) === String(was.node)) { t.foes = was.foes; t.opp = t.opp || was.opp; t.foesAt = was.foesAt || was.at; }
+  else if (t.foes?.length) t.foesAt = t.at;
   snap.live = t; snap.top = t.top; snap.money = t.money; Object.assign(snap.nm || (snap.nm = {}), t.nm || {});
   for (const [id, line, pr] of t.goals || []) { const g = snap.goals.find((x) => x.id === id); if (g) { g.n = line; if (pr) g.p = pr; if (g.s !== 'paused') g.s = 'running'; } }
   if (t.idle != null && snap.idle) snap.idle.l = t.idle;
@@ -573,7 +576,7 @@ function vNow() {
   const L = s.live && Date.now() - s.live.at < 15000 ? s.live : null;
   if (s.where) h += `<div class="dim" style="margin-top:6px">📍 ${esc(s.where)}${L?.node && !/\bstop \d/.test(s.where) ? ` <b style="color:var(--ink)">· stop ${L.node[0]} of ${L.node[1]}</b>` : ''}${!L && s.foes.length ? ' · fighting ' + esc(s.foes.join(', ')) : ''}</div>`;
   if (L?.foes?.length) h += `<div style="margin-top:10px"><div class="lbl">Opponent${oppName(L.opp) ? ` · <span style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">${esc(oppName(L.opp))}</span>` : ''}</div>${L.foes.map(([id, lv, c, mx], i) => `<div class="flex hpw" data-k="f${i}-${id}" style="margin-top:4px">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${N(id)} <span class="dim">Lv ${lv}</span></b><span>${hpNum(`f${i}-${id}`, c)} / ${mx.toLocaleString()}</span></div><div class="bar" style="margin-top:3px"><i class="hp" data-k="f${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;background:linear-gradient(90deg,var(--bad),var(--warn))"></i></div></div></div>`).join('')}</div>`;
-  if (L?.team?.length) { const allies = L.team.filter((t) => t[4]).length; h += `<div style="margin-top:8px"><div class="lbl">${allies ? `Current team · yours + ${allies} allies` : 'Current team'}</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx, ally], i) => `<div class="hpw${c <= 0 ? ' ko' : ''}" data-k="t${i}-${id}" style="${ally ? 'opacity:.75' : ''}">${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i class="hp" data-k="t${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%"></i></div><div class="dim" style="font-size:11px">${hpNum(`t${i}-${id}`, c)}/${mx}</div>${ally ? `<div class="dim" style="font-size:10px;line-height:1.1">${esc(ally.split(' ').pop())}</div>` : ''}</div>`).join('')}</div></div>`; }
+  if (L?.team?.length) { const allies = L.team.filter((t) => t[4]).length; h += `<div style="margin-top:8px"><div class="lbl">${allies ? `Current team · yours + ${allies} allies` : 'Current team'}</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx, ally], i) => `<div class="hpw${c <= 0 ? ' ko' : ''}" data-k="t${i}-${id}" style="${ally ? 'opacity:.75' : ''}">${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i class="hp" data-k="t${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%"></i></div><div class="tmname" style="margin-top:2px">${N(id)}</div><div class="dim" style="font-size:11px;line-height:1.2">Lv ${lv}</div><div class="dim" style="font-size:11px;line-height:1.2">${hpNum(`t${i}-${id}`, c)}/${mx}</div>${ally ? `<div class="dim" style="font-size:10px;line-height:1.1">${esc(ally.split(' ').pop())}</div>` : ''}</div>`).join('')}</div></div>`; }
   if (L?.fight) h += fightBox(L.fight);
   h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
