@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.32.0
+// @version      0.32.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.32.0';
+const VERSION = '0.32.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2929,7 +2929,8 @@ Views.now = (w, esc, fmtIn) => {
   let h = '';
   // team check: who's fighting and the simulated chance (when the goal has one)
   const teamLine = (T) => {
-    if (!T || !T.uids?.length) return '';
+    if (!T || (!T.uids?.length && !T.how)) return '';
+    if (!T.uids?.length) return `<div class="dim" style="margin-top:6px;font-size:13px">🛡️ ${esc(T.how)}</div>`;
     const names = T.uids.map((u) => { const m = Engine.read('Game.getMon', null, u); return m ? `${esc(Engine.get('Game.DEX')?.[m.id]?.name || '?')} ${m.level}` : null; }).filter(Boolean);
     const pct = T.win != null ? ` · <b class="${T.win >= 0.6 ? 'ok' : T.win >= 0.3 ? 'warn' : 'bad'}">${Math.round(T.win * 100)}%</b>` : '';
     return `<div class="dim" style="margin-top:6px;font-size:13px">🛡️ Team: ${names.join(', ')}${pct}${T.how ? ` <span class="dim">(${esc(T.how)})</span>` : ''}</div>`;
@@ -2939,7 +2940,7 @@ Views.now = (w, esc, fmtIn) => {
   const problems = [];
   if (Plan.oldOn()) problems.push('Alakazam 4.x is switched on, so the plan can\'t act (Plan tab → Switch 4.x off).');
   for (const g of open) { const L = live(g); if (/error|could not|refused|3 times|did not|stuck/i.test((L.why || '') + ' ' + (L.line || ''))) problems.push(`${esc(Plan.label(g))}: ${esc(L.why || L.line)}`); }
-  try { const pend = E.get('LegendZones')?.leaguePending?.() || []; if (pend.length) problems.push(`Pick your Legendary gem in the game: Elite League ${pend.map((p) => `${esc(p.reg)} tier ${p.tier}`).join(', ')}.`); } catch (__e) { __h('62-nowview:40', __e); }
+  try { const pend = E.get('LegendZones')?.leaguePending?.() || []; if (pend.length) problems.push(`Pick your Legendary gem in the game: Elite League ${pend.map((p) => `${esc(p.reg)} tier ${p.tier}`).join(', ')}.`); } catch (__e) { __h('62-nowview:41', __e); }
   for (const f of Guard.failures()) problems.push(`Safety check: ${esc(f.label)} looks wrong (${esc(f.why)}) - goals that use it are paused until it looks right. Probably a game update.`);
   const miss = E.audit().missing || []; if (miss.length) problems.push(`${miss.length} game functions are missing after a game update - some goals may not work.`);
   h += `<div class="card" style="border-color:${Plan.running ? '#2f8f5b' : '#8a6d1f'}">
@@ -2991,8 +2992,8 @@ Views.now = (w, esc, fmtIn) => {
     // then why() says "day" - Mega fetches it (read-only, every 5 min at most) instead of saying "closed"
     const C = E.get('CandyRun'), now = Date.now();
     let why = d.candy.why, type = null;
-    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:92', __e); } }
-    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:93', __e); }
+    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:93', __e); } }
+    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:94', __e); }
     const tname = type ? type[0].toUpperCase() + type.slice(1) : '';
     const inPlan = Plan.hasType('candy');
     h += row('Candy Factory', d.candy.played || why === 'played' ? `<span class="ok">✔ done today</span>${tname ? ` <span class="dim">(${tname} day)</span>` : ''}`
@@ -3006,12 +3007,12 @@ Views.now = (w, esc, fmtIn) => {
     // the game only fetches the day's draw when its Raids screen opens: Mega fetches it (read-only),
     // at most every 5 min until it has today's, so this line is right without opening that screen
     const R = E.get('Raids'), now = Date.now();
-    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:107', __e); }
-    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:108', __e); } }
+    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:108', __e); }
+    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:109', __e); } }
     let nx = null, reg = null, boss = null, won = false, tries = 0;
-    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:110', __e); }
-    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:111', __e); } }
-    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:112', __e); } }
+    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:111', __e); }
+    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:112', __e); } }
+    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:113', __e); } }
     const inPlan = Plan.hasType('raid'), rname = reg ? esc((E.get('STORY.REGIONS') || []).find((x) => x.key === reg)?.name || reg) : '';
     h += row('Shiny Raid', !ready ? '<span class="dim">checking today\'s draw…</span>'
       : !reg ? `<span class="dim">no raid today${nx ? ` · next ${DexInfo.clock(nx)}` : ''}</span>`
@@ -3024,7 +3025,7 @@ Views.now = (w, esc, fmtIn) => {
     h += row('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
   h += `</div>`;
 
-  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:125', __e); }
+  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:126', __e); }
 
   // ---- 3. alongside (background goals) ----
   const bg = open.filter((g) => GoalTypes[g.type]?.uses === 'background' && !g.paused);
@@ -3049,7 +3050,7 @@ Views.now = (w, esc, fmtIn) => {
       if (dc.mons.length) h += `<div class="dim" style="margin-top:6px">Staying there: ${dc.mons.map((m) => `${nm(m.id)}${m.shiny ? ' ✨' : ''} Lv ${m.level}`).join(', ')}</div>`;
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:150', __e); }
+  } catch (__e) { __h('62-nowview:151', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -5810,6 +5811,8 @@ const Plan = (() => {
   function teamInfo(g) {
     try {
       const S0 = E.get('Game.S') || {};
+      // background goals don't use the battle screen's team: Underground shows its own way, the rest nothing
+      if (type(g)?.uses === 'background') return g.type === 'under' ? { uids: [], win: null, how: "the game's own expedition simulation" } : null;
       let uids = (S0.team || []).slice(0, 6), win = null, how = '';
       if (g.type === 'legend' || g.type === 'elite') { const zt = E.read('Game.zoneTeam', [], g.foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[g.foe]; if (sim?.final) { win = sim.final.ko; how = 'simulated'; } }
       else if (g.type === 'raid' && g.pick) { uids = g.pick.mine || uids; win = g.pick.ko ?? null; how = 'simulated with ally trainers'; }
@@ -5852,14 +5855,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan:1772', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan:1774', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan:1779', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan:1781', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -5882,7 +5885,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan:1802', __e); }
+    } catch (__e) { __h('70-plan:1804', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -5897,7 +5900,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan:1817', __e); }
+    } catch (__e) { __h('70-plan:1819', __e); }
   }
   function formGoals() {
     try {
@@ -5907,7 +5910,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan:1827', __e); }
+    } catch (__e) { __h('70-plan:1829', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
