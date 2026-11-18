@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.32.5
+// @version      0.32.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.32.5';
+const VERSION = '0.32.6';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -115,6 +115,7 @@ const Health = (() => {
     await run('gem ranking', () => { const g = EliteInfo.gems(); return Array.isArray(g.top) ? true : 'no list'; });
     await run('every screen draws', () => { const bad = UI.renderTest(); return bad.length ? bad.join('; ') : true; });
     await run('no "undefined" or "NaN" on screen', () => { const o = UI.renderTest.odd || []; return o.length ? 'on ' + o.join(', ') : true; }, true);
+    await run('English names everywhere', () => { const l = UI.frenchLeft?.() || []; return l.length ? l.slice(0, 6).join('; ') : true; }, true);
     await run('phone update builds', () => { const r = Remote.testSnapshot?.(); return r === undefined || r === true ? true : r; });
     const failed = out.filter((x) => !x.ok && !x.warn);
     test = { at: Date.now(), v: VERSION, why, n: out.length, failed: failed.length, warns: out.filter((x) => !x.ok && x.warn).length, results: out.filter((x) => !x.ok), names: out.length };
@@ -1371,16 +1372,23 @@ const Casing = (() => {
   }
   const TITLE = 'h3, .row > .k, .tabs button, button.btn, option, summary, label.chk, .gt';
   function textNodes(el, fn) { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const list = []; while (w.nextNode()) list.push(w.currentNode); for (const n of list) { const v = fn(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; } }
+  // French names still in a text (for the self-test): every hit is a place that skipped names()
+  function leftover(s) {
+    const out = new Set();
+    for (const [re] of namesMap()) { re.lastIndex = 0; for (const m of String(s || '').matchAll(re)) out.add(m[2]); }
+    return [...out];
+  }
   function apply(root) {
     if (!root) return;
     textNodes(root, (t) => terms(names(t)));
+    for (const el of root.querySelectorAll('[title]')) { const v = names(el.getAttribute('title')); if (v !== el.getAttribute('title')) el.setAttribute('title', v); } // hover text too
     for (const el of root.querySelectorAll(TITLE)) {
       if (el.closest('[data-raw]')) continue;
       // label.chk: only its own words (not nested inputs)
       textNodes(el, (t) => (t.trim() ? title(t) : t));
     }
   }
-  return { apply, title, terms, names };
+  return { apply, title, terms, names, leftover };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -2464,7 +2472,14 @@ const UI = (() => {
     for (const [k, f] of Object.entries(tabs)) { try { const h = f(); if (typeof h !== 'string') bad.push(`${k}: drew nothing`); else if (/\bundefined\b|\bNaN\b|\[object Object\]/.test(h.replace(/<[^>]+>/g, ' '))) odd.push(k); } catch (e) { bad.push(`${k}: ${e?.message || e}`); } }
     renderTest.odd = odd; return bad;
   }
-  return { mount, mvHtml, mvAct, renderTest, refresh: () => { try { render(); } catch (__e) { __h('60-ui:404', __e); } } };
+  // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
+  function frenchLeft() {
+    const out = new Set();
+    try { const b = root && root.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:407', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover(mvHtml(t).replace(/<[^>]+>/g, ' '))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:408', __e); } }
+    return [...out];
+  }
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, refresh: () => { try { render(); } catch (__e) { __h('60-ui:411', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
