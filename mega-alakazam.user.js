@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.0.2
+// @version      2.0.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.0.2';
+const VERSION = '2.0.4';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4331,12 +4331,24 @@ const GoalKit = (() => {
   const sideOf = (id) => { const f = new Set(safe(() => [...(E.read('Game.familyOf', [], id) || [])].map(Number), [+id])); f.add(+id); return (E.read('Game.sideMons', []) || []).filter((m) => f.has(+m.id)).sort((a, b) => b.level - a.level)[0] || null; };
   const lvl = (u) => E.read('Game.getMon', null, u)?.level ?? null;
   const capOf = (u) => { const m = E.read('Game.getMon', null, u); return Math.min(100, E.read('Game.capFor', 100, m) || 100); };
+  // Rule: a chapter team is always full. Goals pick the Pokémon that matter (trainees, carriers, the gym
+  // plan); any slot left over gets the strongest free Pokémon from this side (not in the Underground,
+  // not an egg, no repeats), so nothing ever fights with 4 or 5 by accident.
+  function fullTeam(uids) {
+    const out = [...new Set((uids || []).filter(Boolean))].slice(0, 6);
+    if (out.length >= 6) return out;
+    const away = awayNow(), have = new Set(out);
+    const spare = (E.read('Game.sideMons', []) || []).filter((m) => m && !m.egg && !have.has(m.uid) && !away.has(m.uid)).sort((a, b) => b.level - a.level);
+    for (const m of spare) { if (out.length >= 6) break; out.push(m.uid); }
+    return out;
+  }
   function setChapterTeam(uids) {
     const s = S();
+    uids = fullTeam(uids);
     s.team = uids.slice(0, 6);
     s.road = null; // the game rebuilds the road team from .team (same as its own team editor)
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:97', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:98', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:109', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:110', __e); }
     const now = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
     return uids.every((u) => now.includes(u));
   }
@@ -4355,8 +4367,8 @@ const GoalKit = (() => {
   function hatchMissing() {
     for (const e of [...(S().pension?.eggs || [])]) {
       if (E.read('Game.inDex', false, +e.id) || !E.read('Game.eggReady', false, e)) continue;
-      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:117', __e); }
-      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:118', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:118', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
+      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:129', __e); }
+      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:130', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:130', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
     }
   }
   const LZ = () => E.get('LegendZones');
@@ -4367,7 +4379,7 @@ const GoalKit = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:129', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:141', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -4395,10 +4407,10 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:157', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:158', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:169', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:170', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:160', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:172', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -4406,7 +4418,7 @@ const GoalKit = (() => {
   // otherwise (or if that's missing) step out and back - re-opening the same chapter just continues (Jimmy)
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:168', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:180', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -4415,7 +4427,7 @@ const GoalKit = (() => {
   const putBack = (g) => GoalTypes.wild.finish(g);
 
 
-  return { E, S, name, pending, holder, setTeam, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
+  return { E, S, name, pending, holder, setTeam, fullTeam, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
 })();
 Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, setChapterTeam: GoalKit.setChapterTeam, here: GoalKit.here, hatchMissing: GoalKit.hatchMissing });
 
@@ -4533,7 +4545,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const chs = safe(() => ST.chaptersOf(reg), []) || [];
       const un = +(a.unlocked ?? 0), front = Math.min(un, chs[chs.length - 1]);
       const deaths = +(a.deaths?.[front] ?? 0);
-      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
+      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
       const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
       const sp = (m) => Sim.species(m);
       // stuck: 2 wipes in the frontier chapter since the last try -> train for 30 minutes
@@ -4625,7 +4637,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:127', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length;
       return training ? `training in ${ST.CHAPTERS[ch]?.name} for ${Math.ceil((g.trainUntil - now) / 60_000)} more min (lost twice at ${ST.CHAPTERS[front]?.name})`
-        : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.deaths0 || 0)} loss${deaths - (g.deaths0 || 0) === 1 ? '' : 'es'} here`;
+        : `playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
     finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:132', __e); } },
   };
@@ -5947,22 +5959,35 @@ const Plan = (() => {
   let timer = null, busy = false, lastEnter = 0, fails = 0, failsFor = null;
   const live = {}; // goal id -> { state, why, line }
   let top = ''; // one line for the whole plan
+  // Safety net (Jimmy's rule: never fight short-handed): after every step, a chapter team with fewer than 6
+  // gets topped up with your strongest free Pokémon from this side - whatever code path left it short.
+  // Never during a Raid / Factory / Tower / League run (those pick their own lineup).
+  function fillTeam() {
+    try {
+      if (GoalTypes.holder()) return;
+      const S0 = E.get('Game.S') || {}, cur = (S0.team || []).filter(Boolean);
+      if (cur.length >= 6) return;
+      GoalTypes.setChapterTeam(cur);
+      const now = (E.get('Game.S')?.team || []).length;
+      if (now > cur.length) Log.add(`team had only ${cur.length} - filled to ${now} with your strongest free Pokémon`);
+    } catch (__e) { __h('70-plan-20-engine:28', __e); }
+  }
   // status lines are written lowercase in the goals; screens show them as sentences
   const cap = (s) => (typeof s === 'string' && s ? s[0].toUpperCase() + s.slice(1) : s);
 
   function load() {
     let p;
-    try { p = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('70-plan-20-engine:22', __e); }
+    try { p = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('70-plan-20-engine:35', __e); }
     p = p && Array.isArray(p.goals) ? p : { running: false, goals: [] };
     // 0.3.x: a running hunt becomes the first goal
     try {
       const h = JSON.parse(localStorage.getItem('mega-hunt') || 'null');
       if (h && h.target && !p.goals.some((g) => g.type === 'legend' && g.foe === h.target)) { p.goals.unshift(newGoal('legend', { foe: h.target })); p.running = true; }
       localStorage.removeItem('mega-hunt');
-    } catch (__e) { __h('70-plan-20-engine:29', __e); }
+    } catch (__e) { __h('70-plan-20-engine:42', __e); }
     return p;
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (__e) { __h('70-plan-20-engine:32', __e); } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (__e) { __h('70-plan-20-engine:45', __e); } }
   function newGoal(type, data) { return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), type, ...data, paused: false, done: null, added: Date.now() }; }
 
   const type = (g) => GoalTypes[g.type];
@@ -6003,7 +6028,7 @@ const Plan = (() => {
     return g;
   }
   function finish(g) { try { type(g)?.finish?.(g); } catch (e) { Log.add(`${name(g)}: could not put things back (${e?.message || e})`); } }
-  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan-20-engine:73', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
+  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan-20-engine:86', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
   function move(id, d) {
     const open = st.goals.filter((g) => !g.done), i = open.findIndex((g) => g.id === id), j = i + d;
     if (i < 0 || j < 0 || j >= open.length) return;
@@ -6038,7 +6063,7 @@ const Plan = (() => {
     let ok = false;
     { const why = Guard.team(E.read('Game.zoneTeam', [], +id) || [], { need: 1, minLevel: 1 }); if (why) { Guard.stop(`${E.get('Game.DEX')?.[id]?.name}'s zone`, why); return false; } }
     try { ok = E.call('Adventure.startZone', +id) !== false; } catch (e) { Log.add(`${E.get('Game.DEX')?.[id]?.name}: the game refused to enter (${e.message})`); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:108', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:121', __e); }
     await new Promise((r) => setTimeout(r, 800));
     if (ok && +(E.get('Game.S')?.adv?.zone?.id) === +id) { fails = 0; Log.add(`entered ${E.get('Game.DEX')?.[id]?.name}'s zone`); return true; }
     if (failsFor !== id) { failsFor = id; fails = 0; }
@@ -6060,7 +6085,7 @@ const Plan = (() => {
         const T = type(g);
         if (!T) { live[g.id] = { state: 'wait', why: 'unknown goal type' }; continue; }
         const c = (() => { try { return T.check(g); } catch (e) { Health.goalErr(g, e, name(g)); return { state: 'wait', why: 'error: ' + (e?.message || e) }; } })();
-        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:130', __e); } finish(g);
+        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:143', __e); } finish(g);
           if (['region', 'loot', 'souls', 'level'].includes(g.type)) Notify.send('win', `Done: ${name(g)}`, g.type === 'region' ? 'Every Pokémon of that region is in your Pokédex!' : c.why || 'goal finished'); live[g.id] = { state: 'done', why: c.why }; continue; }
         if (g.paused) { live[g.id] = { state: 'paused', why: null }; continue; }
         if (c.state !== 'ready') { live[g.id] = { state: 'wait', why: c.why }; if (!waitSince.has(g.id)) waitSince.set(g.id, { at: Date.now(), why: c.why }); else waitSince.get(g.id).why = c.why; continue; }
@@ -6084,7 +6109,7 @@ const Plan = (() => {
         const ws = waitSince.get(g.id);
         if (ws && Date.now() - ws.at > 30 * 60_000) { Log.add(`started: ${name(g)} (was waiting: ${ws.why || 'its conditions'})`); Notify.send('daily', `Started: ${name(g)}`, `It was waiting ${Math.round((Date.now() - ws.at) / 3_600_000 * 10) / 10} h: ${ws.why || 'its conditions'}`); }
         waitSince.delete(g.id);
-        try { live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); }
+        try { live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); fillTeam(); }
         catch (e) { live[g.id] = { state: 'wait', why: 'error: ' + (e?.message || e) }; Log.add(`${name(g)}: error - ${e?.message || e}`); Health.goalErr(g, e, name(g)); }
       }
       // idle only after 2 min with no screen goal, so a goal that waits a moment between runs doesn't flip-flop
@@ -6143,14 +6168,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:213', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:226', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:220', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:233', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -6173,7 +6198,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:243', __e); }
+    } catch (__e) { __h('70-plan-20-engine:256', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -6188,7 +6213,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:258', __e); }
+    } catch (__e) { __h('70-plan-20-engine:271', __e); }
   }
   function formGoals() {
     try {
@@ -6198,7 +6223,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:268', __e); }
+    } catch (__e) { __h('70-plan-20-engine:281', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
