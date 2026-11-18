@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.29.0
+// @version      0.29.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.29.0';
+const VERSION = '0.29.1';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -702,9 +702,13 @@ const Sim = (() => {
     const pool = chapterFoes(ch);
     if (!pool.length) return { pool, picks: [] };
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
+    // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
+    const L = Gm().S?.link; let chSide = null;
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch {} }
+    const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
-      if (m.level < minLevel || exclude.includes(m.uid) || away.has(m.uid)) continue;
+      if (m.level < minLevel || exclude.includes(m.uid) || away.has(m.uid) || !fits(m)) continue;
       const k = species(m); if (seen.has(k)) continue; seen.add(k); // best copy of each species (forms count as one)
       cands.push({ m, ...clearScore(m, pool) });
     }
@@ -2261,6 +2265,15 @@ const UI = (() => {
       c.classList.toggle('folded'); if (c.classList.contains('folded')) shut.add(k); else shut.delete(k);
       prefs.foldSet = [...shut]; savePrefs(); return;
     }
+    if (act === 'gem-rank') {
+      // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
+      const m = Engine.read('Game.getMon', null, t.dataset.uid), U = Engine.get('Underground'); if (!m || !U) return;
+      const ro = (() => { try { return U.rankOf(m, t.dataset.key); } catch { return null; } })(); if (!ro || ro.why) { Log.add('gem: ' + (ro?.why || 'that gem does not fit')); renderBody(true); return; }
+      const nm = Engine.get('Game.DEX')?.[m.id]?.name || 'it';
+      if (!t.dataset.sure && !window.confirm(`Rank up ${nm} (Lv ${m.level}) to rank ${ro.next} with ${ro.need} gem${ro.need === 1 ? '' : 's'}?\n\nIt goes back to Lv 5 and has to level up again. This can't be undone.`)) return;
+      const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
+      renderBody(true); return;
+    }
     if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch {} setTimeout(() => renderBody(true), 300); return; }
     if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch {} return; }
     if (act === 'update') { Updater.install(); return; }
@@ -2878,7 +2891,8 @@ Views.now = (w, esc, fmtIn) => {
   }
   if (d.tower) { const fl = S.tower?.best?.floor; h += row('Battle Tower', `${fl ? `last run: floor ${fl} · ` : ''}resets in ${fmtIn(d.tower.weekEnds)}`); }
   h += row('World Boss', wb.caught ? '<span class="ok">✔ caught this edition</span>' : wb.catchable ? '<span class="warn">catchable now</span>' : wb.open ? 'shield up' : '<span class="dim">closed</span>');
-  h += row('Money', `₽${(+(S.money || 0)).toLocaleString()}`);
+  { const sm = (() => { try { return History.sideMoney(); } catch { return null; } })();
+    h += row('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
   h += `</div>`;
 
   try { h += Mirror.fightCard(esc); } catch {}
@@ -3115,14 +3129,15 @@ Views.gems = (esc) => {
   if (!g.rows.length) return h + `<div class="note">No gems yet. They come from the Underground and from elite legendary tiers 1, 2 and 4.</div>`;
   const role = (c) => (c.use >= 2 ? 'your team' : c.use ? 'a legend team' : '');
   if (g.top.length) {
-    h += `<div class="card" style="border-color:#2f8f5b"><h3>Biggest Upgrades Right Now</h3><div class="dim" style="margin-bottom:4px">Ready to rank up today, biggest gain first (stats it uses, weighted by how much it fights).</div>`;
+    h += `<div class="card" style="border-color:#2f8f5b"><h3>Strongest Get Stronger</h3><div class="dim" style="margin-bottom:4px">Ready to rank up today: highest base stats first, then the biggest stat gain. Ranking up sends it back to Lv 5</div>`;
     g.top.forEach((c, i) => {
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b>
         <img src="${Engine.sprite(c.m.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none">
         <div style="flex:1;min-width:0"><b>${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''}</b> <span class="ok">+${c.gain} stats</span> <span class="dim">(+${Math.round(c.pct * 100)}%)</span>
         <div class="dim" style="font-size:13px">rank ${c.m.rank || 0} → ${c.next} · ${c.need} ${esc(c.label)} gem${c.need > 1 ? 's' : ''}${role(c) ? ' · ' + role(c) : ''}</div>
         ${EliteInfo.canEvolve(c.m.id) ? `<div class="warn" style="font-size:13px">⚠ won't evolve any more once ranked</div>` : ''}</div></div>
-        <button class="btn${i === 0 ? ' gold' : ''}" data-act="gem-open" data-uid="${c.m.uid}">Open in Game</button>`;
+        <button class="btn${i === 0 ? ' gold' : ''}" data-act="gem-rank" data-uid="${c.m.uid}" data-key="${c.key}" data-rank="${c.m.rank || 0}">Rank Up (back to Lv 5)</button>
+        <button class="btn" data-act="gem-open" data-uid="${c.m.uid}">Open in Game</button>`;
     });
     h += `</div>`;
   }
@@ -4350,6 +4365,7 @@ const GoalTypes = (() => {
     finish(g) {
       const r = g.restore; if (!r) return;
       try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch {}
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch {}
       if (r.buddy && S().buddy?.uid !== r.buddy && E.read('Game.getMon', null, r.buddy)) { try { E.call('Game.setBuddy', r.buddy); } catch {} }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
@@ -4661,6 +4677,7 @@ const GoalTypes = (() => {
       if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch {} Log.add('turned auto-catch on ("new") so the target gets caught'); }
       if (+a.chapter !== +g.ch) { if (E.call('Adventure.setChapter', +g.ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
       if (!E.read('Adventure.isLooping', false, +g.ch)) { try { E.call('Adventure.toggleLoop', +g.ch); g.restore.loopAdded = +g.ch; Plan.save(); } catch {} }
+      if (!g.parent) passTeam(g, g.ch); // a gym-plan catch keeps the gym team leveling instead
       // restart trick: no stop ahead can hold the target -> back to stop 0
       const nodes = a.nodes || [], at = +a.node || 0;
       const can = nodes.map((n, i) => (n.areas?.length && poolAt(n, g.ch).some((x) => x.id === +g.foe && x.on !== false) ? i : -1)).filter((i) => i >= 0);
@@ -4694,6 +4711,17 @@ const GoalTypes = (() => {
   };
 
   // ---- shared: go to a chapter and keep it (remember what to put back) -------------------------------
+  // the best team for a chapter you're only passing through (catching, a special encounter, souls,
+  // a rare item): its 6 best carriers for that chapter's foes, from the side that can play it. The team
+  // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
+  function passTeam(g, ch) {
+    if (g.teamSet === ch) return;
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch {}
+    const uids = picks.map((p) => p.m.uid);
+    if (!g.restore.team) g.restore.team = (S().team || []).slice();
+    if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
+    g.teamSet = +ch; Plan.save();
+  }
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
@@ -4701,6 +4729,7 @@ const GoalTypes = (() => {
     if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch {} Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
     if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch {} }
+    passTeam(g, ch);
     return null;
   }
   // rebuild a chapter from stop 0: the game's own Restart (Screens.adventure.restartChapter) when you're in it;
@@ -5219,11 +5248,11 @@ const GoalTypes = (() => {
   }
   const money = {
     uses: 'screen',
-    progress: (g) => ({ have: Math.min(+g.target, +(S().money || 0)), need: +g.target, money: true }),
+    progress: (g) => ({ have: Math.min(+g.target, History.homeMoney()), need: +g.target, money: true }),
     label: (g) => `Farm money to ₽${(+g.target).toLocaleString()}`,
     sprite: () => null,
     check(g) {
-      const have = +(S().money ?? 0);
+      const have = History.homeMoney();
       if (have >= +g.target) return { state: 'done', why: `₽${have.toLocaleString()}` };
       if (!moneyChapter()) return { state: 'wait', why: 'no chapter to farm in' };
       return { state: 'ready', why: null };
@@ -5888,11 +5917,15 @@ const History = (() => {
   const E = Engine, KEY = 'mega-hist', EVERY = 10 * 60_000, KEEP = 7 * 86_400_000;
   // sample: [t, money, dex, shiny, l100, levels, {goalId: have}]
   let rows = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } })();
+  // your main money: while you're on a new region's side (Unova) the game keeps it in its stash
+  // (link.stash.money) and S.money is that region's own wallet - the graphs follow your main money
+  function homeMoney() { const S = E.get('Game.S') || {}, L = S.link; return L && L.side === 'to' && L.stash ? +L.stash.money || 0 : +S.money || 0; }
+  function sideMoney() { const S = E.get('Game.S') || {}, L = S.link; return L && L.side === 'to' ? { name: { unova: 'Unova' }[L.to] || L.to, money: +S.money || 0 } : null; }
   function take() {
     const S = E.get('Game.S') || {}, mons = E.read('Game.ownedMons', []) || [];
     const goals = {};
     for (const g of Plan.goals.filter((x) => !x.done)) { try { const p = GoalTypes[g.type]?.progress?.(g); if (p && p.need) goals[g.id] = +p.have; } catch {} }
-    return [Date.now(), +S.money || 0, Object.keys(S.dex || {}).length, mons.filter((m) => m.shiny).length, mons.filter((m) => m.level >= 100).length, mons.reduce((t, m) => t + (+m.level || 0), 0), goals];
+    return [Date.now(), homeMoney(), Object.keys(S.dex || {}).length, mons.filter((m) => m.shiny).length, mons.filter((m) => m.level >= 100).length, mons.reduce((t, m) => t + (+m.level || 0), 0), goals];
   }
   function tick(force) {
     if (!E.ready()) return;
@@ -5911,7 +5944,7 @@ const History = (() => {
     const names = {}; for (const g of Plan.goals) { try { const p = GoalTypes[g.type]?.progress?.(g); names[g.id] = [Casing.names(Plan.label(g)), p?.need || 0, p?.unit || '', g.done ? 1 : 0]; } catch {} }
     return { rows: out, names };
   }
-  return { boot, since, tick, get rows() { return rows; } };
+  return { boot, since, tick, homeMoney, sideMoney, get rows() { return rows; } };
 })();
 
 /* ===================================================================================================
@@ -6117,7 +6150,7 @@ const Remote = (() => {
     const dex = (w.regions || []).filter((r) => r.open && r.dex).map((r) => { const ids = DexInfo.regionIds(r.key); return [r.name || r.key, ids.filter((id) => World.dex.registered(id)).length, ids.length, r.key]; });
     const td = Trades.data;
     const trades = td && !td.failed ? { at: td.at, t: (td.targets || []).map((t) => [t.id, t.shiny ? 1 : 0, (t.list || []).length, t.can || 0, t.newGet ? 1 : 0, t.newTo ? t.to : 0, t.best]) } : null;
-    let gems = null; try { const g = EliteInfo.gems(); gems = { total: g.total, top: g.top.map((c) => [c.m.id, c.gain, c.label, c.need, c.m.rank || 0, c.m.shiny ? 1 : 0, c.bst]) }; } catch {}
+    let gems = null; try { const g = EliteInfo.gems(); gems = { total: g.total, top: g.top.map((c) => [c.m.id, c.gain, c.label, c.need, c.m.rank || 0, c.m.shiny ? 1 : 0, c.bst, c.m.uid, c.key, c.m.level, (() => { try { return EliteInfo.canEvolve(c.m.id) ? 1 : 0; } catch { return 0; } })()]) }; } catch {}
     const idle = Plan.idle ? { l: Casing.names(Plan.idle.line || ''), u: (Plan.idle.goal?.uids || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).map((m) => [m.id, m.level, m.rank || 0, m.shiny ? 1 : 0]) } : null;
     for (const [k, r] of Object.entries(replies)) if (Date.now() - r.at > 10 * 60_000) delete replies[k];
     // names for every Pokémon the phone will show (trades, gems, team, idle, goal pictures)
@@ -6126,7 +6159,7 @@ const Remote = (() => {
     const nm = Object.fromEntries([...ids].map((id) => [id, D[id]?.name || '#' + id]));
     return {
       v: 1, at: Date.now(), ver: VERSION, run: Plan.running, top: Casing.names(Plan.top || ''), old: Plan.oldOn() ? 1 : 0,
-      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: +S.money || 0, dex, trades, gems,
+      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: History.homeMoney(), side: History.sideMoney(), dex, trades, gems,
       log: (Log.lines || []).slice(-15).map((l) => [l.at, Casing.names(l.text)]),
       set: { berries: Berries.on, idle: Plan.idleOn, alerts: !!Notify.cfg.on },
       gemPick: (() => { try { return (E.get('LegendZones')?.leaguePending?.() || []).map((p) => [p.reg, p.tier]); } catch { return []; } })(),
@@ -6276,6 +6309,16 @@ const Remote = (() => {
     // Mega's own screens on the phone (Settings, Fights): the HTML, and a button press on them
     'ui.html': async (a, rid) => { replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab)) } }; return 'ok'; },
     'ui.act': async (a, rid) => { await UI.mvAct(a); replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab || 'engine')) } }; return 'ok'; },
+    // rank up a Pokémon with a gem - only from your tap and a confirmation on the phone; the game's own
+    // rank-up (Underground.rankUp): rank +1, back to Lv 5. Mega never spends gems by itself.
+    'gem.rank': (a) => {
+      const U = E.get('Underground'), m = E.read('Game.getMon', null, String(a.uid)); if (!U || !m) throw new Error('that Pokémon is gone');
+      const ro = U.rankOf(m, String(a.key)); if (!ro || ro.key !== String(a.key)) throw new Error('that gem doesn\'t fit it'); if (ro.why) throw new Error(ro.why);
+      if (+a.rank !== (+m.rank || 0)) throw new Error('its rank changed - refresh and try again');
+      const r = U.rankUp(m.uid, String(a.key)); if (!r) throw new Error('the game said no');
+      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch {}
+      return `${D()[m.id]?.name} is rank ${r.rank} now (back to Lv 5)`;
+    },
     'update.check': async () => {
       await Updater.check(); try { push(true); } catch {}
       const v = Updater.available, I = Updater.info;
@@ -6466,7 +6509,7 @@ const Remote = (() => {
     const team = uids.map((u) => (typeof u === 'object' ? u : E.read('Game.getMon', null, u) || (() => { try { return R?.allyMon(u); } catch { return null; } })())).filter(Boolean).map((m) => [m.id, m.level, ...hp(m), m.bot ? String(m.owner || 'ally') : '']);
     const node = a.chapter != null ? [(+a.node || 0) + 1, (a.nodes || []).length] : null;
     const fight = fightNow();
-    return { k: 'tick', at: Date.now(), fight, top: Casing.names(Plan.top || ''), goals, foes, team, node, money: +S.money || 0, idle: Plan.idle ? Casing.names(Plan.idle.line || '') : null, nm: Object.fromEntries([...foes.map((f) => f[0]), ...team.map((t) => t[0]), ...(fight ? [fight.foe] : [])].map((id) => [id, Dx[id]?.name || '#' + id])) };
+    return { k: 'tick', at: Date.now(), fight, top: Casing.names(Plan.top || ''), goals, foes, team, node, money: History.homeMoney(), side: History.sideMoney(), idle: Plan.idle ? Casing.names(Plan.idle.line || '') : null, nm: Object.fromEntries([...foes.map((f) => f[0]), ...team.map((t) => t[0]), ...(fight ? [fight.foe] : [])].map((id) => [id, Dx[id]?.name || '#' + id])) };
   }
   let ticking = false, lastTickAt = 0;
   async function liveTick() {
