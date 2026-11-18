@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.2.0
+// @version      2.2.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.2.0';
+const VERSION = '2.2.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4596,7 +4596,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
 
 // goal module: story (takes shared helpers from GoalKit, registers itself in GoalTypes)
 (() => {
-  const { E, S, name, safe, sideHas, sideOf, capOf, setChapterTeam, here } = GoalKit;
+  const { E, S, name, safe, sideHas, sideOf, capOf, setChapterTeam, here, fullTeam } = GoalKit;
   // ---- story: beat a new region's gyms and League (Unova) -------------------------------------
   // A new region is its own side until its League: own money, bag and team, only Pokémon caught there
   // (Game.sideMons). Mega stays in that region's chapters (opening an older chapter would swap sides),
@@ -4713,19 +4713,19 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
             const done = chs.filter((c) => c < front);
             const r = safe(() => XpChap.rank().filter((x) => done.includes(x.ch)), []) || [];
             const tch = r[0]?.ch ?? done[done.length - 1] ?? front;
-            if (uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
+            if (fullTeam(uids).join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
             if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:122', __e); } }
             return `${g.levelFirst ? `lost twice${g.trainWhy ? ' ' + g.trainWhy : ''} - ` : ''}leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
           const uids = plan.plan.team.map((t) => (t.kind === 'own' ? t.uid : sideOf(t.base)?.uid)).filter(Boolean);
-          if (uids.length && uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan team for ${plan.gym}: ${uids.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ')} (~${Math.round(plan.plan.win * 100)}%)`); }
+          if (uids.length && fullTeam(uids).join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(uids); Log.add(`gym plan team for ${plan.gym}: ${uids.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ')} (~${Math.round(plan.plan.win * 100)}%)`); }
           g.teamAt = now; g.teamFor = ch;
         } else if (plan.now.uids.length && (!g.teamAt || g.teamFor !== ch || now - g.teamAt > 10 * 60_000)) {
           // the team you have is good enough: catch jobs for this gym aren't needed
           for (const c of Plan.goals.filter((c) => !c.done && c.type === 'wild' && c.parent === g.id)) { Plan.remove(c.id); Log.add(`gym plan: dropped catching ${name(c.foe)} (your team is ready)`); }
-          if (plan.now.uids.join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(plan.now.uids); Log.add(`story team for ${plan.gym} (~${Math.round(plan.now.win * 100)}%): ${plan.now.uids.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ')}`); }
+          if (fullTeam(plan.now.uids).join() !== (S().team || []).slice(0, 6).join()) { setChapterTeam(plan.now.uids); Log.add(`story team for ${plan.gym} (~${Math.round(plan.now.win * 100)}%): ${plan.now.uids.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ')}`); }
           g.teamAt = now; g.teamFor = ch;
         }
       }
