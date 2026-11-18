@@ -573,11 +573,11 @@ function vPlan() {
     h += `<div class="card"><div class="flex"><b class="dim" style="width:20px">${i + 1}</b>${pic(g, 44)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? `<div class="dim">${progTxt(g.p)}</div>` : ''}</div></div>
       <div class="${cls}" style="margin-top:6px">${dot} ${word}${g.y ? ' · ' + esc(g.y) : ''}${g.s === 'running' && g.n ? ' · ' + esc(g.n) : ''}</div>
       <div class="tools">
-        <button class="btn sm" data-c="goal.top" data-a='{"id":"${g.id}"}' data-l="Move to top" ${i ? '' : 'disabled'}>⤒ Top</button>
-        <button class="btn sm" data-c="goal.up" data-a='{"id":"${g.id}"}' data-l="Move up" ${i ? '' : 'disabled'}>↑ Up</button>
-        <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>↓ Down</button>
-        <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? '▶ Resume' : '❚❚ Pause'}</button>
-        <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">✕ Remove</button>
+        <button class="btn sm" data-c="goal.top" data-a='{"id":"${g.id}"}' data-l="Move to top" ${i ? '' : 'disabled'}>Top</button>
+        <button class="btn sm" data-c="goal.up" data-a='{"id":"${g.id}"}' data-l="Move up" ${i ? '' : 'disabled'}>Up</button>
+        <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>Down</button>
+        <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? 'Resume' : 'Pause'}</button>
+        <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">Remove</button>
       </div>${g.t === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
   });
   if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
@@ -831,7 +831,7 @@ setInterval(() => { const t = { box: 'box', act: 'act', dex: 'dex', sim: 'legend
   const fast = Date.now() < (MV.fastUntil || 0); if (Date.now() - (MV.at[t] || 0) > (fast ? 3000 : 20000)) mvLoad(t); }, 1000);
 let mvTyping = null;
 document.addEventListener('input', (e) => { const el = e.target.closest('.mv input'); if (!el || el.type === 'checkbox') return; clearTimeout(mvTyping); mvTyping = setTimeout(() => mvSend(el, 'input'), 450); }, true);
-function vFights() { return `<div class="card"><h3>Fights</h3><div class="dim">Mega's fight log and analysis, live from your PC.</div><button class="btn" data-x="mvReload" data-t="fights">⟳ Refresh</button></div>${mvBox('fights')}`; }
+function vFights() { return mvTab('fights'); }
 function mvSend(el, kind) {
   const box = el.closest('.mv'); if (!box) return;
   const tab = box.dataset.mvtab, data = { ...el.dataset };
@@ -853,8 +853,8 @@ function vSet() {
   const s = snap?.set || {};
   return `<div class="card"><h3>Updates</h3><div class="dim">Mega ${esc(snap?.ver || '?')}${snap?.upd ? ` · <span class="ok">${esc(snap.upd)} ready</span>` : ''}</div><div class="flex" style="gap:8px;margin-top:8px"><button class="btn grow" data-c="update.check" data-l="Check for updates">⬆ Check for Updates</button><button class="btn grow" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div></div>
   ${alertsCard()}
-  <div class="card"><h3>Mega on Your PC</h3><div class="dim">Mega's own Settings, live from your PC - every card and switch works from here. Tap a title to fold it.</div><button class="btn" data-x="mvReload" data-t="engine">⟳ Refresh</button></div>
-  ${mvBox('engine')}
+  <div class="lbl" style="margin:16px 2px 6px">Mega's settings on your PC</div>
+  ${mvTab('engine')}
     <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
     <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
     <button class="btn danger" data-x="unpair">Unpair This Phone</button>
