@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.27.3
+// @version      0.27.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.27.3';
+const VERSION = '0.27.4';
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
 // newest version right away. Safety: a downloaded version that crashes while loading is skipped at once
@@ -5921,7 +5921,7 @@ const Remote = (() => {
       gemPick: (() => { try { return (E.get('LegendZones')?.leaguePending?.() || []).map((p) => [p.reg, p.tier]); } catch { return []; } })(),
       wb: Plan.hasType('wboss') ? 1 : 0,
       myTrade: (() => { try { return Trades.myOffer(); } catch { return null; } })(),
-      ver: VERSION, upd: (() => { try { return Updater.available; } catch { return null; } })(),
+      leagues: (() => { try { return storyLeagues().map((r) => [r.key, r.name, r.inPlan ? 1 : 0]); } catch { return []; } })(), ver: VERSION, upd: (() => { try { return Updater.available; } catch { return null; } })(),
       guard: (() => { try { return Guard.failures().map((f) => `${f.label}: ${f.why}`); } catch { return []; } })(),
       dc: (() => { try { const d = DayCare.info(); return { e: d.eggs.map((e) => [e.id, e.left, e.ready ? 1 : 0, e.shinyParent ? 1 : 0, e.hatchAt - e.laidAt, e.uid]), m: d.mons.map((m) => [m.id, m.level, m.shiny ? 1 : 0]), u: d.used, x: d.max, f: d.full ? 1 : 0, n: d.nextEgg }; } catch { return null; } })(),
       acks: acks.slice(-20), re: replies,
@@ -5930,7 +5930,14 @@ const Remote = (() => {
 
   // ---- what the phone may ask (the whole list) ----
   const D = () => E.get('Game.DEX') || {};
-  const ADD_OK = ['legend', 'under', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league'];
+  const ADD_OK = ['legend', 'under', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
+  // Leagues you can add "Beat a region's League" for: unlocked, not beaten (same list as Mega's Plan tab)
+  function storyLeagues() {
+    const ST = E.get('STORY'), un = +(E.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
+    return (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch {} return { key: r.key, name: NM[r.key] || r.name, chs }; })
+      .filter((r) => r.chs.length && un >= r.chs[0] && !E.read('Game.regionCleared', false, r.key))
+      .map((r) => ({ key: r.key, name: r.name, inPlan: Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) }));
+  }
   const CMDS = {
     'plan.run': (a) => { Plan.setRunning(!!a.on); return a.on ? 'plan started' : 'plan paused'; },
     'goal.pause': (a) => { Plan.pause(a.id); return 'ok'; },
@@ -5945,6 +5952,10 @@ const Remote = (() => {
       if (a.type === 'league' && !(E.get('STORY.REGIONS') || []).some((r) => r.key === String(a.reg))) throw new Error('unknown region');
       const data = a.type === 'elite' ? { foe: +a.foe, upTo: 5 } : a.type === 'league' ? { reg: String(a.reg), upTo: 5 } : a.type === 'legend' ? { foe: +a.foe } : a.type === 'money' ? { target: Math.max(1, +a.target || 0) } : a.type === 'region' ? { reg: String(a.reg) } : a.type === 'under' ? { from: Math.max(1, +a.from || 1) } : {};
       if (a.type === 'legend' && !D()[+a.foe]) throw new Error('unknown Pokémon');
+      if (a.type === 'story') {
+        const L = storyLeagues().find((r) => r.key === String(a.region)); if (!L) throw new Error('that League is not open, or already beaten');
+        return Plan.add('story', { region: L.key, regionName: L.name }) ? 'added' : 'already in your plan';
+      }
       return Plan.add(a.type, data) ? 'added' : 'already in your plan';
     },
     'dex.add': (a) => { if (!D()[+a.id]) throw new Error('unknown Pokémon'); return addDexJob(+a.id, +a.way || 0) ? 'added' : 'could not add (already in your plan?)'; },
