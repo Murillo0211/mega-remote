@@ -573,7 +573,7 @@ function vLeague() {
 }
 function vLegend() {
   let h = '';
-  if (!ui.sims) return `<button class="btn gold" data-x="loadSims">Load Legendaries</button>`;
+  if (!ui.sims) { if (!ui.simsAsked) { ui.simsAsked = 1; setTimeout(loadSims, 0); } return `<div class="card dim">Loading your legendaries from the PC…</div><button class="btn" data-x="loadSims">Load Again</button>`; }
   h += `<div class="card"><h3>Simulate a Legendary</h3><select id="simPick"><option value="">Choose…</option>${ui.sims.map((z) => `<option value="${z[0]}" ${+ui.simPick === z[0] ? 'selected' : ''}>${esc(z[1])} · ${esc(z[2])}${z[3] != null ? ' · last ' + Math.round(z[3] * 100) + '%' : ''}${z[4] ? ' · in plan' : ''}</option>`).join('')}</select>
     <label class="chk"><input type="checkbox" id="asMax" ${ui.asMax ? 'checked' : ''}> As if my Pokémon were Lv 100</label>
     <button class="btn gold" data-x="runSim" ${ui.simPick ? '' : 'disabled'}>Run the Simulator on My PC</button></div>`;
@@ -675,7 +675,7 @@ async function tradePost(uid) {
 
 function vGems() {
   const g = snap.gems; if (!g) return `<div class="card">No gem data.</div>`;
-  return `<div class="card"><h3>Strongest Get Stronger</h3><div class="dim">${g.total} gems. Ranking up needs the game window - remote in and use Open in Game on the Gems tab.</div>${g.top.map(([id, gain, label, need, r, sh, bst], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">${bst ? `base ${bst} · ` : ''}rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div></div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
+  return `<div class="card"><h3>Strongest Get Stronger</h3><div class="dim">${g.total} gems. Tap Rank Up on one: you'll see exactly what it costs before anything happens. Ranking up sends the Pokémon back to Lv 5 (its stats are higher at every level after).</div>${g.top.map(([id, gain, label, need, r, sh, bst, uid, key, lv, ev], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}${sh ? ' ✨' : ''}</b> <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">${bst ? `base ${bst} · ` : ''}rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div>${uid ? `<button class="btn" data-x="gemRank" data-u="${esc(uid)}" data-k="${esc(key)}" data-r="${r}" data-n="${need}" data-i="${id}" data-lv="${lv || ''}" data-g="${gain}" data-lb="${esc(label)}" data-ev="${ev ? 1 : 0}">Rank Up</button>` : ''}</div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
 }
 // ---- Mega's own screens (Settings, Fights), shown as Mega draws them; buttons press Mega's buttons on the PC.
 // This keeps Kinesis and Mega the same: anything those screens get, the phone gets too.
@@ -933,6 +933,14 @@ document.addEventListener('click', async (e) => {
     const id = +ui.simPick; ui.simRes[id] = { running: 1 }; render();
     const rq = await cmd('sim.run', { id, asMax: ui.asMax }, 'Run simulator');
     watch.set(rq, (d) => { if (d && !d.running) { ui.simRes[id] = d; loadSims(); render(); return true; } return false; });
+  }
+  if (x === 'gemRank') {
+    const d = t.dataset, ok = await confirmSheet(`<h3>Rank up ${N(+d.i)}?</h3>${img(+d.i, 64)}
+      ${row('Uses', `${d.n} ${esc(d.lb)} gem${+d.n > 1 ? 's' : ''}`)}${row('Rank', `${d.r} → ${+d.r + 1}`)}${row('Stats at Lv 100', `+${d.g}`)}
+      <div class="warn" style="margin:8px 0">It goes back to <b>Lv 5</b>${d.lv ? ` (it's Lv ${d.lv} now)` : ''} and has to level up again. This can't be undone.</div>${+d.ev ? `<div class="warn">⚠ It won't evolve any more once ranked.</div>` : ''}`, `Rank Up ${N(+d.i)}`);
+    if (!ok) return;
+    cmd('gem.rank', { uid: d.u, key: d.k, rank: +d.r }, `Rank up ${N(+d.i)}`);
+    return;
   }
   if (x === 'mvReload') { MV.at[t.dataset.t] = 0; mvLoad(t.dataset.t); toast('Refreshing…'); return; }
   if (x === 'addGoal') {
