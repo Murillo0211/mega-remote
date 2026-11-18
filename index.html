@@ -540,7 +540,7 @@ function vSim() {
   const M = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'League']];
   const bar = `<div class="seg" style="grid-template-columns:repeat(3,1fr)">${M.map(([k, l]) => `<button class="btn sm ${ui.simMode === k ? 'gold' : ''}" data-sm="${k}">${l}</button>`).join('')}</div>`;
   if (ui.simMode === 'elite') return bar + vElite();
-  if (ui.simMode === 'league') return bar + vLeague();
+  if (ui.simMode === 'league') return bar + `<div class="card"><h3>League &amp; Gyms</h3><div class="dim">Mega's League screen, live from your PC: the next gym, its plan, and the Elite League.</div><button class="btn" data-x="mvReload" data-t="league">⟳ Refresh</button></div>` + mvBox('league');
   return bar + vLegend();
 }
 const pips = (best, next) => `<span class="pips">${[1, 2, 3, 4, 5].map((t) => `<span class="${t <= best ? 'w' : t === next ? 'n' : ''}"></span>`).join('')}</span>`;
