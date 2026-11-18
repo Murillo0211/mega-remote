@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      1.0.0
+// @version      1.1.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -116,6 +116,9 @@ const Health = (() => {
     await run('every screen draws', () => { const bad = UI.renderTest(); return bad.length ? bad.join('; ') : true; });
     await run('no "undefined" or "NaN" on screen', () => { const o = UI.renderTest.odd || []; return o.length ? 'on ' + o.join(', ') : true; }, true);
     await run('English names everywhere', async () => { const l = (await UI.frenchLeft?.()) || []; return l.length ? l.slice(0, 6).join('; ') : true; }, true);
+    // the test pack's live half: the version before wrote down its decisions; anything unplanned that changed is shown
+    await run('same decisions as the version before', () => { const d = Decisions.compare(); if (!d) return true; const c = d.changed.filter((x) => !x.expected); return c.length ? `${c.length} changed since ${d.from}: ` + c.slice(0, 3).map((x) => `${x.k}: ${x.was} → ${x.now}`).join('; ') : true; }, true);
+    await run('game guard', () => { const h = GameGuard.held(); return h ? 'plan paused since ' + new Date(h.at).toLocaleString() + ': ' + h.why : true; }, true);
     await run('phone update builds', () => { const r = Remote.testSnapshot?.(); return r === undefined || r === true ? true : r; });
     const failed = out.filter((x) => !x.ok && !x.warn);
     test = { at: Date.now(), v: VERSION, why, n: out.length, failed: failed.length, warns: out.filter((x) => !x.ok && x.warn).length, results: out.filter((x) => !x.ok), names: out.length };
@@ -2308,6 +2311,7 @@ const UI = (() => {
     Guard.boot();
     Calib.boot();
     Updater.boot();
+    GameGuard.boot();
     Remote.boot();
     render();
     loadFights();
@@ -2359,7 +2363,7 @@ const UI = (() => {
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:291', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:292', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -2380,7 +2384,7 @@ const UI = (() => {
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:312', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:313', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -2403,14 +2407,14 @@ const UI = (() => {
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:335', __e); } setTimeout(() => renderBody(true), 300); return; }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:336', __e); } return; }
+    if (act === 'gymplan-run') { try { GymPlan.run(+t.dataset.ch); } catch (__e) { __h('60-ui:336', __e); } setTimeout(() => renderBody(true), 300); return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:337', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:339', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:340', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:342', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:343', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -2452,8 +2456,8 @@ const UI = (() => {
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:384', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:385', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:385', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:386', __e); }
     renderBody(true, w);
   }
 
@@ -2467,7 +2471,7 @@ const UI = (() => {
     if (body.dataset.html === html) return;
     body.innerHTML = html; body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:399', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:400', __e); }
     if (focused) { const q = root.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -2482,11 +2486,11 @@ const UI = (() => {
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:414', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:415', __e); } }
+    try { const b = root && root.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:415', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:416', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, refresh: () => { try { render(); } catch (__e) { __h('60-ui:418', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, refresh: () => { try { render(); } catch (__e) { __h('60-ui:419', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -6274,6 +6278,104 @@ const Cards = (() => {
 })();
 
 /* ---------------------------------------------------------------------------------------------
+ * Decisions: the test pack's live half. Just before an update reloads the game, Mega writes down
+ * what it would decide on your save right now (where to level, who carries, the gem order, the gym
+ * plan, each goal's state). The new version decides again on the same save in its first minutes and
+ * the self-test flags anything that changed and wasn't planned (EXPECTED lists what this version
+ * means to change). Read-only: nothing here moves a Pokémon or changes the plan.
+ * ------------------------------------------------------------------------------------------- */
+const Decisions = (() => {
+  const KEY = 'mega-decisions', DIFF = 'mega-decisions-diff';
+  // decision keys this version is meant to change (empty = nothing should change)
+  const EXPECTED = [];
+  const E = Engine, nm = (id) => E.get('Game.DEX')?.[id]?.name || '#' + id;
+  const monName = (u) => nm(E.read('Game.getMon', null, u)?.id);
+  const safe = (f) => { try { const v = f(); return v == null ? '' : String(v); } catch (e) { return 'error: ' + (e?.message || e); } };
+  function now() {
+    const r = {};
+    const top = (() => { try { return XpChap.rank()[0] || null; } catch { return null; } })();
+    r['leveling chapter'] = safe(() => top?.name);
+    r['leveling carriers'] = safe(() => top ? Sim.carriers(top.ch, { n: 2 }).picks.map((p) => nm(p.m.id)).sort().join(', ') : '');
+    r['idle trainees'] = safe(() => GoalTypes.idlePick(4).map(monName).join(', '));
+    r['gem order'] = safe(() => EliteInfo.gems().top.map((c) => `${nm(c.m.id)} (${c.key})`).join(', '));
+    const story = (Plan.goals || []).find((g) => !g.done && g.type === 'story');
+    if (story && GymPlan.saved) for (const [ch, p] of Object.entries(GymPlan.saved)) {
+      if (!p?.plan) continue;
+      r[`gym plan ${p.gym || ch}`] = safe(() => `${Math.round(p.plan.win * 20) * 5}% · ` + p.plan.team.map((t) => nm(t.id || t.base)).join(', '));
+    }
+    for (const g of Plan.goals || []) if (!g.done) r[`goal: ${Plan.label ? Plan.label(g) : g.type}`] = safe(() => GoalTypes[g.type]?.check(g)?.state);
+    try { const ST = E.get('STORY'); for (const reg of new Set(ST.CHAPTERS.map((c, i) => ST.regionOf(i)?.key).filter(Boolean))) r[`level cap ${reg}`] = safe(() => ST.regionCap(E.get('Game.S')?.adv, reg)); } catch (__e) { __h('77-decisions:28', __e); }
+    return r;
+  }
+  // the version that is about to be replaced writes its decisions down
+  function save() { try { if (!Engine.ready()) return; localStorage.setItem(KEY, JSON.stringify({ ver: VERSION, at: Date.now(), r: now() })); } catch (__e) { __h('77-decisions:32', __e); } }
+  // the new version (once): what changed since that record
+  function compare() {
+    let rec = null; try { rec = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('77-decisions:35', __e); }
+    if (!rec || rec.ver === VERSION) { try { return JSON.parse(localStorage.getItem(DIFF) || 'null'); } catch { return null; } }
+    if (Date.now() - rec.at > 60 * 60_000) { localStorage.removeItem(KEY); return null; } // too old: the save has moved on
+    const cur = now(), changed = [];
+    for (const k of new Set([...Object.keys(rec.r), ...Object.keys(cur)])) {
+      if ((rec.r[k] ?? '') === (cur[k] ?? '')) continue;
+      if (k.startsWith('goal: ') && (!(k in rec.r) || !(k in cur))) continue; // a goal added or finished in between
+      changed.push({ k, was: rec.r[k] ?? '(none)', now: cur[k] ?? '(none)', expected: EXPECTED.some((x) => k.startsWith(x)) });
+    }
+    const d = { from: rec.ver, to: VERSION, at: Date.now(), n: Object.keys(cur).length, changed };
+    try { localStorage.setItem(DIFF, JSON.stringify(d)); localStorage.setItem(KEY, JSON.stringify({ ver: VERSION, at: Date.now(), r: cur })); } catch (__e) { __h('77-decisions:45', __e); }
+    return d;
+  }
+  return { now, save, compare, EXPECTED };
+})();
+
+/* ---------------------------------------------------------------------------------------------
+ * GameGuard: Poke'Catch ships new builds now and then. Mega notices (the game's bundle name
+ * changes), re-checks every game function it relies on and runs the self-test. If anything broke,
+ * it pauses your plan and tells your phone, instead of guessing with a game it no longer understands.
+ * If everything still passes, the new build is accepted and the plan keeps going.
+ * ------------------------------------------------------------------------------------------- */
+const GameGuard = (() => {
+  const KEY = 'mega-game-build', HELD = 'mega-guard';
+  function build() {
+    try {
+      const names = performance.getEntriesByType('resource').map((r) => r.name).concat([...document.scripts].map((s) => s.src || ''));
+      const n = names.find((x) => /\/bundle\/app\.[0-9a-f]+\.js/.test(x));
+      return n ? n.match(/\/bundle\/app\.([0-9a-f]+)\.js/)[1] : null;
+    } catch { return null; }
+  }
+  let busy = false;
+  const held = () => { try { return JSON.parse(localStorage.getItem(HELD) || 'null'); } catch { return null; } };
+  async function check() {
+    if (busy || !Engine.ready()) return;
+    const id = build(); if (!id) return;
+    const known = localStorage.getItem(KEY), miss = Engine.audit().missing || [];
+    if (known === id && !miss.length) return;
+    if (!known && !miss.length) { localStorage.setItem(KEY, id); return; } // first run: this build is the known one
+    const h = held(); if (h && h.build === id) return; // already paused for this build: Jimmy decides (Start resumes)
+    busy = true;
+    try {
+      const changed = known && known !== id;
+      const r = await Health.selfTest(changed ? 'the game updated' : 'game functions missing');
+      if (miss.length || r.failed) {
+        const why = miss.length ? `${miss.length} game function${miss.length === 1 ? '' : 's'} Mega uses ${miss.length === 1 ? 'is' : 'are'} gone (${miss.slice(0, 3).join(', ')})`
+          : `${r.failed} self-test check${r.failed === 1 ? '' : 's'} failed (${(r.results || []).filter((x) => !x.warn).slice(0, 2).map((x) => x.name).join(', ')})`;
+        const was = Plan.running;
+        if (was) Plan.setRunning(false);
+        localStorage.setItem(HELD, JSON.stringify({ at: Date.now(), build: id, why, paused: was }));
+        Log.add(`game guard: Poke'Catch ${changed ? 'updated' : 'changed'} and ${why} - ${was ? 'plan paused' : 'plan was already paused'}`);
+        Notify.send('problem', changed ? "Poke'Catch updated - Mega paused your plan" : 'Mega paused your plan', `${why}. Mega won't guess with a game it no longer understands. Tell Claude; Start in the Plan tab resumes anyway.`, true);
+      } else {
+        localStorage.setItem(KEY, id); localStorage.removeItem(HELD);
+        if (changed) {
+          Log.add(`game guard: Poke'Catch updated (build ${id.slice(0, 6)}) - all ${r.n} checks still pass`);
+          Notify.send('daily', "Poke'Catch updated", `Mega re-checked everything it uses on the new version: all ${r.n} checks pass. Your plan keeps running.`);
+        }
+      }
+    } catch (e) { try { Health.record('gameguard', e); } catch (__e) { __h('77-gameguard:44', __e); } } finally { busy = false; }
+  }
+  return { check, build, held, boot() { setTimeout(check, 60_000); setInterval(check, 10 * 60_000); } };
+})();
+
+/* ---------------------------------------------------------------------------------------------
  * History: a sample every 10 minutes while the game is open (money, Pokédex, shinies, Lv 100s, total
  * levels, and every open goal's progress), kept 7 days on this PC. The phone draws graphs from it
  * and works out "while you were away". Read-only: nothing here touches the game.
@@ -6325,11 +6427,14 @@ const Updater = (() => {
   // (60 requests an hour per home - Mega uses about 7). Falls back to the raw file if the API says no.
   const API = 'https://api.github.com/repos/Murillo0211/mega-remote/contents/';
   async function getFile(name, raw) {
-    try { const r = await fetch(API + name + '?ref=main', { headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store' }); if (r.ok) return await r.text(); } catch (__e) { __h('79-update:14', __e); }
+    // stable PCs read main; a PC switched to the beta channel (localStorage mega-channel = beta) reads the beta branch
+    const ref = localStorage.getItem('mega-channel') === 'beta' ? 'beta' : 'main';
+    try { const r = await fetch(API + name + '?ref=' + ref, { headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store' }); if (r.ok) return await r.text(); } catch (__e) { __h('79-update:16', __e); }
+    if (ref !== 'main') throw new Error('GitHub did not answer for the beta channel');
     const r = await fetch(raw + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error('GitHub said ' + r.status); return await r.text();
   }
   let latest = null, checkedAt = 0, err = null, got = null;
-  try { const v = localStorage.getItem('mega-next-ver'); if (v && localStorage.getItem('mega-next-code')) got = v; } catch (__e) { __h('79-update:18', __e); }
+  try { const v = localStorage.getItem('mega-next-ver'); if (v && localStorage.getItem('mega-next-code')) got = v; } catch (__e) { __h('79-update:21', __e); }
   // download the new version itself, so a plain reload runs it (see the header). Kept only if it's
   // really that version, and only while the page's storage has room - the game save always comes first.
   async function download(v) {
@@ -6345,14 +6450,14 @@ const Updater = (() => {
       localStorage.setItem('mega-next-code', code); localStorage.setItem('mega-next-ver', v);
       localStorage.setItem('mega-next-try', '0'); localStorage.removeItem('mega-next-bad');
       got = v; return true;
-    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:34', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
+    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:37', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
   }
   const parts = (v) => String(v).split('.').map((x) => +x || 0);
   const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   async function check() {
     try {
       const m = (await getFile('mega-alakazam.meta.js', META)).match(/@version\s+(\S+)/);
-      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:41', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:41', __e); } } } }
+      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:44', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:44', __e); } } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
   }
@@ -6362,7 +6467,7 @@ const Updater = (() => {
   // at most; after that it just shows the gold button. After a reload that worked, the log says so.
   const KEY = 'mega-upd-reload';
   const memo = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
-  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:51', __e); } };
+  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:54', __e); } };
   function safe() {
     try {
       const a = E.get('Game.S')?.adv || {};
@@ -6376,15 +6481,16 @@ const Updater = (() => {
     const m = memo(), r = m[v] || { tries: 0, at: 0 };
     if (r.tries >= 4 || Date.now() - r.at < 30 * 60_000 || !safe()) return;
     m[v] = { tries: r.tries + 1, at: Date.now() }; keep(m);
-    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:65', __e); }
-    try { E.call('Game.save'); } catch (__e) { __h('79-update:66', __e); }
+    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:68', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('79-update:69', __e); }
+    try { Decisions.save(); } catch (__e) { __h('79-update:70', __e); }
     setTimeout(() => location.reload(), 1500);
   }
   const autoOn = () => { try { return JSON.parse(localStorage.getItem('mega-upd-auto') ?? 'true'); } catch { return true; } };
-  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:70', __e); } }
+  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:74', __e); } }
   function afterLoad() {
     const m = memo(), mine = m[VERSION];
-    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:73', __e); } }
+    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:77', __e); } }
     // first run of this version: self-test once the game is up; a failure rolls back to the version before
     if (localStorage.getItem('mega-tested-ver') !== VERSION) setTimeout(firstTest, 90_000);
   }
@@ -6394,22 +6500,22 @@ const Updater = (() => {
     if (!r.failed) { localStorage.setItem('mega-tested-ver', VERSION); return; }
     const why = (r.results || []).filter((x) => !x.warn).slice(0, 2).map((x) => `${x.name}: ${x.detail}`).join(' | ');
     if (window.__MEGA_HOT !== VERSION) { // installed through Tampermonkey: nothing to go back to here - just tell you
-      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:83', __e); }
+      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:87', __e); }
       localStorage.setItem('mega-tested-ver', VERSION); return;
     }
     const pv = localStorage.getItem('mega-prev-ver'), pc = localStorage.getItem('mega-prev-code');
     localStorage.setItem('mega-next-bad', VERSION);
     if (pv && pc && pv !== VERSION) { localStorage.setItem('mega-next-code', pc); localStorage.setItem('mega-next-ver', pv); localStorage.setItem('mega-next-try', '0'); }
     else { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); }
-    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:90', __e); }
-    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:91', __e); }
+    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:94', __e); }
+    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:95', __e); }
     reloadNow('reloading into the version before');
   }
   const E = Engine;
   // After a reload the game waits on its title screen: press its own Continue button (only that one,
   // only on the title screen). "Two saves found" is never touched - it sends a Needs You alert instead.
   const contOn = () => { try { return JSON.parse(localStorage.getItem('mega-auto-continue') ?? 'true'); } catch { return true; } };
-  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:98', __e); } }
+  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:102', __e); } }
   function autoContinue() {
     const t0 = Date.now(); let pressed = false, warned = false;
     const tick = () => {
@@ -6417,15 +6523,15 @@ const Updater = (() => {
       try {
         const txt = document.body?.innerText || '';
         if (/two saves|deux sauvegardes/i.test(txt)) {
-          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:106', __e); } }
+          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:110', __e); } }
           return setTimeout(tick, 2000);
         }
         if (!pressed && contOn() && document.body?.classList.contains('titled')) {
           const b = [...document.querySelectorAll('.title-fx .ti-go')].find((x) => /^\s*(continue|continuer)\s*$/i.test(x.textContent || ''));
-          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:111', __e); } }
+          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:115', __e); } }
         }
         if (pressed && !document.body?.classList.contains('titled')) return;
-      } catch (__e) { __h('79-update:114', __e); }
+      } catch (__e) { __h('79-update:118', __e); }
       setTimeout(tick, 700);
     };
     setTimeout(tick, 1500);
@@ -6436,11 +6542,11 @@ const Updater = (() => {
   // (you pressed Update there), Mega reloads the game so the new version runs
   function install() {
     if (got && got === latest) { reloadNow(`reloading the game to run Mega ${latest}`); return; }
-    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:125', __e); }
+    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:129', __e); }
     const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back); reloadNow(`reloading the game to run Mega ${latest}`); };
     setTimeout(() => { document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); }, 800);
   }
-  function reloadNow(why) { try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:129', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:129', __e); } setTimeout(() => location.reload(), 1500); }
+  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:133', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:133', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:133', __e); } setTimeout(() => location.reload(), 1500); }
   return { boot, check, install, reloadNow, setAuto, setContinue, get autoContinue() { return contOn() !== false; }, get downloaded() { return got; }, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
 })();
 
@@ -6943,7 +7049,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify,
+window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
