@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      0.30.0
+// @version      0.30.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '0.30.0';
+const VERSION = '0.30.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6678,7 +6678,9 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log };
+window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health,
+  // proves the whole path: a silent catch, rewritten by the build, reaching Health
+  healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
-if (window.__MEGA_HOT === VERSION) { window.__MEGA_HOT_OK = VERSION; setTimeout(() => { try { localStorage.setItem('mega-next-try', '0'); } catch (__e) { __h('90-main:17', __e); } }, 60_000); }
+if (window.__MEGA_HOT === VERSION) { window.__MEGA_HOT_OK = VERSION; setTimeout(() => { try { localStorage.setItem('mega-next-try', '0'); } catch (__e) { __h('90-main:19', __e); } }, 60_000); }
 })();
