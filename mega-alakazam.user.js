@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.1
+// @version      2.3.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.1';
+const VERSION = '2.3.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -776,6 +776,16 @@ const Sim = (() => {
     }
     return { score: kill - 0.5 * hurt, kill, hurt, oneShot };
   }
+  // The old helper's coverage (Jimmy: its picks cleared Dragonspiral first try): how many of each foe this
+  // Pokémon knocks out before it faints - its damage x its HP over the foe's damage x the foe's HP, max 50.
+  // Unlike a win chance it never tops out at 100%, so it still tells a good team from a great one.
+  function coverage(m, foes) {
+    return foes.map((f) => {
+      const F = { uid: 'cov', id: +f.id, level: +(f.level ?? f.lv) || 50, foe: true };
+      const out = attack(m, F, bestKey(m, F)).base || 0, inc = Math.max(1, attack(F, m, bestKey(F, m)).base || 0);
+      return Math.min(50, (out * maxHp(m)) / inc / Math.max(1, maxHp(F)));
+    });
+  }
   function chapterFoes(ch) {
     const steps = G().STORY.CHAPTERS[ch]?.steps || [], wild = chapterPool(ch);
     const fights = steps.filter((st) => st.kind === 'route').reduce((t, st) => t + (st.wild || 1), 0) || 1;
@@ -798,7 +808,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:418', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:428', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -807,7 +817,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:427', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:437', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -823,7 +833,7 @@ const Sim = (() => {
     return { pool, picks: cands.slice(0, n), ranked: cands };
   }
 
-  return { CARRIER_V: 4, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
+  return { CARRIER_V: 4, coverage, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3759,7 +3769,7 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 9; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 10; // bump when the scoring changes: saved plans from before are redone
   const grade = (team, foes, P) => LEVELS.reduce((s, [k, w]) => s + w * win(team, foes, 1 + (P - 1) * k), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
@@ -3808,15 +3818,35 @@ const GymPlan = (() => {
     // training cost (Jimmy's rule, from the old helper): levels still to gain (per 10) and catches still to make.
     // Small next to a real difference in winning, so it decides between teams that win about the same.
     const cost = (t) => t.reduce((c, x) => c + (x.kind === 'catch' ? 2 + (x.mins || 0) / 30 : x.kind === 'own' ? Math.max(0, (x.mon.level || 0) - (x.from?.level ?? x.mon.level)) / 10 + (x.from && x.from.id !== x.id ? 0.3 : 0) : 0), 0);
-    const obj = async (t) => (await objWin(t)) - 0.12 * cost(t);
+    // the old helper's coverage against the leader + the chapter's 5 most common wild Pokémon, with diminishing
+    // returns (a foe nobody handles counts far more than one already crushed). Win chances read 100% for almost
+    // any team at the cap, so this is what tells them apart - Mega picked Chandelure where the old helper picked
+    // Escavalier, and only the old helper's team got past stop 11.
+    const covFoes = [...foes, ...(G.route || [])], covOf = new Map();
+    const kOf = (x) => { if (!covOf.has(x)) covOf.set(x, safe(() => Sim.coverage(x.mon, covFoes), covFoes.map(() => 0)) || covFoes.map(() => 0)); return covOf.get(x); };
+    const covScore = (t) => { const c = covFoes.map(() => 0); for (const x of t) kOf(x).forEach((v, i) => (c[i] += v)); return c.reduce((s, v) => s + Math.log1p(v), 0) / Math.max(1, covFoes.length); };
+    const COV_W = 3;
+    const obj = async (t) => (await objWin(t)) + COV_W * covScore(t) - 0.12 * cost(t);
     const objWin = async (t) => { let s = 0; for (let k = 1; k <= foes.length; k++) s += (await W(t, foes.slice(0, k))) * (k === foes.length ? foes.length : 1); if (way) s += (await W(t, way)) * foes.length; if (G.route?.length) s += (await W(t, G.route)) * 2; return s; };
     // single matchups (the hardest foe counts double)
     const hard = []; for (const x of pool) { let s = 0; for (const f of foes) s += await W([x], [f]); hard.push(s); }
     const lastHard = []; for (const x of pool) lastHard.push(await W([x], [foes[foes.length - 1]]));
-    const top = pool.map((x, i) => ({ x, s: hard[i] + lastHard[i] })).sort((a, b) => b.s - a.s).slice(0, 16).map((y) => y.x);
+    // the old helper's pick, exactly: greedy on coverage gain, ties to the one closest to ready today
+    const greedy = []; { const c = covFoes.map(() => 0);
+      while (greedy.length < 6) {
+        let b = null, bv = -Infinity;
+        for (const x of pool) {
+          if (greedy.includes(x) || greedy.some((y) => sp(y) === sp(x))) continue;
+          const k = kOf(x), ready = 0.5 + 0.5 * Math.min(1, (x.from?.level ?? x.mon.level) / Math.max(1, x.mon.level));
+          const v = k.reduce((a, v, i) => a + Math.log1p(c[i] + v) - Math.log1p(c[i]), 0) + 1e-6 * k.reduce((a, v) => a + v, 0) * ready - (x.kind === 'catch' ? 0.05 : 0);
+          if (v > bv) { bv = v; b = x; }
+        }
+        if (!b) break; greedy.push(b); kOf(b).forEach((v, i) => (c[i] += v));
+      } }
+    const top = [...new Set([...greedy, ...pool.map((x, i) => ({ x, s: hard[i] + lastHard[i] })).sort((a, b) => b.s - a.s).slice(0, 16).map((y) => y.x)])];
     let best = null, bs = -1;
     for (let r = 0; r < 5 && n < budget; r++) {
-      let t = [...top].sort(() => Math.random() - 0.5).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
+      let t = r === 0 && greedy.length ? [...greedy] : [...top].sort(() => Math.random() - 0.5).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
       let s = await obj(t), imp = true;
       while (imp && n < budget) {
         imp = false;
@@ -3825,7 +3855,7 @@ const GymPlan = (() => {
       }
       if (s > bs) { bs = s; best = t; }
     }
-    return { team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: best && way ? grade(best.map((x) => x.mon), way, P) : null };
+    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: best && way ? grade(best.map((x) => x.mon), way, P) : null };
   }
   // plan the gym of chapter `ch` (cached per gym + side). Returns the saved plan, or null while it's thinking.
   function get(ch, { force = false } = {}) {
@@ -3858,8 +3888,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:179', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:180', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:199', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:200', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3870,9 +3900,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:191', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:211', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:193', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:213', __e); } }
     }
     return out;
   }
@@ -3883,7 +3913,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:204', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:224', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
@@ -7439,7 +7469,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard,
+window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
