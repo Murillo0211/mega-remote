@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.6.0
+// @version      2.6.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.6.0';
+const VERSION = '2.6.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6945,8 +6945,16 @@ const Decisions = (() => {
   function save() { try { if (!Engine.ready()) return; localStorage.setItem(KEY, JSON.stringify({ ver: VERSION, at: Date.now(), r: now() })); } catch (__e) { __h('77-decisions:32', __e); } }
   // the new version (once): what changed since that record
   function compare() {
-    let rec = null; try { rec = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('77-decisions:35', __e); }
-    if (!rec || rec.ver === VERSION) { try { return JSON.parse(localStorage.getItem(DIFF) || 'null'); } catch { return null; } }
+    // not connected to the game yet: every decision would read blank, so compare nothing and record nothing
+    // (a reload that missed the hook once turned 15 decisions into "Mont Abrupt -> (blank)" and a false warning)
+    if (!Engine.ready()) return null;
+    let rec = null; try { rec = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (__e) { __h('77-decisions:38', __e); }
+    if (!rec || rec.ver === VERSION) {
+      let d = null; try { d = JSON.parse(localStorage.getItem(DIFF) || 'null'); } catch (__e) { __h('77-decisions:40', __e); }
+      // a diff recorded while disconnected (every new value blank) proves nothing: drop it
+      if (d?.changed?.length && d.changed.every((c) => c.now === '' || c.now === '(none)')) { try { localStorage.removeItem(DIFF); } catch (__e) { __h('77-decisions:42', __e); } return null; }
+      return d;
+    }
     if (Date.now() - rec.at > 60 * 60_000) { localStorage.removeItem(KEY); return null; } // too old: the save has moved on
     const cur = now(), changed = [];
     for (const k of new Set([...Object.keys(rec.r), ...Object.keys(cur)])) {
@@ -6955,7 +6963,7 @@ const Decisions = (() => {
       changed.push({ k, was: rec.r[k] ?? '(none)', now: cur[k] ?? '(none)', expected: EXPECTED.some((x) => k.startsWith(x)) });
     }
     const d = { from: rec.ver, to: VERSION, at: Date.now(), n: Object.keys(cur).length, changed };
-    try { localStorage.setItem(DIFF, JSON.stringify(d)); localStorage.setItem(KEY, JSON.stringify({ ver: VERSION, at: Date.now(), r: cur })); } catch (__e) { __h('77-decisions:45', __e); }
+    try { localStorage.setItem(DIFF, JSON.stringify(d)); localStorage.setItem(KEY, JSON.stringify({ ver: VERSION, at: Date.now(), r: cur })); } catch (__e) { __h('77-decisions:53', __e); }
     return d;
   }
   return { now, save, compare, EXPECTED };
