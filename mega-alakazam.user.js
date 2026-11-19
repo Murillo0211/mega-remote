@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.6.1
+// @version      2.7.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.6.1';
+const VERSION = '2.7.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1152,6 +1152,105 @@ const Recorder = (() => {
   function start() {
     setTimeout(migrate, 3000); if (!timer) timer = setInterval(() => { try { if (E.ready()) poll(); } catch (e) { console.warn('[Mega Alakazam] recorder', e); } }, 100); }
   return { start, all, onFight: (fn) => listeners.add(fn), get current() { return cur; } };
+})();
+
+/* ---------------------------------------------------------------------------------------------
+ * BossLog: every real gym and League fight, written down as the game actually ran it - the ground
+ * truth for rebuilding the gym simulator (Jimmy, 2026-11-18: Mega's teams lost to Cheren six times at
+ * an estimated 100% while the old helper's team won; the rebuild may only ship once it agrees with these).
+ *
+ * Kept per fight: the chapter and leader, the gym's power, the fight's edge and slots, the leader's
+ * whole team as the game built it (levels, HP multiplier, real max HP), your six (levels, rank, HP),
+ * what each simulator said at the start (the ported old-helper simulator, the game's quick estimate),
+ * who was in charge (Mega's plan or the old helper), a compact timeline of HP turn by turn, and the
+ * result from the game's own counters (battles / wins, badges, chapter unlocked).
+ *
+ * Read-only towards the game, always on (it records while Mega's plan is paused and the old helper
+ * plays). Stored in IndexedDB "mega-bossfights" (last 300 fights), never in the game's localStorage.
+ * ------------------------------------------------------------------------------------------- */
+const BossLog = (() => {
+  const E = Engine, DB = 'mega-bossfights', STORE = 'fights', KEEP = 300;
+  let db = null, cur = null, count = null;
+  const S = () => E.get('Game.S') || {};
+  const safe = (f, d = null) => { try { const v = f(); return v === undefined ? d : v; } catch { return d; } };
+  function open() {
+    if (db) return Promise.resolve(db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(DB, 1);
+      r.onupgradeneeded = () => { const s = r.result.createObjectStore(STORE, { keyPath: 'id' }); s.createIndex('at', 'at'); };
+      r.onsuccess = () => res((db = r.result));
+      r.onerror = () => rej(r.error);
+    });
+  }
+  async function all() {
+    const d = await open();
+    return new Promise((res, rej) => { const q = d.transaction(STORE).objectStore(STORE).getAll(); q.onsuccess = () => res((q.result || []).sort((a, b) => a.at - b.at)); q.onerror = () => rej(q.error); });
+  }
+  async function put(f) {
+    const d = await open();
+    await new Promise((res, rej) => { const tx = d.transaction(STORE, 'readwrite'); tx.objectStore(STORE).put(f); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    const list = await all(); count = list.length;
+    if (list.length > KEEP) { const tx = d.transaction(STORE, 'readwrite'); for (const x of list.slice(0, list.length - KEEP)) tx.objectStore(STORE).delete(x.id); }
+  }
+  const isBoss = (b) => b && (b.kind === 'gym' || b.kind === 'league') && (b.enemies || []).length;
+  const mon = (u) => E.read('Game.getMon', null, u);
+  const curHp = (m) => safe(() => +E.read('Game.curHp', m.hp ?? 0, m), m?.hp ?? 0);
+  const maxHp = (m) => safe(() => +E.read('Game.maxHp', 0, m), 0);
+  const teamNow = () => (S().team || []).slice(0, 6).map(mon).filter(Boolean);
+
+  function begin(b) {
+    const a = S().adv || {}, team = teamNow(), g = b.gym || {};
+    const foes = b.enemies.map((e) => ({ uid: e.uid, id: +e.id, level: +e.level, hpMult: e.hpMult ?? null, maxHp: maxHp(e), hp: +e.hp, statMult: e.statMult ?? null }));
+    const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
+    const simFoes = foes.map((f) => ({ id: f.id, level: f.level }));
+    cur = {
+      v: 1, id: `${Date.now()}-${b.enemies[0].uid}`, at: Date.now(),
+      ch: +a.chapter, chapter: safe(() => E.get('STORY').CHAPTERS[a.chapter].name), unlocked: +a.unlocked, node: +a.node, nodes: (a.nodes || []).length,
+      kind: b.kind, trainer: b.trainer || g.leader || null, gym: { leader: g.leader || null, type: g.type || null, badge: g.badge || null, power: +g.power || 1, double: !!g.double },
+      edge: b.edge ?? null, slots: +b.slots || 1, foes,
+      team: team.map((m) => ({ uid: m.uid, id: +m.id, level: +m.level, rank: safe(() => +E.read('Game.rankOf', 0, m), 0), shiny: !!m.shiny, maxHp: maxHp(m), hp: curHp(m) })),
+      est: {
+        oldSim: safe(() => +Sim.gymEval(team.map(fresh), simFoes, { power: +g.power || 1, double: !!g.double }, 300).win, null),
+        game: safe(() => +E.call('Adventure.winChance', team.map(fresh), simFoes, 'gym', 1, +g.power || 1), null),
+      },
+      by: safe(() => (Plan.oldOn() ? 'old helper' : Plan.running ? 'Mega' : 'you (plan paused)'), null),
+      stats0: { battles: +(S().stats?.battles ?? NaN), wins: +(S().stats?.wins ?? NaN), badges: (a.badges || []).length },
+      replay: +a.chapter < +a.unlocked, // a leader you've already beaten (Mega's training loops)
+      tl: [], complete: +b.turn === 0,
+    };
+    sample(b);
+    if (!cur.replay) try { Log.add(`recording ${cur.trainer || 'a boss'} fight (${cur.foes.length} Pokémon, power ×${cur.gym.power}, edge ${cur.edge}) - old-helper simulator ${cur.est.oldSim == null ? '?' : Math.round(cur.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:66', __e); }
+  }
+  function sample(b) {
+    const s = { t: Date.now() - cur.at, turn: +b.turn, e: b.enemies.map((e) => +e.hp), a: cur.team.map((t) => { const m = mon(t.uid); return m ? curHp(m) : 0; }), on: (b.allies || []).map((u) => cur.team.findIndex((t) => t.uid === u)), of: (b.foes || []).map((u) => b.enemies.findIndex((e) => e.uid === u)) };
+    const last = cur.tl[cur.tl.length - 1];
+    if (last && last.turn === s.turn && last.e.join() === s.e.join() && last.a.join() === s.a.join() && last.on.join() === s.on.join()) return;
+    if (cur.tl.length < 1500) cur.tl.push(s);
+  }
+  async function end(reason) {
+    const f = cur; cur = null; if (!f) return;
+    await new Promise((r) => setTimeout(r, 1500)); // the game updates its counters right after the fight
+    const a = S().adv || {}, st = S().stats || {};
+    const dB = +(st.battles ?? NaN) - f.stats0.battles, dW = +(st.wins ?? NaN) - f.stats0.wins;
+    const badge = (a.badges || []).length > f.stats0.badges || +a.unlocked > f.unlocked;
+    const lastT = f.tl[f.tl.length - 1];
+    f.outcome = badge || dW >= 1 ? 'won' : dB >= 1 || (lastT && lastT.a.every((h) => h <= 0)) ? 'lost' : 'left';
+    f.ended = reason; f.ms = Date.now() - f.at; f.turns = lastT ? lastT.turn : 0;
+    f.foesLeft = lastT ? lastT.e.filter((h) => h > 0).length : null;
+    try { await put(f); } catch (e) { console.warn('[Mega Alakazam] could not store boss fight', e); }
+    if (!f.replay) try { Log.add(`recorded: ${f.trainer || 'boss'} - ${f.outcome}${f.outcome === 'lost' ? ` (${f.foesLeft} of ${f.foes.length} of their Pokémon still standing)` : ''} in ${f.turns} turns; the old-helper simulator had said ${f.est.oldSim == null ? '?' : Math.round(f.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:85', __e); }
+  }
+  function poll() {
+    const b = S().adv?.battle;
+    if (cur) {
+      if (!isBoss(b) || b.enemies[0].uid !== cur.foes[0].uid) { end(isBoss(b) ? 'next fight' : 'over'); if (!isBoss(b)) return; }
+      else { sample(b); return; }
+    }
+    if (isBoss(b)) begin(b);
+  }
+  setInterval(() => { try { if (E.ready()) poll(); } catch (e) { console.warn('[Mega Alakazam] boss log', e); } }, 250);
+  setTimeout(() => { all().then((l) => { count = l.length; }).catch(() => {}); }, 4000);
+  return { all, get current() { return cur; }, get count() { return count; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3717,6 +3816,9 @@ Views.league = (esc) => {
     }
     h += `</div>`;
   }
+  // the recorder for the simulator rebuild: every real gym / League fight, as the game ran it
+  { const n = (() => { try { return BossLog.count; } catch { return null; } })(), c = (() => { try { return BossLog.current; } catch { return null; } })();
+    h += `<div class="card"><h3>Fight Recorder</h3><div>${c ? `<b class="ok">● Recording now:</b> ${esc(Casing.names(String(c.trainer || 'a boss')))}${c.replay ? ' (a replay)' : ''}` : 'Waiting for the next gym or League fight.'}</div><div class="dim" style="margin-top:4px">${n == null ? 'Counting…' : `${n} real fight${n === 1 ? '' : 's'} recorded so far`} - the leader's real team, levels and HP, your team, and the result. The new simulator has to match these before it's used.</div></div>`; }
   // ---- Elite League ----
   const L = LeagueInfo.league();
   if (L.length) {
@@ -7694,7 +7796,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy,
+window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
