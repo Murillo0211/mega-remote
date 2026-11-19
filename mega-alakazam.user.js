@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.7.2
+// @version      2.7.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.7.2';
+const VERSION = '2.7.3';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -183,6 +183,19 @@ const Hook = (() => {
     }
   }
 
+  // started too late (Tampermonkey injected after boot.js had already added the bundle): the hand-over can't
+  // happen on this load, so reload once - at most twice in 3 minutes, so it can never loop. Seen twice on
+  // 2026-11-18: Mega silently didn't appear until a manual reload.
+  const RK = 'mega-hook-reload';
+  const retry = (why) => {
+    let r = { n: 0, at: 0 }; try { r = JSON.parse(sessionStorage.getItem(RK) || '{"n":0,"at":0}'); } catch (__e) { __h('10-hook:56', __e); }
+    if (Date.now() - r.at > 3 * 60_000) r = { n: 0, at: Date.now() };
+    if (r.n >= 2) { report.reason = 'missed the game bundle (' + why + ') - reload the page'; return; }
+    r.n++; try { sessionStorage.setItem(RK, JSON.stringify(r)); } catch (__e) { __h('10-hook:59', __e); }
+    report.reason = 'missed the game bundle (' + why + ') - reloading once';
+    setTimeout(() => location.reload(), 1500);
+  };
+  try { if ([...document.scripts].some((x) => BUNDLE.test(x.src || ''))) setTimeout(() => { if (!window.__MEGA_NS && !tried) retry('it was already loaded'); }, 4000); } catch (__e) { __h('10-hook:63', __e); }
   for (const name of ['appendChild', 'insertBefore']) {
     const real = Node.prototype[name];
     Node.prototype[name] = function (node, ...rest) { intercept(node); return real.call(this, node, ...rest); };
@@ -191,8 +204,9 @@ const Hook = (() => {
   const started = Date.now();
   const watch = setInterval(() => {
     let up = false;
-    try { const G = window.__MEGA_NS; up = !!(G && G.POKEDEX && G.CONFIG); } catch (__e) { __h('10-hook:59', __e); }
-    if (up) { clearInterval(watch); Object.assign(report, { ok: true, reason: 'engine available' }); }
+    try { const G = window.__MEGA_NS; up = !!(G && G.POKEDEX && G.CONFIG); } catch (__e) { __h('10-hook:72', __e); }
+    if (up) { clearInterval(watch); Object.assign(report, { ok: true, reason: 'engine available' }); try { sessionStorage.removeItem(RK); } catch (__e) { __h('10-hook:73', __e); } }
+    else if (!tried && Date.now() - started > 20_000 && [...document.scripts].some((x) => BUNDLE.test(x.src || ''))) { clearInterval(watch); retry('never saw it load'); }
     else if (Date.now() - started > 60_000) { clearInterval(watch); if (!report.ok && /^patched/.test(report.reason)) report.reason = 'patched copy loaded but the engine never appeared'; }
   }, 500);
   return { report };
