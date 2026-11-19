@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.7.3
+// @version      2.7.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.7.3';
+const VERSION = '2.7.4';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1229,11 +1229,13 @@ const BossLog = (() => {
       },
       by: safe(() => (Plan.oldOn() ? 'old helper' : Plan.running ? 'Mega' : 'you (plan paused)'), null),
       stats0: { battles: +(S().stats?.battles ?? NaN), wins: +(S().stats?.wins ?? NaN), badges: (a.badges || []).length },
+      startHp: null, // filled below: share of the team's HP left at the start (0-1)
       replay: +a.chapter < +a.unlocked, // a leader you've already beaten (Mega's training loops)
       tl: [], complete: +b.turn === 0,
     };
+    { const hp = cur.team.reduce((x, t) => x + (t.hp || 0), 0), mx = cur.team.reduce((x, t) => x + (t.maxHp || 0), 0); cur.startHp = mx ? +(hp / mx).toFixed(3) : null; }
     sample(b);
-    if (!cur.replay) try { Log.add(`recording ${cur.trainer || 'a boss'} fight (${cur.foes.length} Pokémon, power ×${cur.gym.power}, edge ${cur.edge}) - old-helper simulator ${cur.est.oldSim == null ? '?' : Math.round(cur.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:66', __e); }
+    if (!cur.replay) try { Log.add(`recording ${cur.trainer || 'a boss'} fight (${cur.foes.length} Pokémon, power ×${cur.gym.power}, edge ${cur.edge}) - old-helper simulator ${cur.est.oldSim == null ? '?' : Math.round(cur.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:68', __e); }
   }
   function sample(b) {
     const s = { t: Date.now() - cur.at, turn: +b.turn, e: b.enemies.map((e) => +e.hp), a: cur.team.map((t) => { const m = mon(t.uid); return m ? curHp(m) : 0; }), on: (b.allies || []).map((u) => cur.team.findIndex((t) => t.uid === u)), of: (b.foes || []).map((u) => b.enemies.findIndex((e) => e.uid === u)) };
@@ -1248,11 +1250,12 @@ const BossLog = (() => {
     const dB = +(st.battles ?? NaN) - f.stats0.battles, dW = +(st.wins ?? NaN) - f.stats0.wins;
     const badge = (a.badges || []).length > f.stats0.badges || +a.unlocked > f.unlocked;
     const lastT = f.tl[f.tl.length - 1];
-    f.outcome = badge || dW >= 1 ? 'won' : dB >= 1 || (lastT && lastT.a.every((h) => h <= 0)) ? 'lost' : 'left';
+    const foesUp = lastT ? lastT.e.filter((h) => h > 0).length : 0;
+    f.outcome = badge || dW >= 1 ? 'won' : dB >= 1 || foesUp > 0 || (lastT && lastT.a.every((h) => h <= 0)) ? 'lost' : 'left';
     f.ended = reason; f.ms = Date.now() - f.at; f.turns = lastT ? lastT.turn : 0;
     f.foesLeft = lastT ? lastT.e.filter((h) => h > 0).length : null;
     try { await put(f); } catch (e) { console.warn('[Mega Alakazam] could not store boss fight', e); }
-    if (!f.replay) try { Log.add(`recorded: ${f.trainer || 'boss'} - ${f.outcome}${f.outcome === 'lost' ? ` (${f.foesLeft} of ${f.foes.length} of their Pokémon still standing)` : ''} in ${f.turns} turns; the old-helper simulator had said ${f.est.oldSim == null ? '?' : Math.round(f.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:85', __e); }
+    if (!f.replay) try { Log.add(`recorded: ${f.trainer || 'boss'} - ${f.outcome}${f.outcome === 'lost' ? ` (${f.foesLeft} of ${f.foes.length} of their Pokémon still standing)` : ''} in ${f.turns} turns; the old-helper simulator had said ${f.est.oldSim == null ? '?' : Math.round(f.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:88', __e); }
   }
   function poll() {
     const b = S().adv?.battle;
@@ -1263,7 +1266,15 @@ const BossLog = (() => {
     if (isBoss(b)) begin(b);
   }
   setInterval(() => { try { if (E.ready()) poll(); } catch (e) { console.warn('[Mega Alakazam] boss log', e); } }, 250);
-  setTimeout(() => { all().then((l) => { count = l.length; }).catch(() => {}); }, 4000);
+  setTimeout(async () => {
+    try {
+      const l = await all(); count = l.length;
+      for (const f of l) {
+        if (f.outcome === 'left' && f.foesLeft > 0) { f.outcome = 'lost'; f.fixed = 'left->lost (2.7.4: leader still standing)'; await put(f); }
+        if (f.startHp == null && f.team?.length) { const hp = f.team.reduce((x, t) => x + (t.hp || 0), 0), mx = f.team.reduce((x, t) => x + (t.maxHp || 0), 0); f.startHp = mx ? +(hp / mx).toFixed(3) : null; await put(f); }
+      }
+    } catch (__e) { __h('41-bosslog:106', __e); }
+  }, 4000);
   return { all, poll, get current() { return cur; }, get count() { return count; } };
 })();
 
