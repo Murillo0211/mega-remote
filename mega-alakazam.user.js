@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.0
+// @version      2.9.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.0';
+const VERSION = '2.9.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2112,7 +2112,7 @@ const DayCare = (() => {
 Views.legends = (w, ui, esc) => {
   if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
   // Hide locked / Hide caught (Jimmy): the list only - a legendary you already picked stays shown
-  const all = Legends.list().filter((z) => +z.id === +ui.pick || !((ui.hideLocked && z.state === 'locked') || (ui.hideCaught && z.state === 'done')));
+  const all = Legends.list().filter((z) => +z.id === +ui.pick || !((ui.hideLocked && (z.state === 'locked' || z.state === 'sealed')) || (ui.hideCaught && z.state === 'done')));
   const order = { open: 0, closed: 1, locked: 2, done: 3 };
   const label = { open: '<span class="ok">open</span>', closed: '<span class="warn">closed now</span>', locked: '<span class="dim">locked</span>', done: '<span class="dim">caught</span>' };
   const name = (id) => esc(World.dex.name(id));
