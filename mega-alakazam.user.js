@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.8.0
+// @version      2.9.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.8.0';
+const VERSION = '2.9.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -502,20 +502,29 @@ const Sim = (() => {
   // the zone's settings; with an elite tier, the game's elite settings for that tier (eliteKnobs for
   // HP / power, Lv MAX_LEVEL, this week's form, ELITE.HURT for poison / burn on it, ELITE.RESIST =
   // how much less often your status moves land on it)
+  // a roaming legendary (Tornadus, Raikou...): no zone - the game fights it as a wild Pokémon at
+  // ROAMING.MIN_LEVEL with LEGEND_ZONE.ROAM_HP / ROAM_POWER, in the weather it brings (ROAMING.WEATHER),
+  // without the zone aura (the old helper's rules)
+  function roamZone(foeId) {
+    const c = C(), R = c.ROAMING || {}, L = c.LEGEND_ZONE || {};
+    if (!(R.GROUPS || []).some((g) => g.ids.includes(+foeId))) return null;
+    let lv = null; try { lv = +G().Roaming.level() || null; } catch (__e) { __h('35-sim:114', __e); }
+    return { id: +foeId, foe: +foeId, hp: L.ROAM_HP ?? 4, power: L.ROAM_POWER ?? 0.6, weather: (R.WEATHER || {})[foeId] || null, burst: null, counter: null, level: lv || R.MIN_LEVEL || 100, wild: true, roam: true };
+  }
   function zoneOf(foeId, tier = 0) {
     const LZ = G().LegendZones, z = LZ.get(foeId);
-    if (!z) return null;
+    if (!z) return roamZone(foeId);
     // weekly forms (Deoxys): fight this week's form with its own stats and strength
-    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:112', __e); } }
+    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:121', __e); } }
     const fk = form && form !== foeId ? (z.formKnobs || {})[form] : null;
     const base = { id: foeId, foe: fk ? form : foeId, hp: fk?.hp ?? z.hp, power: fk?.power ?? z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true };
     // the strength the game really used the last time you fought it (Calib keeps it from the Recorder);
     // not for a new form - those fights were against a different form
-    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:117', __e); } }
+    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:126', __e); } }
     if (!tier) return obs ? { ...base, hp: obs.hp, power: obs.power, observed: true } : base;
     const EL = C().ELITE || {};
-    let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch (__e) { __h('35-sim:120', __e); }
-    let foe = foeId; try { foe = LZ.eliteFoe(z) || foeId; } catch (__e) { __h('35-sim:121', __e); }
+    let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch (__e) { __h('35-sim:129', __e); }
+    let foe = foeId; try { foe = LZ.eliteFoe(z) || foeId; } catch (__e) { __h('35-sim:130', __e); }
     return { ...base, foe, hp: obs?.hp ?? kn?.hp ?? base.hp, power: obs?.power ?? kn?.power ?? base.power, observed: !!obs, level: C().MAX_LEVEL || 100, elite: tier, hurt: EL.HURT?.[tier] ?? null, resist: EL.RESIST?.[tier] ?? 1 };
   }
 
@@ -524,13 +533,13 @@ const Sim = (() => {
     const boss = { uid: 'boss', id: +(zone?.foe ?? foeId), level: zone?.level || 100, shiny: false, foe: true };
     const wx = zone?.weather ? c.WEATHER?.TYPES?.[zone.weather]?.damage || null : null;
     let aura = 1;
-    try { aura = (LZ.AURA || 0) ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:130', __e); }
+    try { aura = (LZ.AURA || 0) && !zone?.wild ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:139', __e); } // no aura for roamers
     // tuning learned from your real fights (Calib): boss power / HP per kind of fight
     const ctx = zone?.raid ? 'raid' : zone?.elite ? 'elite' : 'zone';
-    let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:133', __e); } }
+    let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:142', __e); } }
     const pk = +(cal?.pk) || 1, hk = +(cal?.hk) || 1;
-    const P = (zone?.power ?? 1) * aura * aura * (ED.static ?? 1) * pk;
-    const PR = P;
+    const P = (zone?.power ?? 1) * aura * aura * (zone?.wild ? ED.wild ?? 0.85 : ED.static ?? 1) * pk; // roamers hit like wild Pokémon
+    const PR = (zone?.power ?? 1) * aura * aura * (ED.static ?? 1) * pk; // rage hits always use 'static'
     const slots = 1 + (c.ENEMY_HP_PER_ALLY ?? 0.7) * ((c.TEAM_SIZE || 6) - 1);
     const bossHp = maxHp({ ...boss, hpMult: slots * (zone?.hp ?? 1) * aura * hk });
     const drainOf = (k) => (c.DRAIN || {})[k] || 0;
@@ -960,7 +969,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:566', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:575', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -969,7 +978,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:575', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:584', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -985,7 +994,7 @@ const Sim = (() => {
     return { pool, picks: cands.slice(0, n), ranked: cands };
   }
 
-  return { CARRIER_V: 4, coverage, gymEval, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
+  return { CARRIER_V: 4, roamZone, coverage, gymEval, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -1731,14 +1740,35 @@ const Legends = (() => {
       };
     });
   }
-  const get = (id) => list().find((x) => x.id === +id) || null;
+  // roaming legendaries (no zone): from the game's ROAMING groups and its Roaming module
+  function roamers() {
+    const C = E.get('CONFIG') || {}, R = C.ROAMING || {}, DX = E.get('Game.DEX') || {}, S = E.get('Game.S') || {}, ST = E.get('STORY');
+    const out = [];
+    for (const g of R.GROUPS || []) for (const id of g.ids) {
+      const caught = (S.roam?.caught || []).includes(id) || !!safe(() => E.read('Game.owns', false, id), false);
+      const free = !caught && !!safe(() => E.get('Roaming').free(id), false);
+      const at = S.roam?.at?.[id];
+      const z = safe(() => Sim.roamZone(id));
+      const chName = at ? safe(() => Casing.names(ST.CHAPTERS[at.ch].name), 'a chapter') : null;
+      out.push({
+        id, name: DX[id]?.name || '#' + id, region: (g.regions || [])[0] || '', roam: true, level: z?.level || R.MIN_LEVEL || 100, hp: z?.hp, power: z?.power, weather: z?.weather || null,
+        place: at ? `roaming in ${chName}` : 'roaming', state: caught ? 'done' : free ? (at ? 'open' : 'closed') : 'locked',
+        when: at ? `in ${chName} until ${new Date(at.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}, then it moves` : free ? 'between spots - it shows up again shortly' : null,
+        progress: free || caught ? null : { text: `Become ${safe(() => Casing.names(g.unlock), g.unlock)} to set it roaming`, have: 0, need: 1, lines: [] },
+        forms: null, form: null, formName: null, allForms: null,
+      });
+    }
+    return out;
+  }
+  const listAll = () => [...list(), ...safe(() => roamers(), [])];
+  const get = (id) => listAll().find((x) => x.id === +id) || null;
 
   // simulated best teams (kept per legendary until you ask again)
   const sims = () => { try { return JSON.parse(localStorage.getItem(SIM_KEY) || '{}'); } catch { return {}; } };
   function saveSim(id, r) {
     const all = sims();
     all[id] = { uids: r.team.map((m) => m.uid), ko: r.final.ko, today: r.today ? r.today.ko : r.final.ko, toLevel: r.toLevel || [], asMax: !!r.asMax, rounds: r.final.rounds, current: r.current ? r.current.ko : null, at: r.at };
-    try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:43', __e); }
+    try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:64', __e); }
     return all[id];
   }
 
@@ -1751,8 +1781,8 @@ const Legends = (() => {
     return { fights: fights.length, ko, lost, rate: ko + lost ? ko / (ko + lost) : null };
   }
 
-  function dropSim(id) { const all = sims(); delete all[id]; try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:56', __e); } }
-  return { list, get, sims, saveSim, dropSim, realFor };
+  function dropSim(id) { const all = sims(); delete all[id]; try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:77', __e); } }
+  return { list: listAll, zones: list, roamers, get, sims, saveSim, dropSim, realFor };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -2081,7 +2111,8 @@ const DayCare = (() => {
  * ------------------------------------------------------------------------------------------- */
 Views.legends = (w, ui, esc) => {
   if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
-  const all = Legends.list();
+  // Hide locked / Hide caught (Jimmy): the list only - a legendary you already picked stays shown
+  const all = Legends.list().filter((z) => +z.id === +ui.pick || !((ui.hideLocked && z.state === 'locked') || (ui.hideCaught && z.state === 'done')));
   const order = { open: 0, closed: 1, locked: 2, done: 3 };
   const label = { open: '<span class="ok">open</span>', closed: '<span class="warn">closed now</span>', locked: '<span class="dim">locked</span>', done: '<span class="dim">caught</span>' };
   const name = (id) => esc(World.dex.name(id));
@@ -2091,11 +2122,13 @@ Views.legends = (w, ui, esc) => {
 
   const sel = ui.pick ? Legends.get(ui.pick) : null;
   h += `<select class="sel" data-act="pick"><option value="">Choose a legendary…</option>${[...all].sort((a, b) => order[a.state] - order[b.state] || a.id - b.id).map((z) =>
-    `<option value="${z.id}" ${+ui.pick === z.id ? 'selected' : ''}>${esc(z.name)} · ${esc(z.region)} · ${z.state === 'done' ? 'caught' : z.state}</option>`).join('')}</select>`;
+    `<option value="${z.id}" ${+ui.pick === z.id ? 'selected' : ''}>${esc(z.name)}${z.roam ? ' (roaming)' : ''} · ${esc(z.region)} · ${z.state === 'done' ? 'caught' : z.roam && z.state === 'open' ? 'out now' : z.state}</option>`).join('')}</select>`;
+  h += `<div style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 8px"><label class="chk"><input type="checkbox" data-act="leg-hide-locked" ${ui.hideLocked ? 'checked' : ''}> Hide locked</label><label class="chk"><input type="checkbox" data-act="leg-hide-caught" ${ui.hideCaught ? 'checked' : ''}> Hide caught</label></div>`;
 
   if (sel) {
     h += `<div class="card"><h3>${esc(sel.name)} <span class="dim">Lv ${sel.level}</span></h3>
-      <div class="row"><span class="k">Zone</span><span class="v">${label[sel.state] || esc(sel.state)}</span></div>
+      <div class="row"><span class="k">${sel.roam ? 'Roaming' : 'Zone'}</span><span class="v">${sel.roam && sel.state === 'open' ? '<span class="ok">out now</span>' : sel.roam && sel.state === 'closed' ? '<span class="warn">between spots</span>' : label[sel.state] || esc(sel.state)}</span></div>
+      ${sel.roam ? `<div class="row"><span class="k">Fight</span><span class="v">Lv ${sel.level} · HP x${sel.hp} · power x${sel.power}${sel.weather ? ' · ' + esc(sel.weather) : ''}</span></div>` : ''}
       <div class="row"><span class="k">When</span><span class="v">${esc(sel.when || '?')}</span></div>`;
     if (sel.forms) {
       h += `<div class="row"><span class="k">This week</span><span class="v">${sel.allForms ? '<span class="ok">every form caught</span>' : sel.form ? `${esc(sel.formName || name(sel.form))}${Engine.read('Game.owns', false, sel.form) ? ' <span class="ok">· caught</span>' : ''}` : '?'}</span></div>`;
@@ -2110,10 +2143,10 @@ Views.legends = (w, ui, esc) => {
     h += `</div>`;
 
     // team: current zone team, simulated best, real record
-    const cur = Engine.read('Game.zoneTeam', [], sel.id) || [];
+    const cur = sel.roam ? (Engine.get('Game.S')?.team || []).slice(0, 6) : Engine.read('Game.zoneTeam', [], sel.id) || [];
     const saved = Legends.sims()[sel.id];
     const teamRow = (uids) => `<div class="grid">${uids.map((u) => { const m = mon(u); return m ? `<div class="mon"><img src="${Engine.sprite(m.id)}" alt="">${name(m.id)}${m.shiny ? ' ✨' : ''}<br><span class="dim">Lv ${m.level}</span></div>` : `<div class="mon unk"><span class="dim">away</span></div>`; }).join('')}</div>`;
-    h += `<div class="card"><h3>Zone team now</h3>${cur.length ? teamRow(cur) : '<div class="note">No team set for this zone yet.</div>'}`;
+    h += `<div class="card"><h3>${sel.roam ? 'Your team now' : 'Zone team now'}</h3>${cur.length ? teamRow(cur) : '<div class="note">No team set for this zone yet.</div>'}`;
     if (ui.real && ui.real.id === sel.id && ui.real.cur) h += `<div class="row"><span class="k">Real record</span><span class="v">${ui.real.cur.fights ? `${ui.real.cur.ko} KO · ${ui.real.cur.lost} lost (${pct(ui.real.cur.rate)})` : '<span class="dim">no recorded fights</span>'}</span></div>`;
     h += `</div>`;
 
@@ -2129,7 +2162,7 @@ Views.legends = (w, ui, esc) => {
         h += `<div class="row"><span class="k">KO today</span><span class="v">${pct(saved.today)}</span></div>`;
         h += `<div class="note warn">Level these first: ${stillLow.map((x) => `${name(x.id)} (Lv ${Engine.read('Game.getMon', null, x.uid)?.level ?? x.from} → ${x.to})`).join(', ')}${sel.state !== 'done' ? '<br>Adding this legendary to your plan adds the leveling goal in front of it.' : ''}</div>`;
       } else h += `<div class="row"><span class="k">Simulated KO</span><span class="v">${pct(saved.ko)}</span></div>`;
-      if (saved.current != null) h += `<div class="row"><span class="k">Zone team now</span><span class="v dim">${pct(saved.current)}</span></div>`;
+      if (saved.current != null) h += `<div class="row"><span class="k">${sel.roam ? 'Your team now' : 'Zone team now'}</span><span class="v dim">${pct(saved.current)}</span></div>`;
       if (ui.real && ui.real.id === sel.id && ui.real.sim) h += `<div class="row"><span class="k">Real record</span><span class="v">${ui.real.sim.fights ? `${ui.real.sim.ko} KO · ${ui.real.sim.lost} lost` : '<span class="dim">not fought yet</span>'}</span></div>`;
       h += `<div class="note dim">Simulated at full HP. Wild Pokémon before the legendary can lower your real odds. Checked against your recorded fights: Palkia 12% sim vs 9% real, Giratina 97% vs 95%.</div>`;
     }
@@ -2656,9 +2689,10 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   }
   const dexUi = { dexOpen: null };
   const planUi = { addMoney: null, addFoe: null, addType: 'legend', addFrom: 1, addReg: null, showLog: false };
-  const legUi = { pick: null, simRun: null, real: null, asMax: false, mode: 'legendary' };
+  const legUi = { pick: null, simRun: null, real: null, asMax: false, mode: 'legendary', hideLocked: false, hideCaught: false };
   async function loadReal(id) {
-    const cur = Engine.read('Game.zoneTeam', [], id) || [], sim = Legends.sims()[id];
+    const roam = !!Legends.get(id)?.roam;
+    const cur = roam ? (Engine.get('Game.S')?.team || []).slice(0, 6) : Engine.read('Game.zoneTeam', [], id) || [], sim = Legends.sims()[id];
     legUi.real = { id, cur: cur.length ? await Legends.realFor(id, cur) : null, sim: sim ? await Legends.realFor(id, sim.uids) : null };
     renderBody(true);
   }
@@ -2694,7 +2728,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select.sel')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
     root.addEventListener('input', inputH = (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
     legUi.pick = prefs.leg || null;
-    legUi.asMax = !!prefs.asMax;
+    legUi.asMax = !!prefs.asMax; legUi.hideLocked = !!prefs.legHideLocked; legUi.hideCaught = !!prefs.legHideCaught;
     legUi.mode = ['elite', 'league'].includes(prefs.simMode) ? prefs.simMode : 'legendary';
     if (legUi.pick) setTimeout(() => loadReal(legUi.pick), 1500);
     Plan.boot();
@@ -2751,14 +2785,16 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const id = legUi.pick;
     if (act === 'asmax') { legUi.asMax = !!t.checked; prefs.asMax = legUi.asMax; savePrefs(); }
     if (act === 'sim' && id) runSim(id);
-    if (act === 'use' && id) { const sim = Legends.sims()[id]; if (sim) { const r = GoalTypes.setTeam(id, sim.uids); if (!r.ok) legUi.simRun = { id, error: r.why }; loadReal(id); } }
-    if (act === 'leg-add' && id) { Plan.add('legend', { foe: id }); renderBody(true); }
+    if (act === 'leg-hide-locked') { legUi.hideLocked = !!t.checked; prefs.legHideLocked = legUi.hideLocked; savePrefs(); renderBody(true); }
+    if (act === 'leg-hide-caught') { legUi.hideCaught = !!t.checked; prefs.legHideCaught = legUi.hideCaught; savePrefs(); renderBody(true); }
+    if (act === 'use' && id) { const sim = Legends.sims()[id]; if (sim) { if (Legends.get(id)?.roam) { if (!GoalTypes.setChapterTeam(GoalKit.fullTeam(sim.uids))) legUi.simRun = { id, error: 'the game would not take that team right now (mid-fight?)' }; } else { const r = GoalTypes.setTeam(id, sim.uids); if (!r.ok) legUi.simRun = { id, error: r.why }; } loadReal(id); } }
+    if (act === 'leg-add' && id) { Plan.add(Legends.get(id)?.roam ? 'roam' : 'legend', { foe: id }); renderBody(true); }
     if (act === 'oldoff') { Plan.turnOldOff(); setTimeout(() => renderBody(true), 300); }
     const gid = t.dataset.id;
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:254', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:257', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -2779,7 +2815,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:275', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:278', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -2802,19 +2838,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:298', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:301', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:304', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:307', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:307', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:310', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:310', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:313', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -2857,8 +2893,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:353', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:354', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:356', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:357', __e); }
     renderBody(true, w);
   }
 
@@ -2873,7 +2909,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:369', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:372', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -2888,11 +2924,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:384', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:385', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:387', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:388', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:388', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:391', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4901,6 +4937,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     sprite: (g) => g.formNow || g.foe,
     check(g) {
       const z = Legends.get(g.foe);
+      if (z?.roam) { g.type = 'roam'; Plan.save(); return { state: 'wait', why: 'a roamer - chased by following it from chapter to chapter' }; }
       if (!z) {
         // a roamer (Tornadus, Thundurus...) has no zone: it's chased by the 'roam' goal instead
         if ((E.get('CONFIG')?.ROAMING?.GROUPS || []).some((x) => x.ids.includes(+g.foe))) { g.type = 'roam'; Plan.save(); return { state: 'wait', why: 'a roamer - chased by following it from chapter to chapter' }; }
@@ -4916,7 +4953,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
           Legends.dropSim(g.foe); // last week's team was built for another form
           if (!E.read('Game.owns', false, z.form)) {
             Log.add(`${z.formName} is at ${z.place || 'its zone'} this week - still missing: ${left}`);
-            if (!first) try { Notify.send('win', `${z.formName} is here this week`, `New weekly form at ${z.place || 'its zone'}. Mega will hunt it. Still missing: ${left}.`); } catch (__e) { __h('70-plan-01-legend:25', __e); }
+            if (!first) try { Notify.send('win', `${z.formName} is here this week`, `New weekly form at ${z.place || 'its zone'}. Mega will hunt it. Still missing: ${left}.`); } catch (__e) { __h('70-plan-01-legend:26', __e); }
           }
         }
         if (!z.form || E.read('Game.owns', false, z.form)) return { state: 'wait', why: `this week's form is caught - a new one comes at the weekly reset (Sunday 4 PM). Still missing: ${left}` };
@@ -4925,7 +4962,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (z.state !== 'open') {
         // goals that plan themselves: add what this legendary still needs (every 30 min)
         let manual = g.chainManual || [];
-        if (Date.now() - (g.chainAt || 0) > 30 * 60_000) { g.chainAt = Date.now(); try { const r = Chains.addFor(g); manual = g.chainManual = r.manual; } catch (__e) { __h('70-plan-01-legend:34', __e); } Plan.save(); }
+        if (Date.now() - (g.chainAt || 0) > 30 * 60_000) { g.chainAt = Date.now(); try { const r = Chains.addFor(g); manual = g.chainManual = r.manual; } catch (__e) { __h('70-plan-01-legend:35', __e); } Plan.save(); }
         return { state: 'wait', why: `locked - ${z.progress?.text || 'requirement missing'}${manual.length ? ` · needs you: ${manual.join(', ')}` : ''}` };
       }
       if (pending.has(g.foe)) return { state: 'wait', why: 'finding the best team…' };
@@ -4960,7 +4997,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (sim && !vs && !(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) {
         const r = setTeam(id, sim.uids);
         if (!r.ok) return 'waiting: ' + r.why;
-        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:69', __e); }
+        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:70', __e); }
         await new Promise((x) => setTimeout(x, 600));
         await ctx.enter(id, true);
         return `switched to the planned team (${sim.uids.length} Pokémon) and re-entered`;
@@ -5682,11 +5719,11 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
 //  - Roaming.update() is the game's refresh of where each roamer is (it runs when you open the chapter list);
 //    a roamer stays ~15 min in a chapter of its region, then moves
 //  - go to that chapter with your strongest team and loop it; a roamer shows up there as a wild encounter
-//  - it broke free (a KO without a catch: 4% per KO, or the game uses a Master Ball by itself if you have one)
+//  - it got away (a wipe, or a KO without the 4% catch)
 //    -> restart the chapter so it can appear again
 //  - it moved -> follow it. Done when the game marks it caught.
 (() => {
-  const { E, S, name, safe, setChapterTeam, fullTeam } = GoalKit;
+  const { E, S, name, safe, setChapterTeam, fullTeam, autoTeam, pending } = GoalKit;
   const R = () => E.get('Roaming');
   const caught = (id) => (S().roam?.caught || []).includes(+id) || !!E.read('Game.owns', false, +id);
   const spot = (id) => { const list = safe(() => R().update(), null) || []; return list.find((r) => +r.id === +id) || (S().roam?.at?.[id] ? { id: +id, ...S().roam.at[id] } : null); };
@@ -5704,41 +5741,48 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       }
       const s = spot(g.foe);
       if (!s) return { state: 'wait', why: 'not anywhere right now - checking again shortly' };
+      // a simulated team first (Jimmy: "my current team isn't sim'd for it, it keeps wiping")
+      if (!Legends.sims()[g.foe]) { autoTeam(+g.foe); return { state: 'wait', why: 'finding the best team for it…' }; }
+      if (pending.has(+g.foe)) return { state: 'wait', why: 'finding the best team for it…' };
       return { state: 'ready', why: null };
     },
     step(g) {
       const s = spot(g.foe); if (!s) return 'waiting for it to show up somewhere';
       const a = S().adv || {}, b = a.battle;
       if (!g.restore) { g.restore = { team: (S().team || []).slice(), chapter: a.chapter, loopAdded: null }; Plan.save(); }
-      // your strongest six (the roamer is Lv 100 with 4x HP); set once per chase, not every step
-      if (!g.teamSet) { const t = fullTeam([]); if (t.length && setChapterTeam(t)) Log.add(`${name(g.foe)}: chasing with your strongest team`); g.teamSet = true; Plan.save(); }
+      // the simulated team (Simulate > Legendary) - put back if something else changed it, never mid-fight
+      const sim = Legends.sims()[g.foe], want = (sim?.uids || []).filter((u) => E.read('Game.getMon', null, u));
+      const inFight0 = b && (b.enemies || []).length;
+      if (want.length && !inFight0 && [...want].sort().join() !== (S().team || []).slice(0, 6).slice().sort().join()) {
+        if (setChapterTeam(fullTeam(want))) Log.add(`${name(g.foe)}: hunting with the simulated team (${Math.round((sim.ko || 0) * 100)}% KO)`);
+      }
       // a fight with it right now: let it play out (never touch anything mid-fight)
       const inFight = b && ((b.enemies || []).some((e) => +e.id === +g.foe) || +b.roam === +g.foe);
       if (inFight) { g.sawFight = true; g.kos0 ??= +(S().legTries?.[g.foe] ?? 0); return `fighting ${name(g.foe)} in ${chName(s.ch)}!`; }
       // the fight just ended and it's still free: it broke free - restart the chapter so it can show up again
       if (g.sawFight) {
         g.sawFight = false; g.tries = (g.tries || 0) + 1; Plan.save();
-        Log.add(`${name(g.foe)} broke free (try ${g.tries}) - restarting ${chName(s.ch)}`);
-        try { E.call('Adventure.setChapter', +s.ch); } catch (__e) { __h('70-plan-06-roam:44', __e); }
+        Log.add(`${name(g.foe)} got away (fight ${g.tries} - a wipe, or a KO without the 4% catch) - restarting ${chName(s.ch)}`);
+        try { E.call('Adventure.setChapter', +s.ch); } catch (__e) { __h('70-plan-06-roam:51', __e); }
       }
       // follow it: go to its chapter and keep looping there
       if (+a.chapter !== +s.ch) {
         if (E.call('Adventure.setChapter', +s.ch) === false) return `waiting: the game would not open ${chName(s.ch)}`;
         Log.add(`${name(g.foe)} is roaming in ${chName(s.ch)} - going there`);
-        if (g.restore.loopAdded != null && g.restore.loopAdded !== +s.ch) { try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-06-roam:50', __e); } g.restore.loopAdded = null; }
+        if (g.restore.loopAdded != null && g.restore.loopAdded !== +s.ch) { try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-06-roam:57', __e); } g.restore.loopAdded = null; }
       }
-      if (!E.read('Adventure.isLooping', false, +s.ch)) { try { E.call('Adventure.toggleLoop', +s.ch); g.restore.loopAdded = +s.ch; Plan.save(); } catch (__e) { __h('70-plan-06-roam:52', __e); } }
+      if (!E.read('Adventure.isLooping', false, +s.ch)) { try { E.call('Adventure.toggleLoop', +s.ch); g.restore.loopAdded = +s.ch; Plan.save(); } catch (__e) { __h('70-plan-06-roam:59', __e); } }
       const mins = Math.max(0, Math.round((+s.until - Date.now()) / 60000));
-      const mb = safe(() => +E.read('Game.itemCount', 0, 'master-ball'), 0);
-      return `hunting ${name(g.foe)} in ${chName(s.ch)} - it moves in ~${mins} min${g.tries ? ` · broke free ${g.tries}x` : ''}${mb > 0 ? ` · the game will use a Master Ball on it (you have ${mb})` : ' · 4% catch per KO'}`;
+      const simKo = Legends.sims()[g.foe]?.ko;
+      return `hunting ${name(g.foe)} in ${chName(s.ch)} - it moves in ~${mins} min${simKo != null ? ` · team KOs it ${Math.round(simKo * 100)}% in the simulator` : ''}${g.tries ? ` · fought ${g.tries}x` : ''} · 4% catch per KO`;
     },
     // put back your team, the loop setting and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-06-roam:60', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-06-roam:67', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
-      if (back.length) try { setChapterTeam(back); } catch (__e) { __h('70-plan-06-roam:62', __e); }
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-06-roam:63', __e); } }
+      if (back.length) try { setChapterTeam(back); } catch (__e) { __h('70-plan-06-roam:69', __e); }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-06-roam:70', __e); } }
       g.restore = null; g.teamSet = false; Plan.save();
     },
   };
