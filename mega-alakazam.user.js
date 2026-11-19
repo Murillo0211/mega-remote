@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.5.2
+// @version      2.5.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.5.2';
+const VERSION = '2.5.3';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3907,7 +3907,7 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 14; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 15; // bump when the scoring changes: saved plans from before are redone
   // fast: only the Auto Switch lineup (what really happens), used while searching
   const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
   const grade = (team, foes, P, wf = win) => {
@@ -3926,7 +3926,11 @@ const GymPlan = (() => {
     const ownFam = new Set();
     for (const m of sideMons()) {
       const id = evolveTo(m.id, Math.max(cap, m.level)); fam(m.id).forEach((x) => ownFam.add(x));
-      const k = 'o' + id; if (seen.has(k)) { const o = out.find((x) => x.key === k); if (o && m.level > o.from.level) { o.from = m; o.uid = m.uid; } continue; }
+      const k = 'o' + id;
+      // two of yours that end up the same Pokémon (Ferroseed 53 + Ferrothorn 52): the one already in that form wins
+      // unless the other is 5+ levels ahead - an evolution still to happen is extra work and may not happen at all
+      const worth = (x) => x.level - (+x.id === +id ? 0 : 5);
+      if (seen.has(k)) { const o = out.find((x) => x.key === k); if (o && worth(m) > worth(o.from)) { o.from = m; o.uid = m.uid; } continue; }
       seen.add(k); out.push({ key: k, kind: 'own', uid: m.uid, from: m, id, mon: { uid: 'p' + m.uid, id, level: cap, shiny: false } });
     }
     // speed-running the gyms: only what spawns RIGHT NOW (weather, time of day) and is quick to find -
@@ -4047,8 +4051,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:220', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:221', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:224', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:225', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -4059,9 +4063,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:232', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:236', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:234', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:238', __e); } }
     }
     return out;
   }
@@ -4072,7 +4076,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:245', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:249', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
