@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.1
+// @version      2.9.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.1';
+const VERSION = '2.9.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6377,9 +6377,9 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       let added = 0;
       for (const id of miss) {
         const r = DexInfo.route(id);
-        const have = Plan.goals.find((x) => !x.done && ((['legend', 'wild', 'special', 'breed'].includes(x.type)) && x.foe === id || (x.type === 'level' && x.forDex === id) || (x.type === 'loot' && x.item === 'egg:' + id)));
+        const have = Plan.goals.find((x) => !x.done && ((['legend', 'roam', 'wild', 'special', 'breed'].includes(x.type)) && +x.foe === +id || (x.type === 'level' && x.forDex === id) || (x.type === 'loot' && x.item === 'egg:' + id)));
         if (!have) {
-          if (r.kind === 'legend') { Plan.insertAfter(g.id, 'legend', { foe: id, parent: g.id }); added++; }
+          if (r.kind === 'legend') { const roamer = !!Legends.get(id)?.roam; Plan.insertAfter(g.id, roamer ? 'roam' : 'legend', { foe: id, parent: g.id }); added++; }
           if (r.kind === 'wild') { Plan.insertAfter(g.id, 'wild', { foe: id, ch: r.ch, parent: g.id }); added++; }
           if (r.kind === 'evolve') { Plan.insertAfter(g.id, 'level', { uids: [r.uid], target: r.level, forDex: id, parent: g.id }); added++; }
           if (r.kind === 'loot') { Plan.insertAfter(g.id, 'loot', { item: r.item, ch: r.ch, place: r.place, foe: id, parent: g.id }); added++; }
@@ -6621,9 +6621,12 @@ const Plan = (() => {
   const type = (g) => GoalTypes[g.type];
   const name = (g) => { const l = type(g) ? type(g).label(g) : g.type; try { return Casing.title(l); } catch { return l; } };
 
+  // one open catch goal per Legendary, whoever asks: a Legendary goal and a roamer goal for the same Pokémon
+  // count as the same (2026-11-19: the Pokédex goal kept adding "Catch Tornadus" every 3 s - 1,100 goals)
+  const dupCatch = (t, data) => ['legend', 'roam'].includes(t) && st.goals.some((g) => !g.done && ['legend', 'roam'].includes(g.type) && +g.foe === +data?.foe && !!g.forms === !!data?.forms);
   function add(t, data) {
+    if (dupCatch(t, data)) return false;
     if (['shinyWild', 'shinyBreed'].includes(t) && st.goals.some((g) => ['shinyWild', 'shinyBreed'].includes(g.type) && (g.target || g.foe) === +(data.target || data.foe) && !g.done)) return false;
-    if (t === 'legend' && st.goals.some((g) => g.type === 'legend' && g.foe === +data.foe && !g.done)) return false;
     if (t === 'under' && st.goals.some((g) => g.type === 'under' && !g.done)) return false;
     if (['candy', 'tower', 'raid', 'money'].includes(t) && st.goals.some((g) => g.type === t && !g.done)) return false;
     if (t === 'region' && st.goals.some((g) => g.type === 'region' && g.reg === data.reg && !g.done)) return false;
@@ -6638,12 +6641,14 @@ const Plan = (() => {
     st.goals.push(g); save(); Log.add(`added to the plan: ${name(g)}`); return true;
   }
   function insertBefore(id, t, data) {
+    if (dupCatch(t, data)) return null;
     const g = newGoal(t, data), i = st.goals.findIndex((x) => x.id === id);
     st.goals.splice(i < 0 ? st.goals.length : i, 0, g); save();
     Log.add(`added to the plan: ${name(g)}`);
     return g;
   }
   function insertAfter(id, t, data) {
+    if (dupCatch(t, data)) return null;
     const g = newGoal(t, data);
     let i = st.goals.findIndex((x) => x.id === id);
     if (i < 0) i = st.goals.length - 1;
@@ -6656,7 +6661,7 @@ const Plan = (() => {
     return g;
   }
   function finish(g) { try { type(g)?.finish?.(g); } catch (e) { Log.add(`${name(g)}: could not put things back (${e?.message || e})`); } }
-  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan-20-engine:86', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
+  function remove(id) { const g = st.goals.find((x) => x.id === id); if (g && !g.done) { finish(g); try { Chains.forget(g); } catch (__e) { __h('70-plan-20-engine:91', __e); } } st.goals = st.goals.filter((x) => x.id !== id); save(); if (g) Log.add(`removed from the plan: ${name(g)}`); }
   function move(id, d) {
     const open = st.goals.filter((g) => !g.done), i = open.findIndex((g) => g.id === id), j = i + d;
     if (i < 0 || j < 0 || j >= open.length) return;
@@ -6691,7 +6696,7 @@ const Plan = (() => {
     let ok = false;
     { const why = Guard.team(E.read('Game.zoneTeam', [], +id) || [], { need: 1, minLevel: 1 }); if (why) { Guard.stop(`${E.get('Game.DEX')?.[id]?.name}'s zone`, why); return false; } }
     try { ok = E.call('Adventure.startZone', +id) !== false; } catch (e) { Log.add(`${E.get('Game.DEX')?.[id]?.name}: the game refused to enter (${e.message})`); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:121', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:126', __e); }
     await new Promise((r) => setTimeout(r, 800));
     if (ok && +(E.get('Game.S')?.adv?.zone?.id) === +id) { fails = 0; Log.add(`entered ${E.get('Game.DEX')?.[id]?.name}'s zone`); return true; }
     if (failsFor !== id) { failsFor = id; fails = 0; }
@@ -6713,7 +6718,7 @@ const Plan = (() => {
         const T = type(g);
         if (!T) { live[g.id] = { state: 'wait', why: 'unknown goal type' }; continue; }
         const c = (() => { try { return T.check(g); } catch (e) { Health.goalErr(g, e, name(g)); return { state: 'wait', why: 'error: ' + (e?.message || e) }; } })();
-        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:143', __e); } finish(g);
+        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:148', __e); } finish(g);
           if (['region', 'loot', 'souls', 'level'].includes(g.type)) Notify.send('win', `Done: ${name(g)}`, g.type === 'region' ? 'Every Pokémon of that region is in your Pokédex!' : c.why || 'goal finished'); live[g.id] = { state: 'done', why: c.why }; continue; }
         if (g.paused) { live[g.id] = { state: 'paused', why: null }; continue; }
         if (c.state !== 'ready') { live[g.id] = { state: 'wait', why: c.why }; if (!waitSince.has(g.id)) waitSince.set(g.id, { at: Date.now(), why: c.why }); else waitSince.get(g.id).why = c.why; continue; }
@@ -6796,14 +6801,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:226', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:231', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:233', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:238', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -6826,7 +6831,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:256', __e); }
+    } catch (__e) { __h('70-plan-20-engine:261', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -6841,7 +6846,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:271', __e); }
+    } catch (__e) { __h('70-plan-20-engine:276', __e); }
   }
   function formGoals() {
     try {
@@ -6851,7 +6856,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:281', __e); }
+    } catch (__e) { __h('70-plan-20-engine:286', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
