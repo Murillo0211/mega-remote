@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.5.5
+// @version      2.6.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.5.5';
+const VERSION = '2.6.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4450,6 +4450,48 @@ const Guard = (() => {
   return { team, stop, blocks, failures, run, boot, get results() { return results; }, CHECKS };
 })();
 
+/* ---------------------------------------------------------------------------------------------
+ * Buddy (x1.3 XP plus a candy every few KOs) - one rule for every activity (Jimmy):
+ *   1. the lowest-level Pokémon on the team that can still gain XP (below Lv 100 and below its level cap)
+ *   2. nobody on the team can level -> the Pokémon in the PC closest to Lv 100 that still can; when it gets
+ *      there, the next closest, and so on
+ * A tie keeps the current buddy (no flipping). Checked every 5 s while the plan runs; the goals no longer
+ * set the buddy themselves, so nothing fights over it.
+ * ------------------------------------------------------------------------------------------- */
+const Buddy = (() => {
+  const E = Engine;
+  const S = () => E.get('Game.S') || {};
+  const cap = (m) => { let c = 100; try { c = +E.read('Game.capFor', 0, m) || 100; } catch (__e) { __h('69-buddy:12', __e); } return Math.min(100, c); };
+  const canLevel = (m) => m && !m.egg && m.level < cap(m);
+  const bad = new Map(); // uid -> until: the game refused it as buddy (other side, Day Care...)
+  function pick() {
+    const team = (S().team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
+    const cur = E.read('Game.getMon', null, S().buddy?.uid);
+    const ok = (m) => canLevel(m) && !(bad.get(m.uid) > Date.now());
+    const growing = team.filter(ok);
+    if (growing.length) {
+      const low = Math.min(...growing.map((m) => m.level));
+      if (cur && growing.includes(cur) && cur.level === low) return { m: cur, why: 'lowest on the team' };
+      return { m: growing.find((m) => m.level === low), why: 'lowest on the team' };
+    }
+    // everyone on the team is at Lv 100 (or the cap): the PC Pokémon closest to 100 that can still level
+    let pc = []; try { pc = (E.read('Game.sideMons', null) || E.read('Game.allMons', []) || []).filter(ok); } catch (__e) { __h('69-buddy:26', __e); }
+    if (!pc.length) return null;
+    const top = Math.max(...pc.map((m) => m.level));
+    if (cur && pc.includes(cur) && cur.level === top) return { m: cur, why: 'closest to Lv 100 in the PC' };
+    return { m: pc.find((m) => m.level === top), why: 'closest to Lv 100 in the PC (the team is maxed)' };
+  }
+  function check() {
+    if (S().adv?.zone && S().adv?.battle) return; // never mid-battle in a zone
+    const p = pick(); if (!p || S().buddy?.uid === p.m.uid) return;
+    try { E.call('Game.setBuddy', p.m.uid); } catch (__e) { __h('69-buddy:35', __e); }
+    if (S().buddy?.uid === p.m.uid) { try { Log.add(`buddy: ${Engine.get('Game.DEX')?.[p.m.id]?.name || 'a Pokémon'} (Lv ${p.m.level}) - ${p.why}`); } catch (__e) { __h('69-buddy:36', __e); } }
+    else bad.set(p.m.uid, Date.now() + 60 * 60_000); // the game said no: try the next one
+  }
+  setInterval(() => { try { if (typeof Plan !== 'undefined' && Plan.running && E.ready()) check(); } catch (__e) { __h('69-buddy:39', __e); } }, 5000);
+  return { pick, check };
+})();
+
 /* ===================================================================================================
  * XpChap - which chapter levels Pokémon fastest, in XP per hour.
  *
@@ -4966,16 +5008,12 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
         if (uids.length && uids.join() !== cur.join()) { setChapterTeam(uids); Log.add(`story team: ${pick.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')}`); }
         g.teamAt = now; g.teamFor = ch; g.lead = pick[0]?.id || g.lead; Plan.save();
       }
-      // buddy: x1.3 XP plus a candy every few KOs - the lowest-level team member under the cap gets it,
-      // so the team stays even (the gym is only as easy as your weakest Pokémon)
-      { const team = (S().team || []).slice(0, 6).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).filter((m) => m.level < capOf(m.uid));
-        const bud = team.sort((x, y) => x.level - y.level)[0];
-        if (bud && S().buddy?.uid !== bud.uid) { try { E.call('Game.setBuddy', bud.uid); } catch (__e) { __h('70-plan-02-story:171', __e); } if (S().buddy?.uid === bud.uid) Log.add(`story: made ${name(bud.id)} (Lv ${bud.level}) your buddy - it's the lowest on the team`); } }
+      // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
       const looping = !!E.read('Adventure.isLooping', false, ch);
-      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:174', __e); } }
-      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:175', __e); } } // the frontier must not loop, or a win wouldn't move on
-      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:176', __e); } g.loopOn = null; Plan.save(); }
+      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:170', __e); } }
+      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:171', __e); } } // the frontier must not loop, or a win wouldn't move on
+      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:172', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length; g.chProg = { have: badges, need: chs.length };
       return `${g.goFight ? 'Go Fight: ' : ''}playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
@@ -4988,10 +5026,10 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     trainThese(g) {
       const a = S().adv || {}, front = +(g.front ?? a.unlocked ?? 0);
       g.goFight = null; g.levelFirst = true; g.trainTap = true; g.deaths0 = +(a.deaths?.[front] ?? 0); g.teamAt = 0; Plan.save();
-      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:189', __e); } // the newest plan: training follows it from the next step
+      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:185', __e); } // the newest plan: training follows it from the next step
       Log.add('story: you pressed Train These - leveling the planned team to the level cap, then trying again');
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:192', __e); } },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:188', __e); } },
   };
   Object.assign(GoalTypes, { story });
 })();
@@ -5139,19 +5177,14 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
         if (E.call('Adventure.setChapter', best.ch) === false) return `waiting: the game would not open ${best.name}`;
         Log.add(`moved to ${best.name} to train`);
       }
-      // buddy: x1.3 XP plus a candy every few KOs - the trainee furthest from its goal gets it
-      const bud = [...(pending.length ? pending.filter((u) => trainees.includes(u)) : trainees)].sort((x, y) => (lvl(x) || 0) - (lvl(y) || 0))[0];
-      if (bud && S().buddy?.uid !== bud) {
-        try { E.call('Game.setBuddy', bud); } catch (__e) { __h('70-plan-03-level:147', __e); }
-        if (S().buddy?.uid === bud) Log.add(`made ${name(E.read('Game.getMon', {}, bud)?.id)} your buddy while it trains`);
-      }
+      // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
       if (g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:152', __e); }
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:147', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
       if (!E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:156', __e); }
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:151', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -5159,12 +5192,11 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:164', __e); }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:165', __e); }
-      if (r.buddy && S().buddy?.uid !== r.buddy && E.read('Game.getMon', null, r.buddy)) { try { E.call('Game.setBuddy', r.buddy); } catch (__e) { __h('70-plan-03-level:166', __e); } }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:159', __e); }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:160', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:169', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:163', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
@@ -7654,7 +7686,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan,
+window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
