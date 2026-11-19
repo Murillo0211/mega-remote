@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.5
+// @version      2.3.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.5';
+const VERSION = '2.3.6';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3769,10 +3769,12 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 12; // bump when the scoring changes: saved plans from before are redone
-  const grade = (team, foes, P) => {
-    const full = win(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
-    return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : win(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
+  const PLAN_V = 13; // bump when the scoring changes: saved plans from before are redone
+  // fast: only the Auto Switch lineup (what really happens), used while searching
+  const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
+  const grade = (team, foes, P, w = win) => {
+    const full = w(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
+    return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : w(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   };
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
@@ -3819,11 +3821,10 @@ const GymPlan = (() => {
       if (!fid.has(f)) fid.set(f, fid.size); const key = fid.get(f) + '|' + t.map((x) => x.key).sort().join(',');
       if (memo.has(key)) return memo.get(key);
       ++n; if (performance.now() - slice > 40) { tick?.(n); await sleep(); slice = performance.now(); }
-      const v = grade(t.map((x) => x.mon), f, P); memo.set(key, v); return v;
+      const v = grade(t.map((x) => x.mon), f, P, winA); memo.set(key, v); return v;
     };
     // the gym fight itself (each foe in turn, the whole team counting most), plus the full run: the trainers after
     // the last heal and then the leader in one go, HP carrying over - a team that arrives healthy wins more
-    const way = G.stretch?.length ? [...G.stretch, ...foes] : null;
     // training cost (Jimmy's rule, from the old helper): levels still to gain (per 10) and catches still to make.
     // Small next to a real difference in winning, so it decides between teams that win about the same.
     const cost = (t) => t.reduce((c, x) => c + (x.kind === 'catch' ? 2 + (x.mins || 0) / 30 : x.kind === 'own' ? Math.max(0, (x.mon.level || 0) - (x.from?.level ?? x.mon.level)) / 10 + (x.from && x.from.id !== x.id ? 0.3 : 0) : 0), 0);
@@ -3836,7 +3837,7 @@ const GymPlan = (() => {
     const covScore = (t) => { const c = covFoes.map(() => 0); for (const x of t) kOf(x).forEach((v, i) => (c[i] += v)); return c.reduce((s, v) => s + Math.log1p(v), 0) / Math.max(1, covFoes.length); };
     const COV_W = 3;
     const obj = async (t) => (await objWin(t)) + COV_W * covScore(t) - 0.12 * cost(t);
-    const objWin = async (t) => { let s = (await W(t, foes)) * foes.length; if (way) s += (await W(t, way)) * foes.length; if (G.route?.length) s += (await W(t, G.route)) * 2; return s; };
+    const objWin = async (t) => (await W(t, foes)) * foes.length; // the 0%-for-everyone stretch run and the separate wild run are gone: coverage covers the chapter
     // the old helper's pick, exactly: greedy on coverage gain, ties to the one closest to ready today
     const greedy = []; { const c = covFoes.map(() => 0);
       while (greedy.length < 6) {
@@ -3862,7 +3863,7 @@ const GymPlan = (() => {
       }
       if (s > bs) { bs = s; best = t; }
     }
-    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: best && way ? grade(best.map((x) => x.mon), way, P) : null };
+    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: null };
   }
   // plan the gym of chapter `ch` (cached per gym + side). Returns the saved plan, or null while it's thinking.
   function get(ch, { force = false } = {}) {
@@ -3895,8 +3896,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:206', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:207', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:207', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:208', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3907,9 +3908,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:218', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:219', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:220', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:221', __e); } }
     }
     return out;
   }
@@ -3920,7 +3921,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:231', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:232', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
