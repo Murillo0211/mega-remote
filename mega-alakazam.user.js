@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.7
+// @version      2.3.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.7';
+const VERSION = '2.3.8';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3873,18 +3873,25 @@ const GymPlan = (() => {
     if (!busy) run(ch);
     return p || null;
   }
-  async function run(ch) {
+  // one plan at a time: a second start (the story goal, the Simulate button) waits for the one already running
+  let running = null;
+  function run(ch) {
+    if (running) return running;
+    running = runOne(ch).finally(() => { running = null; });
+    return running;
+  }
+  async function runOne(ch) {
     const G = gymOf(ch); if (!G || !G.foes.length) return null;
-    busy = { ch, done: 0, total: 1 }; duel1 = new Map();
+    const b = (busy = { ch, done: 0, total: 1 }); duel1 = new Map();
     try {
       const pool = candidates(G);
       // now: the Pokémon you have, at their real levels
       const nowPool = sideMons().map((m) => ({ key: 'n' + m.uid, kind: 'own', uid: m.uid, id: m.id, from: m, mon: fresh(m) }));
-      const now = await search(nowPool, G, 700, (n) => { busy.done = n; });
+      const now = await search(nowPool, G, 700, (n) => { b.done = n; });
       // your actual current team always competes too (the search samples, and could miss it)
       const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
       if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw > now.win) Object.assign(now, { team: cur, win: cw, soft: cw, current: true }); }
-      let plan = await search(pool, G, 1600, (n) => { busy.done = 700 + n; });
+      let plan = await search(pool, G, 1600, (n) => { b.done = 700 + n; });
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
       const r = {
@@ -3896,8 +3903,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:207', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:208', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:214', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:215', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3908,9 +3915,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:219', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:226', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:221', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:228', __e); } }
     }
     return out;
   }
@@ -3921,7 +3928,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:232', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:239', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
