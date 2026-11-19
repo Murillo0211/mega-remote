@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.8
+// @version      2.3.9
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.8';
+const VERSION = '2.3.9';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3854,10 +3854,10 @@ const GymPlan = (() => {
     const byCov = pool.map((x) => ({ x, v: kOf(x).reduce((a, v) => a + Math.log1p(v), 0) })).sort((a, b) => b.v - a.v).map((y) => y.x).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i);
     const top = [...new Set([...greedy, ...byCov.slice(0, 18)])];
     let best = null, bs = -1;
-    for (let r = 0; r < 3 && n < budget; r++) {
+    for (let r = 0; r < 6 && n < budget; r++) {
       let t = r === 0 && greedy.length ? [...greedy] : [...top].sort(() => Math.random() - 0.5).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
       let s = await obj(t), imp = true, pass = 0;
-      while (imp && n < budget && pass++ < 2) {
+      while (imp && n < budget && pass++ < 5) {
         imp = false;
         for (let i = 0; i < t.length; i++) for (const x of top) { if (t.includes(x)) continue; const t2 = [...t]; t2[i] = x; if (new Set(t2.map(sp)).size < t2.length) continue; const s2 = await obj(t2); if (s2 > s) { t = t2; s = s2; imp = true; } }
       }
