@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.7.1
+// @version      2.7.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.7.1';
+const VERSION = '2.7.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7708,9 +7708,10 @@ const Remote = (() => {
     let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:412', __e); }
     const day = Date.now() - 86_400_000;
     // boss fights today against this foe (raid: the raid's static boss; zone: zone fights)
-    const boss = fights.filter((f) => f.at > day && (kind === 'raid' ? (f.raid || f.kind === 'static') : !f.raid && f.kind !== 'static'));
+    // (a Legendary like Cresselia is also a 'static' encounter, so 'static' can't mean raid - only the raid flag does)
+    const boss = fights.filter((f) => f.at > day && (kind === 'raid' ? !!f.raid : !f.raid));
     let kos, wipes;
-    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:417', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
+    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:418', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
     else { kos = boss.filter((f) => f.outcome === 'ko').length; wipes = boss.filter((f) => f.outcome === 'wipe').length; }
     // time per fight: the median gap between boss fights (travel + fight), else the raid loop time
     const st = boss.map((f) => f.at).sort((x, y) => x - y), gaps = [];
@@ -7719,11 +7720,11 @@ const Remote = (() => {
     const per = gaps.length ? gaps[Math.floor(gaps.length / 2)] : kind === 'raid' ? +ev.loopMs || null : boss[0]?.ms || null;
     let chance = null;
     if (kind === 'raid') chance = +(C.RAID?.CATCH) || 0.01;
-    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:426', __e); } }
+    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:427', __e); } }
     if (!(chance > 0)) chance = fightCache?.foe === foe ? fightCache.chance : null;
     let tries = 0, pity = null;
-    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:429', __e); } pity = +(C.RAID?.PITY) || null; }
-    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:430', __e); } }
+    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:430', __e); } pity = +(C.RAID?.PITY) || null; }
+    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:431', __e); } }
     else tries = +(S.legTries?.[foe] ?? 0);
     const koRate = kos + wipes ? kos / (kos + wipes) : null;
     // expected: KOs for a 50% / 90% chance, and the time that takes at today's KO rate
@@ -7741,7 +7742,7 @@ const Remote = (() => {
     const S = E.get('Game.S') || {}, Dx = E.get('Game.DEX') || {}, a = S.adv || {}, g = E.get('Game');
     const hp = (m) => { try { return [Math.max(0, Math.round(g.curHp(m))), Math.round(g.maxHp(m))]; } catch { return [0, 0]; } };
     const goals = Plan.goals.filter((x) => !x.done && ['running', 'ready'].includes(Plan.live(x.id)?.state)).map((x) => {
-      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:448', __e); }
+      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:449', __e); }
       return [x.id, Casing.names(Plan.live(x.id)?.line || ''), p];
     });
     const foes = (a.battle?.enemies || []).filter((e) => e && e.id != null).map((e) => [e.id, e.level || 0, ...hp(e)]);
