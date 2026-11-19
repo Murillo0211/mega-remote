@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.4.1
+// @version      2.4.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.4.1';
+const VERSION = '2.4.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3821,7 +3821,7 @@ const GymPlan = (() => {
       if (!fid.has(f)) fid.set(f, fid.size); const key = fid.get(f) + '|' + t.map((x) => x.key).sort().join(',');
       if (memo.has(key)) return memo.get(key);
       ++n; if (performance.now() - slice > 40) { tick?.(n); await sleep(); slice = performance.now(); }
-      const v = grade(t.map((x) => x.mon), f, P, winA); memo.set(key, v); return v;
+      const v = Math.round(grade(t.map((x) => x.mon), f, P, winA) * 50) / 50; memo.set(key, v); return v; /* 2% steps: the game's estimate wobbles ~1% call to call */
     };
     // the gym fight itself (each foe in turn, the whole team counting most), plus the full run: the trainers after
     // the last heal and then the leader in one go, HP carrying over - a team that arrives healthy wins more
@@ -3895,7 +3895,7 @@ const GymPlan = (() => {
       const now = await search(nowPool, G, 700, (n) => { b.done = n; });
       // your actual current team always competes too (the search samples, and could miss it)
       const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw > now.win) Object.assign(now, { team: cur, win: cw, soft: cw, current: true }); }
+      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
       let plan = await search(pool, G, 1600, (n) => { b.done = 700 + n; });
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
