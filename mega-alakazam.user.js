@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.6
+// @version      2.3.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.6';
+const VERSION = '2.3.7';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3772,9 +3772,9 @@ const GymPlan = (() => {
   const PLAN_V = 13; // bump when the scoring changes: saved plans from before are redone
   // fast: only the Auto Switch lineup (what really happens), used while searching
   const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
-  const grade = (team, foes, P, w = win) => {
-    const full = w(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
-    return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : w(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
+  const grade = (team, foes, P, wf = win) => {
+    const full = wf(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
+    return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : wf(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   };
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
