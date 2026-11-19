@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.5.1
+// @version      2.5.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.5.1';
+const VERSION = '2.5.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3711,8 +3711,8 @@ Views.league = (esc) => {
         h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
           <button class="btn" data-act="gymplan-run" data-ch="${s.ch}" ${B ? 'disabled' : ''}>${B ? 'Simulating…' : 'Simulate the Fight'}</button>
           ${sg ? `<button class="btn${sg.goFight ? '' : ' gold'}" data-act="gym-go" ${sg.goFight ? 'disabled' : ''}>${sg.goFight ? 'Fighting…' : 'Go Fight'}</button>` : ''}
-          ${sg && canTrain ? `<button class="btn" data-act="gym-train" ${sg.levelFirst ? 'disabled' : ''}>${sg.levelFirst ? 'Training…' : 'Train These'}</button>` : ''}</div>
-          <div class="dim" style="font-size:13px;margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself.' : `Simulate the Fight checks every Pokémon you have. Go Fight: try the chapter and leader now.${canTrain ? ' Train These: level the planned team to the cap first.' : ' Everyone in the plan is at the level cap, so there is nothing to train.'}`}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
+          ${sg && canTrain ? `<button class="btn${sg.levelFirst ? '' : ' gold'}" data-act="gym-train">${sg.levelFirst ? 'Train These (training now)' : 'Train These'}</button>` : ''}</div>
+          <div class="dim" style="font-size:13px;margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself. Simulate the Fight changes who trains right away; Train These again sends the newest team in now.' : `Simulate the Fight checks every Pokémon you have. Go Fight: try the chapter and leader now.${canTrain ? ' Train These: level the planned team to the cap first.' : ' Everyone in the plan is at the level cap, so there is nothing to train.'}`}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
       }
     }
     h += `</div>`;
@@ -4923,7 +4923,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
           // 2) level the members below the cap: they train together, the 2 strongest capped ones carry
           const members = plan.plan.team.map((t) => t.kind === 'own' ? E.read('Game.getMon', null, t.uid) : sideOf(t.base)).filter(Boolean);
           const capOfM = (m) => safe(() => +E.read('Game.capFor', 0, m), 0) || G.cap || 100;
-          const low = members.filter((m) => m.level < capOfM(m));
+          const low = members.filter((m) => m.level < capOfM(m)).sort((x, y) => x.level - y.level); // the furthest behind train first
           g.lvProg = { have: members.length - low.length, need: members.length, lv: G.cap };
           if (low.length) {
             g.face = [...low].sort((x, y) => x.level - y.level)[0]?.id || g.face;
@@ -4980,9 +4980,10 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     trainThese(g) {
       const a = S().adv || {}, front = +(g.front ?? a.unlocked ?? 0);
       g.goFight = null; g.levelFirst = true; g.trainTap = true; g.deaths0 = +(a.deaths?.[front] ?? 0); g.teamAt = 0; Plan.save();
+      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:185', __e); } // the newest plan: training follows it from the next step
       Log.add('story: you pressed Train These - leveling the planned team to the level cap, then trying again');
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:187', __e); } },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:188', __e); } },
   };
   Object.assign(GoalTypes, { story });
 })();
