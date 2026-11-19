@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.3.4
+// @version      2.4.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.3.4';
+const VERSION = '2.4.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3759,7 +3759,7 @@ const GymPlan = (() => {
     c.n++; c.log = [...(c.log || []), { at: Date.now(), gym: fight.gym, p: Math.round((fight.p || 0) * 100), won: !!won, k: Math.round(c.k * 100) / 100 }].slice(-30);
     try { localStorage.setItem(CAL, JSON.stringify(c)); } catch (__e) { __h('66-gymplan:68', __e); }
     try { Log.add(`gym estimate: ${won ? 'won' : 'lost'} against ${fight.gym} (estimate was ${Math.round((fight.p || 0) * 100)}%) - power weighting ${before.toFixed(2)} → ${c.k.toFixed(2)}`); } catch (__e) { __h('66-gymplan:69', __e); }
-    for (const k of Object.keys(saved)) saved[k].at = 0; // re-plan with the new weighting
+    if (fight.ch != null && saved[fight.ch]) saved[fight.ch].at = 0; // re-plan that gym with the new weighting (not every saved plan)
   }
   // the estimate for a team you're sending in right now (used when a gym fight starts)
   function estimate(ch, uids) {
@@ -3769,10 +3769,12 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 11; // bump when the scoring changes: saved plans from before are redone
-  const grade = (team, foes, P) => {
-    const full = win(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
-    return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : win(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
+  const PLAN_V = 13; // bump when the scoring changes: saved plans from before are redone
+  // fast: only the Auto Switch lineup (what really happens), used while searching
+  const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
+  const grade = (team, foes, P, wf = win) => {
+    const full = wf(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
+    return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : wf(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   };
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
@@ -3814,16 +3816,15 @@ const GymPlan = (() => {
     // graded score: the estimate at the gym's full power falls off a cliff (a whole box can read 0% against a
     // 1.2 gym and 100% at plain strength), so each team is also scored at power levels in between: a team that
     // still wins when the gym is stronger ranks higher, even when every team reads 0% at full power
-    let n = 0; const memo = new Map(), fid = new Map();
+    let n = 0, slice = performance.now(); const memo = new Map(), fid = new Map();
     const W = async (t, f) => {
       if (!fid.has(f)) fid.set(f, fid.size); const key = fid.get(f) + '|' + t.map((x) => x.key).sort().join(',');
       if (memo.has(key)) return memo.get(key);
-      if (++n % 4 === 0) { tick?.(n); await sleep(); }
-      const v = grade(t.map((x) => x.mon), f, P); memo.set(key, v); return v;
+      ++n; if (performance.now() - slice > 40) { tick?.(n); await sleep(); slice = performance.now(); }
+      const v = Math.round(grade(t.map((x) => x.mon), f, P, winA) * 50) / 50; memo.set(key, v); return v; /* 2% steps: the game's estimate wobbles ~1% call to call */
     };
     // the gym fight itself (each foe in turn, the whole team counting most), plus the full run: the trainers after
     // the last heal and then the leader in one go, HP carrying over - a team that arrives healthy wins more
-    const way = G.stretch?.length ? [...G.stretch, ...foes] : null;
     // training cost (Jimmy's rule, from the old helper): levels still to gain (per 10) and catches still to make.
     // Small next to a real difference in winning, so it decides between teams that win about the same.
     const cost = (t) => t.reduce((c, x) => c + (x.kind === 'catch' ? 2 + (x.mins || 0) / 30 : x.kind === 'own' ? Math.max(0, (x.mon.level || 0) - (x.from?.level ?? x.mon.level)) / 10 + (x.from && x.from.id !== x.id ? 0.3 : 0) : 0), 0);
@@ -3836,12 +3837,7 @@ const GymPlan = (() => {
     const covScore = (t) => { const c = covFoes.map(() => 0); for (const x of t) kOf(x).forEach((v, i) => (c[i] += v)); return c.reduce((s, v) => s + Math.log1p(v), 0) / Math.max(1, covFoes.length); };
     const COV_W = 3;
     const obj = async (t) => (await objWin(t)) + COV_W * covScore(t) - 0.12 * cost(t);
-    const prefix = foes.map((_, i) => foes.slice(0, i + 1));
-    const objWin = async (t) => { let s = 0; for (let k = 1; k <= foes.length; k++) s += (await W(t, prefix[k - 1])) * (k === foes.length ? foes.length : 1); if (way) s += (await W(t, way)) * foes.length; if (G.route?.length) s += (await W(t, G.route)) * 2; return s; };
-    // single matchups (the hardest foe counts double)
-    const solo = foes.map((f) => [f]);
-    const hard = []; for (const x of pool) { let s = 0; for (const f of solo) s += await W([x], f); hard.push(s); }
-    const lastHard = []; for (const x of pool) lastHard.push(await W([x], solo[solo.length - 1]));
+    const objWin = async (t) => (await W(t, foes)) * foes.length; // the 0%-for-everyone stretch run and the separate wild run are gone: coverage covers the chapter
     // the old helper's pick, exactly: greedy on coverage gain, ties to the one closest to ready today
     const greedy = []; { const c = covFoes.map(() => 0);
       while (greedy.length < 6) {
@@ -3854,18 +3850,23 @@ const GymPlan = (() => {
         }
         if (!b) break; greedy.push(b); kOf(b).forEach((v, i) => (c[i] += v));
       } }
-    const top = [...new Set([...greedy, ...pool.map((x, i) => ({ x, s: hard[i] + lastHard[i] })).sort((a, b) => b.s - a.s).slice(0, 16).map((y) => y.x)])];
+    // the old helper's candidates: the 18 best by coverage (one per species), plus its greedy pick
+    const byCov = pool.map((x) => ({ x, v: kOf(x).reduce((a, v) => a + Math.log1p(v), 0) })).sort((a, b) => b.v - a.v).map((y) => y.x).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i);
+    const top = [...new Set([...greedy, ...byCov.slice(0, 18)])];
+    // the same Pokémon always give the same answer: shuffles use a fixed seed (they used Math.random, so the
+    // plan flipped between equal teams every time it was redone)
+    const shuffle = (a, seed) => { const rnd = Sim.mulberry(seed * 7919 + 17), b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
     let best = null, bs = -1;
-    for (let r = 0; r < 5 && n < budget; r++) {
-      let t = r === 0 && greedy.length ? [...greedy] : [...top].sort(() => Math.random() - 0.5).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
-      let s = await obj(t), imp = true;
-      while (imp && n < budget) {
+    for (let r = 0; r < 3 && n < budget; r++) {
+      let t = r === 0 && greedy.length ? [...greedy] : shuffle(top, r).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
+      let s = await obj(t), imp = true, pass = 0;
+      while (imp && n < budget && pass++ < 2) {
         imp = false;
         for (let i = 0; i < t.length; i++) for (const x of top) { if (t.includes(x)) continue; const t2 = [...t]; t2[i] = x; if (new Set(t2.map(sp)).size < t2.length) continue; const s2 = await obj(t2); if (s2 > s) { t = t2; s = s2; imp = true; } }
       }
       if (s > bs) { bs = s; best = t; }
     }
-    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: best && way ? grade(best.map((x) => x.mon), way, P) : null };
+    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: null };
   }
   // plan the gym of chapter `ch` (cached per gym + side). Returns the saved plan, or null while it's thinking.
   function get(ch, { force = false } = {}) {
@@ -3875,18 +3876,27 @@ const GymPlan = (() => {
     if (!busy) run(ch);
     return p || null;
   }
-  async function run(ch) {
+  // one plan at a time: a second start (the story goal, the Simulate button) waits for the one already running
+  let running = null, runCh = null;
+  function run(ch) {
+    if (running && runCh === ch) return running; // that gym is already being planned
+    const prev = running || Promise.resolve();
+    const mine = prev.catch(() => {}).then(() => { runCh = ch; return runOne(ch); }).finally(() => { if (running === mine) { running = null; runCh = null; } });
+    running = mine; runCh = ch;
+    return mine;
+  }
+  async function runOne(ch) {
     const G = gymOf(ch); if (!G || !G.foes.length) return null;
-    busy = { ch, done: 0, total: 1 }; duel1 = new Map();
+    const b = (busy = { ch, done: 0, total: 1 }); duel1 = new Map();
     try {
       const pool = candidates(G);
       // now: the Pokémon you have, at their real levels
       const nowPool = sideMons().map((m) => ({ key: 'n' + m.uid, kind: 'own', uid: m.uid, id: m.id, from: m, mon: fresh(m) }));
-      const now = await search(nowPool, G, 700, (n) => { busy.done = n; });
+      const now = await search(nowPool, G, 700, (n) => { b.done = n; });
       // your actual current team always competes too (the search samples, and could miss it)
       const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw > now.win) Object.assign(now, { team: cur, win: cw, soft: cw, current: true }); }
-      let plan = await search(pool, G, 1600, (n) => { busy.done = 700 + n; });
+      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
+      let plan = await search(pool, G, 1600, (n) => { b.done = 700 + n; });
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
       const r = {
@@ -3898,8 +3908,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:209', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:210', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:219', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:220', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3910,9 +3920,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:221', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:231', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:223', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:233', __e); } }
     }
     return out;
   }
@@ -3923,7 +3933,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:234', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:244', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
