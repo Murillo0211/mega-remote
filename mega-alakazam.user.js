@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.4.0
+// @version      2.4.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.4.0';
+const VERSION = '2.4.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3853,9 +3853,12 @@ const GymPlan = (() => {
     // the old helper's candidates: the 18 best by coverage (one per species), plus its greedy pick
     const byCov = pool.map((x) => ({ x, v: kOf(x).reduce((a, v) => a + Math.log1p(v), 0) })).sort((a, b) => b.v - a.v).map((y) => y.x).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i);
     const top = [...new Set([...greedy, ...byCov.slice(0, 18)])];
+    // the same Pokémon always give the same answer: shuffles use a fixed seed (they used Math.random, so the
+    // plan flipped between equal teams every time it was redone)
+    const shuffle = (a, seed) => { const rnd = Sim.mulberry(seed * 7919 + 17), b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
     let best = null, bs = -1;
     for (let r = 0; r < 3 && n < budget; r++) {
-      let t = r === 0 && greedy.length ? [...greedy] : [...top].sort(() => Math.random() - 0.5).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
+      let t = r === 0 && greedy.length ? [...greedy] : shuffle(top, r).filter((x, i, a) => a.findIndex((y) => sp(y) === sp(x)) === i).slice(0, 6);
       let s = await obj(t), imp = true, pass = 0;
       while (imp && n < budget && pass++ < 2) {
         imp = false;
@@ -3874,11 +3877,13 @@ const GymPlan = (() => {
     return p || null;
   }
   // one plan at a time: a second start (the story goal, the Simulate button) waits for the one already running
-  let running = null;
+  let running = null, runCh = null;
   function run(ch) {
-    if (running) return running;
-    running = runOne(ch).finally(() => { running = null; });
-    return running;
+    if (running && runCh === ch) return running; // that gym is already being planned
+    const prev = running || Promise.resolve();
+    const mine = prev.catch(() => {}).then(() => { runCh = ch; return runOne(ch); }).finally(() => { if (running === mine) { running = null; runCh = null; } });
+    running = mine; runCh = ch;
+    return mine;
   }
   async function runOne(ch) {
     const G = gymOf(ch); if (!G || !G.foes.length) return null;
@@ -3903,8 +3908,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:214', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:215', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:219', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:220', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3915,9 +3920,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:226', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:231', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:228', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:233', __e); } }
     }
     return out;
   }
@@ -3928,7 +3933,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:239', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:244', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
