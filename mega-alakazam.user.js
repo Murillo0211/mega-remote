@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.4.2
+// @version      2.5.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.4.2';
+const VERSION = '2.5.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -786,6 +786,144 @@ const Sim = (() => {
       return Math.min(50, (out * maxHp(m)) / inc / Math.max(1, maxHp(F)));
     });
   }
+  // ---- the old helper's gym simulator (Jimmy: its teams beat the last two gyms where Mega's didn't) ----------
+  // Plays the game's trainer-battle rules: 1 Pokémon a side (2 for double gyms), the leader sends its team in
+  // order, your side switches by itself to the best matchup (Auto Switch; a switch costs that turn), leader
+  // Pokémon have HP x GYM_HP_MULT x power x (6/size)^GYM_TEAM_EXP and hit x GYM_DAMAGE x power, the leader
+  // aims where its best move hurts most for the HP left, status moves ~30% of turns, burn/poison 1/8 a turn,
+  // 200 rounds (or 8 without damage): the side with more HP left (in %) wins. Ported from Alakazam 4.x.
+  const num = (k, d) => { const v = C()?.[k]; return typeof v === 'number' ? v : d; };
+  function matchScore(me, foe) { // the game's Auto Switch score
+    const TP = C()?.TYPE_POWER || { strong: 3, weak: -3, immune: -5, exposed: -2, resists: 2 };
+    const ft = typesOf(foe), mt = typesOf(me), k = bestKey(me, foe), mv = move(k);
+    const e = mv && power(k) > 0 ? eff(mv.type, ft) : 1;
+    const w = Math.max(...ft.map((t) => eff(t, mt)));
+    return (e === 0 ? TP.immune : e > 1 ? TP.strong : e < 1 ? TP.weak : 0) + (w > 1 ? TP.exposed : w < 1 ? TP.resists : 0);
+  }
+  const gymCache = new Map();
+  function gymSetup(team, foes, gym) {
+    const n = foes.length, size = num('TEAM_SIZE', 6), pw = +gym?.power || 1;
+    const hpMult = num('GYM_HP_MULT', 1.3) * pw * Math.max(1, size / n) ** num('GYM_TEAM_EXP', 0.7);
+    const P = num('GYM_DAMAGE', 1.3) * pw;
+    const DR = C()?.DRAIN || {}, drainOf = (k) => DR[k] || 0;
+    const fins = (att, def, mult) => learn(att)
+      .filter(([lv, k]) => lv <= att.level && !blacklisted(k) && move(k) && power(k) > 0 && eff(move(k).type, typesOf(def)) !== 0)
+      .map(([, k]) => { const a = attack(att, def, k); return { atk: a, min: a.base ? Math.max(1, Math.round(Math.floor(a.base * 0.85) * mult)) : 0, drain: drainOf(k) }; })
+      .sort((x, y) => y.atk.acc - x.atk.acc || power(y.atk.k) - power(x.atk.k));
+    const selfHit = (u) => { const A = statsOf(u); return Math.max(1, Math.floor(((2 * u.level) / 5 + 2) * 40 * A.atk / Math.max(1, A.def) / 50 + 2)); };
+    const F = foes.map((f, j) => ({ j, id: f.id, level: f.level, types: typesOf(f), spe: statsOf(f).spe, hp: Math.floor(maxHp(f) * hpMult), selfHit: selfHit(f) }));
+    const A = team.map((m) => {
+      const key = `${m.uid}|${m.id}|${m.level}|${m.rank || 0}|${foes.map((f) => f.id + ':' + f.level).join(',')}|${P}|${hpMult}|${isNight()}`;
+      let per = gymCache.get(key);
+      if (!per) {
+        per = foes.map((f) => {
+          const best = bestKey(m, f), fb = bestKey(f, m), fbm = move(fb);
+          return {
+            atk: attack(m, f, best), atkDrain: drainOf(best), sm: statusMove(m, f), fin: fins(m, f, 1),
+            hit: attack(f, m, fb), hitDrain: drainOf(fb), fsm: statusMove(f, m), ffin: fins(f, m, P),
+            aim: Math.max(0, power(fb)) * (fbm ? eff(fbm.type, typesOf(m)) : 1), score: matchScore(m, f),
+          };
+        });
+        if (gymCache.size > 4000) gymCache.clear();
+        gymCache.set(key, per);
+      }
+      return { uid: m.uid, id: m.id, types: typesOf(m), spe: statsOf(m).spe, hp: maxHp(m), selfHit: selfHit(m), per };
+    });
+    return { A, F, P, slots: gym?.double && n >= 2 ? 2 : 1 };
+  }
+  function gymRun(setup, rnd) {
+    const crit = num('CRIT_CHANCE', 1 / 24), critM = num('CRIT_MULT', 1.5), P = setup.P;
+    const SMC = num('STATUS_MOVE_CHANCE', 0.3), PARA = num('FULL_PARA_CHANCE', 0.25), THAW = num('THAW_CHANCE', 0.2), CONF = num('CONFUSION_SELF_HIT', 0.33);
+    const A = setup.A.map((a, i) => ({ ...a, i, cur: a.hp, status: null, sleep: 0, confused: 0, ally: true }));
+    const F = setup.F.map((f) => ({ ...f, cur: f.hp, status: null, sleep: 0, confused: 0 }));
+    const roll = (atk, burnMult, mult) => {
+      if (!atk.base || rnd() * 100 > atk.acc) return 0;
+      const c = rnd() < crit ? critM : 1, burn = burnMult && atk.phys ? burnMult : 1;
+      const d = Math.max(1, Math.floor(atk.base * burn * c * (0.85 + rnd() * 0.15)));
+      return mult === 1 ? d : Math.max(1, Math.round(d * mult));
+    };
+    const inflict = (u, st) => {
+      if (st === 'tri') st = ['burn', 'paralysis', 'freeze'][Math.floor(rnd() * 3)];
+      if (!canGet(u, st)) return;
+      if (st === 'confusion') u.confused = 2 + Math.floor(rnd() * 4);
+      else { u.status = st; if (st === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); }
+    };
+    let calm = 0;
+    const blocked = (u) => {
+      if (u.status === 'sleep') { if (u.sleep > 0) { u.sleep--; return true; } u.status = null; }
+      else if (u.status === 'freeze') { if (rnd() >= THAW) return true; u.status = null; }
+      else if (u.status === 'paralysis' && rnd() < PARA) return true;
+      if (u.confused) { if (--u.confused <= 0) u.confused = 0; else if (rnd() < CONF) { u.cur -= u.selfHit; calm = 0; return true; } }
+      return false;
+    };
+    const tick = (u) => { if ((u.status === 'burn' || u.status === 'poison') && u.cur > 0) { u.cur -= Math.max(1, Math.floor(u.hp / 8)); calm = 0; } };
+    const aliveA = () => A.filter((a) => a.cur > 0), aliveF = () => F.filter((f) => f.cur > 0);
+    let actA = [], actF = [], queue = [], rounds = 0;
+    const refill = () => {
+      const front = aliveF().slice(0, Math.min(setup.slots, 2));
+      const fresh = (cur, want) => { const out = cur.filter((x) => want.includes(x)); for (const w of want) if (out.length < want.length && !out.includes(w)) out.push(w); return out; };
+      actF = fresh(actF.filter((f) => f.cur > 0), front);
+      const order = aliveA().map((a) => ({ a, s: front.reduce((t, f) => t + a.per[f.j].score, 0) / Math.max(1, front.length) + (actA.includes(a) ? 0.001 : 0) }))
+        .sort((x, y) => y.s - x.s || x.a.i - y.a.i).map((x) => x.a).slice(0, setup.slots);
+      const before = actA.filter((a) => a.cur > 0);
+      actA = fresh(before, order);
+      queue = queue.filter((q) => (q.a.ally ? actA : actF).includes(q.a));
+      return before.some((a) => !actA.includes(a));
+    };
+    const hit = (u, t, pp, atkKey, drKey, finKey, smKey, mult) => {
+      const fin = pp[finKey].find((f) => f.min >= t.cur && f.min > 0);
+      if (!fin && pp[smKey] && canGet(t, pp[smKey].st) && (rnd() < SMC || !pp[atkKey].base)) {
+        if (rnd() * 100 < pp[smKey].chance) { inflict(t, pp[smKey].st); calm = 0; }
+        return;
+      }
+      const atk = fin ? fin.atk : pp[atkKey], dr = fin ? fin.drain : pp[drKey], before = t.cur;
+      const d = roll(atk, u.status === 'burn' ? 0.5 : 0, mult);
+      if (!d) return;
+      calm = 0; t.cur -= d;
+      if (dr) u.cur = Math.min(u.hp, u.cur + Math.max(1, Math.ceil(Math.min(d, before) * dr)));
+      if (t.status === 'freeze' && atk.type === 'fire' && t.cur > 0) t.status = null;
+      if (t.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1]) inflict(t, atk.fx[0]);
+    };
+    for (;;) {
+      if (!aliveF().length) return { win: true, rounds };
+      if (!aliveA().length) return { win: false, rounds, left: aliveF().reduce((s, f) => s + f.cur, 0) / F.reduce((s, f) => s + f.hp, 0) };
+      if (refill()) continue;
+      if (!queue.length) {
+        rounds++;
+        if (++calm > num('STALL_ROUNDS', 8) || rounds > num('MAX_ROUNDS', 200)) {
+          const mine = aliveA().reduce((s, a) => s + a.cur, 0) / A.reduce((s, a) => s + a.hp, 0);
+          const theirs = aliveF().reduce((s, f) => s + f.cur, 0) / F.reduce((s, f) => s + f.hp, 0);
+          return { win: mine > theirs, rounds, timeout: true, left: theirs };
+        }
+        queue = [...actA, ...actF].map((u) => ({ a: u, s: u.spe * (u.status === 'paralysis' ? 0.25 : 1), r: rnd() })).sort((x, y) => y.s - x.s || x.r - y.r);
+        continue;
+      }
+      const { a: u } = queue.shift();
+      if (u.cur <= 0) continue;
+      if (u.ally) {
+        if (!actF.length) continue;
+        if (!blocked(u) && u.cur > 0) { const t = actF[Math.floor(rnd() * actF.length)]; hit(u, t, u.per[t.j], 'atk', 'atkDrain', 'fin', 'sm', 1); }
+        tick(u);
+      } else {
+        const targets = actA.filter((a) => a.cur > 0);
+        if (!targets.length) continue;
+        if (!blocked(u) && u.cur > 0) {
+          let t = targets[0], tv = -1;
+          for (const x of targets) { const v = x.per[u.j].aim / Math.max(1, x.cur) * (0.95 + rnd() * 0.1); if (v > tv) { tv = v; t = x; } }
+          hit(u, t, t.per[u.j], 'hit', 'hitDrain', 'ffin', 'fsm', P);
+        }
+        tick(u);
+      }
+    }
+  }
+  // win chance of `team` against a gym leader's `foes` over `runs` seeded fights (same seeds = same answer)
+  function gymEval(team, foes, gym, runs = 80, seed = 1) {
+    if (!team.length || !foes.length) return { win: 0, rounds: 0 };
+    const st = gymSetup(team, foes, gym);
+    let w = 0, rounds = 0;
+    for (let i = 0; i < runs; i++) { const r = gymRun(st, mulberry(seed * 7919 + i * 104729)); if (r.win) w++; rounds += r.rounds; }
+    return { win: w / runs, rounds: rounds / runs };
+  }
   function chapterFoes(ch) {
     const steps = G().STORY.CHAPTERS[ch]?.steps || [], wild = chapterPool(ch);
     const fights = steps.filter((st) => st.kind === 'route').reduce((t, st) => t + (st.wild || 1), 0) || 1;
@@ -808,7 +946,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:428', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:566', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -817,7 +955,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:437', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:575', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -833,7 +971,7 @@ const Sim = (() => {
     return { pool, picks: cands.slice(0, n), ranked: cands };
   }
 
-  return { CARRIER_V: 4, coverage, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
+  return { CARRIER_V: 4, coverage, gymEval, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3476,7 +3614,7 @@ Views.gems = (esc) => {
  * Story: the next chapter to beat is STORY's first one past S.adv.unlocked's region. Going to a new
  * "aside" region is a fresh start the game itself handles (money, items and team set aside, back
  * to ₽0 with an empty team, older Pokédexes hidden until that League is won) - Mega never does it.
- * Gym odds: GymPlan.estimate - the game's battle simulation in Auto Switch order, power weighting learned from real fights.
+ * Gym odds: GymPlan.estimate - the old helper's gym simulator (Sim.gymEval).
  * ------------------------------------------------------------------------------------------- */
 const LeagueInfo = (() => {
   const E = Engine;
@@ -3566,7 +3704,7 @@ Views.league = (esc) => {
           const nx = (() => { try { return GymPlan.nextGym(s.ch); } catch { return null; } })(), NP = nx != null ? (() => { try { return GymPlan.saved[nx] || null; } catch { return null; } })() : null;
           if (NP) { const c = NP.plan.team.filter((t) => t.kind === 'catch'); h += `<div style="margin-top:8px"><b>Next: ${esc(NP.gym)}</b> · best possible ${pct(NP.plan.win)}${c.length ? ` · catch ${c.map((t) => `${nm(t.base)} <span class="dim">(${esc(t.where || '')})</span>`).join(', ')}` : ' · nothing new to catch'}</div>`; }
           else if (nx != null) h += `<div class="dim" style="margin-top:8px">The gym after this one gets planned once this plan is ready.</div>`;
-          h += `<div class="dim" style="margin-top:6px">Mega fights when your team wins 60% or more; below that it trains (or catches) toward this plan first. Estimates use the game's battle simulation in Auto Switch order, tuned by your real gym results (weighting ${GymPlan.calib().k.toFixed(2)}). Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
+          h += `<div class="dim" style="margin-top:6px">Mega fights when your team wins 60% or more; below that it trains (or catches) toward this plan first. Win chances come from the old helper's gym simulator (300 fights each, Auto Switch, the leader's full power) - the one whose teams beat the last two gyms. Planned ${new Date(P.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.</div>`;
         }
         // the old helper's Next boss buttons: simulate (checks every Pokémon you have), go fight now, train these to the cap
         const on = (() => { try { return Plan.running && !sg?.paused; } catch { return false; } })();
@@ -3765,17 +3903,18 @@ const GymPlan = (() => {
   function estimate(ch, uids) {
     const G = gymOf(ch); if (!G || !G.foes.length) return null;
     const mons = (uids || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).map(fresh);
-    return { gym: G.name, p: win(mons, G.foes, effP(G.power)) };
+    return { gym: G.name, p: simWin(mons, G) };
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 13; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 14; // bump when the scoring changes: saved plans from before are redone
   // fast: only the Auto Switch lineup (what really happens), used while searching
   const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
   const grade = (team, foes, P, wf = win) => {
     const full = wf(team, foes, P); if (full >= 0.995) return full; // wins at full power: the weaker levels can only read the same
     return LEVELS.reduce((s, [k, w], i) => s + w * (i === 0 ? full : wf(team, foes, 1 + (P - 1) * k)), 0) / LEVELS.reduce((s, [, w]) => s + w, 0);
   };
+  const simWin = (team, G, runs = 300) => safe(() => Sim.gymEval(team, G.foes, G.gym, runs).win, 0) || 0;
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
@@ -3821,7 +3960,7 @@ const GymPlan = (() => {
       if (!fid.has(f)) fid.set(f, fid.size); const key = fid.get(f) + '|' + t.map((x) => x.key).sort().join(',');
       if (memo.has(key)) return memo.get(key);
       ++n; if (performance.now() - slice > 40) { tick?.(n); await sleep(); slice = performance.now(); }
-      const v = Math.round(grade(t.map((x) => x.mon), f, P, winA) * 50) / 50; memo.set(key, v); return v; /* 2% steps: the game's estimate wobbles ~1% call to call */
+      const v = f === foes ? simWin(t.map((x) => x.mon), G, 80) : Math.round(grade(t.map((x) => x.mon), f, P, winA) * 50) / 50; memo.set(key, v); return v; /* the old helper's simulator (seeded: same team, same answer) */
     };
     // the gym fight itself (each foe in turn, the whole team counting most), plus the full run: the trainers after
     // the last heal and then the leader in one go, HP carrying over - a team that arrives healthy wins more
@@ -3866,7 +4005,7 @@ const GymPlan = (() => {
       }
       if (s > bs) { bs = s; best = t; }
     }
-    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? win(best.map((x) => x.mon), foes, P) : 0, soft: best ? grade(best.map((x) => x.mon), foes, P) : 0, run: null };
+    return { greedy: greedy.map((x) => x.id), cov: best ? covScore(best) : 0, team: best || [], win: best ? simWin(best.map((x) => x.mon), G) : 0, soft: best ? simWin(best.map((x) => x.mon), G) : 0, run: null };
   }
   // plan the gym of chapter `ch` (cached per gym + side). Returns the saved plan, or null while it's thinking.
   function get(ch, { force = false } = {}) {
@@ -3895,7 +4034,7 @@ const GymPlan = (() => {
       const now = await search(nowPool, G, 700, (n) => { b.done = n; });
       // your actual current team always competes too (the search samples, and could miss it)
       const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = win(cur.map((x) => x.mon), G.foes, effP(G.power)); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
+      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = simWin(cur.map((x) => x.mon), G); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
       let plan = await search(pool, G, 1600, (n) => { b.done = 700 + n; });
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
@@ -3903,13 +4042,13 @@ const GymPlan = (() => {
         v: PLAN_V, ch, at: Date.now(), sig: sig(), gym: G.name, chapter: G.chapter, cap: G.cap, foes: G.foes.map((f) => [f.id, f.level]),
         trainers: G.trainers || 0,
         // the suggested team as it is today (your Pokémon at their real levels, not evolved yet, catches missing)
-        today: (() => { const ms = plan.team.filter((x) => x.kind === 'own').map((x) => E.read('Game.getMon', null, x.uid)).filter(Boolean).map(fresh); return ms.length ? win(ms, G.foes, effP(G.power)) : 0; })(),
+        today: (() => { const ms = plan.team.filter((x) => x.kind === 'own').map((x) => E.read('Game.getMon', null, x.uid)).filter(Boolean).map(fresh); return ms.length ? simWin(ms, G) : 0; })(),
         now: { uids: now.team.map((x) => x.uid), win: now.win, soft: now.soft, run: now.run },
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:219', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:220', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:220', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:221', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -3920,9 +4059,9 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:231', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:232', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:233', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:234', __e); } }
     }
     return out;
   }
@@ -3933,7 +4072,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:244', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:245', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
