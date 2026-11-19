@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.7.4
+// @version      2.8.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.7.4';
+const VERSION = '2.8.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4901,7 +4901,11 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     sprite: (g) => g.formNow || g.foe,
     check(g) {
       const z = Legends.get(g.foe);
-      if (!z) return { state: 'wait', why: 'not in the game data' };
+      if (!z) {
+        // a roamer (Tornadus, Thundurus...) has no zone: it's chased by the 'roam' goal instead
+        if ((E.get('CONFIG')?.ROAMING?.GROUPS || []).some((x) => x.ids.includes(+g.foe))) { g.type = 'roam'; Plan.save(); return { state: 'wait', why: 'a roamer - chased by following it from chapter to chapter' }; }
+        return { state: 'wait', why: 'not in the game data' };
+      }
       if (z.forms) {
         // weekly forms: done when you own every form; otherwise hunt this week's, then wait for the reset
         if (!g.forms) { g.forms = true; Plan.save(); }
@@ -4912,7 +4916,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
           Legends.dropSim(g.foe); // last week's team was built for another form
           if (!E.read('Game.owns', false, z.form)) {
             Log.add(`${z.formName} is at ${z.place || 'its zone'} this week - still missing: ${left}`);
-            if (!first) try { Notify.send('win', `${z.formName} is here this week`, `New weekly form at ${z.place || 'its zone'}. Mega will hunt it. Still missing: ${left}.`); } catch (__e) { __h('70-plan-01-legend:21', __e); }
+            if (!first) try { Notify.send('win', `${z.formName} is here this week`, `New weekly form at ${z.place || 'its zone'}. Mega will hunt it. Still missing: ${left}.`); } catch (__e) { __h('70-plan-01-legend:25', __e); }
           }
         }
         if (!z.form || E.read('Game.owns', false, z.form)) return { state: 'wait', why: `this week's form is caught - a new one comes at the weekly reset (Sunday 4 PM). Still missing: ${left}` };
@@ -4921,7 +4925,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (z.state !== 'open') {
         // goals that plan themselves: add what this legendary still needs (every 30 min)
         let manual = g.chainManual || [];
-        if (Date.now() - (g.chainAt || 0) > 30 * 60_000) { g.chainAt = Date.now(); try { const r = Chains.addFor(g); manual = g.chainManual = r.manual; } catch (__e) { __h('70-plan-01-legend:30', __e); } Plan.save(); }
+        if (Date.now() - (g.chainAt || 0) > 30 * 60_000) { g.chainAt = Date.now(); try { const r = Chains.addFor(g); manual = g.chainManual = r.manual; } catch (__e) { __h('70-plan-01-legend:34', __e); } Plan.save(); }
         return { state: 'wait', why: `locked - ${z.progress?.text || 'requirement missing'}${manual.length ? ` · needs you: ${manual.join(', ')}` : ''}` };
       }
       if (pending.has(g.foe)) return { state: 'wait', why: 'finding the best team…' };
@@ -4956,7 +4960,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       if (sim && !vs && !(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) {
         const r = setTeam(id, sim.uids);
         if (!r.ok) return 'waiting: ' + r.why;
-        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:65', __e); }
+        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:69', __e); }
         await new Promise((x) => setTimeout(x, 600));
         await ctx.enter(id, true);
         return `switched to the planned team (${sim.uids.length} Pokémon) and re-entered`;
@@ -5670,6 +5674,75 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     },
   };
   Object.assign(GoalTypes, { shinyWays, shinyWild, shinyBreed, ownsShinyId, wild, wildChapters });
+})();
+
+// goal module: roam - roaming Legendaries (Tornadus, Thundurus; Raikou, Entei, Suicune, Latias, Latios, Cresselia...)
+// Jimmy (2026-11-19): "Tornadus is roaming but I don't see it in the plan to chase it". The old helper chased
+// roamers; Mega never had it. Same approach, on the game's own Roaming module:
+//  - Roaming.update() is the game's refresh of where each roamer is (it runs when you open the chapter list);
+//    a roamer stays ~15 min in a chapter of its region, then moves
+//  - go to that chapter with your strongest team and loop it; a roamer shows up there as a wild encounter
+//  - it broke free (a KO without a catch: 4% per KO, or the game uses a Master Ball by itself if you have one)
+//    -> restart the chapter so it can appear again
+//  - it moved -> follow it. Done when the game marks it caught.
+(() => {
+  const { E, S, name, safe, setChapterTeam, fullTeam } = GoalKit;
+  const R = () => E.get('Roaming');
+  const caught = (id) => (S().roam?.caught || []).includes(+id) || !!E.read('Game.owns', false, +id);
+  const spot = (id) => { const list = safe(() => R().update(), null) || []; return list.find((r) => +r.id === +id) || (S().roam?.at?.[id] ? { id: +id, ...S().roam.at[id] } : null); };
+  const groupOf = (id) => (E.get('CONFIG')?.ROAMING?.GROUPS || []).find((g) => g.ids.includes(+id));
+  const chName = (ch) => safe(() => Casing.names(E.get('STORY').CHAPTERS[ch].name), 'chapter ' + ch);
+  const roam = {
+    uses: 'screen',
+    label: (g) => `Chase ${name(g.foe)} (roaming)`,
+    sprite: (g) => g.foe,
+    check(g) {
+      if (caught(g.foe)) return { state: 'done', why: 'caught' };
+      if (!safe(() => R().free(+g.foe), false)) {
+        const grp = groupOf(g.foe);
+        return { state: 'wait', why: `not roaming yet - ${grp ? `unlocks when you become ${Casing.names(grp.unlock)}` : 'locked'}` };
+      }
+      const s = spot(g.foe);
+      if (!s) return { state: 'wait', why: 'not anywhere right now - checking again shortly' };
+      return { state: 'ready', why: null };
+    },
+    step(g) {
+      const s = spot(g.foe); if (!s) return 'waiting for it to show up somewhere';
+      const a = S().adv || {}, b = a.battle;
+      if (!g.restore) { g.restore = { team: (S().team || []).slice(), chapter: a.chapter, loopAdded: null }; Plan.save(); }
+      // your strongest six (the roamer is Lv 100 with 4x HP); set once per chase, not every step
+      if (!g.teamSet) { const t = fullTeam([]); if (t.length && setChapterTeam(t)) Log.add(`${name(g.foe)}: chasing with your strongest team`); g.teamSet = true; Plan.save(); }
+      // a fight with it right now: let it play out (never touch anything mid-fight)
+      const inFight = b && ((b.enemies || []).some((e) => +e.id === +g.foe) || +b.roam === +g.foe);
+      if (inFight) { g.sawFight = true; g.kos0 ??= +(S().legTries?.[g.foe] ?? 0); return `fighting ${name(g.foe)} in ${chName(s.ch)}!`; }
+      // the fight just ended and it's still free: it broke free - restart the chapter so it can show up again
+      if (g.sawFight) {
+        g.sawFight = false; g.tries = (g.tries || 0) + 1; Plan.save();
+        Log.add(`${name(g.foe)} broke free (try ${g.tries}) - restarting ${chName(s.ch)}`);
+        try { E.call('Adventure.setChapter', +s.ch); } catch (__e) { __h('70-plan-06-roam:44', __e); }
+      }
+      // follow it: go to its chapter and keep looping there
+      if (+a.chapter !== +s.ch) {
+        if (E.call('Adventure.setChapter', +s.ch) === false) return `waiting: the game would not open ${chName(s.ch)}`;
+        Log.add(`${name(g.foe)} is roaming in ${chName(s.ch)} - going there`);
+        if (g.restore.loopAdded != null && g.restore.loopAdded !== +s.ch) { try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-06-roam:50', __e); } g.restore.loopAdded = null; }
+      }
+      if (!E.read('Adventure.isLooping', false, +s.ch)) { try { E.call('Adventure.toggleLoop', +s.ch); g.restore.loopAdded = +s.ch; Plan.save(); } catch (__e) { __h('70-plan-06-roam:52', __e); } }
+      const mins = Math.max(0, Math.round((+s.until - Date.now()) / 60000));
+      const mb = safe(() => +E.read('Game.itemCount', 0, 'master-ball'), 0);
+      return `hunting ${name(g.foe)} in ${chName(s.ch)} - it moves in ~${mins} min${g.tries ? ` · broke free ${g.tries}x` : ''}${mb > 0 ? ` · the game will use a Master Ball on it (you have ${mb})` : ' · 4% catch per KO'}`;
+    },
+    // put back your team, the loop setting and the chapter you were in
+    finish(g) {
+      const r = g.restore; if (!r) return;
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-06-roam:60', __e); }
+      const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
+      if (back.length) try { setChapterTeam(back); } catch (__e) { __h('70-plan-06-roam:62', __e); }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-06-roam:63', __e); } }
+      g.restore = null; g.teamSet = false; Plan.save();
+    },
+  };
+  Object.assign(GoalTypes, { roam });
 })();
 
 // goal module: special (takes shared helpers from GoalKit, registers itself in GoalTypes)
