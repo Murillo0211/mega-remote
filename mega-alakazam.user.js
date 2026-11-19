@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.7.0
+// @version      2.7.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.7.0';
+const VERSION = '2.7.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1250,7 +1250,7 @@ const BossLog = (() => {
   }
   setInterval(() => { try { if (E.ready()) poll(); } catch (e) { console.warn('[Mega Alakazam] boss log', e); } }, 250);
   setTimeout(() => { all().then((l) => { count = l.length; }).catch(() => {}); }, 4000);
-  return { all, get current() { return cur; }, get count() { return count; } };
+  return { all, poll, get current() { return cur; }, get count() { return count; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
