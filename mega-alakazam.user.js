@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.19
+// @version      2.9.20
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.19';
+const VERSION = '2.9.20';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6495,23 +6495,22 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     }
     return { mine: best.p.map((m) => m.uid), allies: allies.map((x) => x.b.key), allyNames: allies.map((x) => x.b.name), ko: best.ko, tested };
   }
-  const reg0 = (ev) => ev.reg;
   async function raidRepick(by = 'from the phone') {
     const r = RD(), C = E.get('CONFIG')?.RAID || {}, a = S().adv || {};
     const g = Plan.goals.find((x) => x.type === 'raid' && !x.done);
-    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:75', __e); } }
+    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:74', __e); } }
     if (!reg) { if (g) { delete g.pick; Plan.save(); } return 'today\'s raid isn\'t drawn yet - it will pick when it starts'; }
     const lane = (() => { try { return r.lane() || []; } catch { return []; } })(), boss = a.event?.raid ? +a.event.id : lane.find((x) => x.key === reg)?.boss;
     if (!boss) return 'can\'t read today\'s boss';
     const blocked = Guard.blocks('raid'); if (blocked) return 'safety check: ' + blocked;
-    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan-13-raid:80', __e); }
+    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan-13-raid:79', __e); }
     if (g) { g.pick = { ...pick, day, reg }; Plan.save(); }
     const names = pick.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ');
     if (a.event?.raid) { // running now: swap the team for the next fight
       const why = Guard.team(pick.mine, { need: +C.MINE || 2, minLevel: 70 }); if (why) return 'not changed - ' + why;
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = pick.mine;
-      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:86', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:87', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:87', __e); }
+      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:85', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:86', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:86', __e); }
       Log.add(`Shiny Raid: re-picked ${by} - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
       return `now ${names} + ${pick.allyNames.join(' & ')} (sim ${Math.round(pick.ko * 100)}%)`;
     }
@@ -6524,7 +6523,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     check(g) {
       const r = RD(); if (!r || !E.read('Raids.unlocked', false)) return { state: 'wait', why: 'Shiny Raids are not open yet' };
       if (S().adv?.event?.raid) return { state: 'ready', why: null };
-      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan-13-raid:100', __e); } }
+      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan-13-raid:99', __e); } }
       const reg = (() => { try { return r.drawn(); } catch { return null; } })();
       if (!reg) { const from = r.state?.drawFrom; return { state: 'wait', why: `today's raid isn't drawn yet${from && from > Date.now() ? ` - draws ${DexInfo.clock(from)}` : ''}` }; }
       if ((() => { try { return r.done(reg); } catch { return false; } })()) { const b = (r.lane() || []).find((x) => x.key === reg);
@@ -6544,17 +6543,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (g.wanted && g.wanted.seq === ev.seq) {
           const back = g.wanted.mine.every((u) => E.read('Game.getMon', null, u) && !awayNow().has(u));
           if (back && g.wanted.mine.some((u) => !team.includes(u))) {
-            const why = Guard.team(g.wanted.mine, { need, minLevel: 70 });
-            if (!why) {
-              const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(ev.reg)] = g.wanted.mine.slice();
-              (g.wanted.allies || []).slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg0(ev), i, k); } catch (__e) { __h('70-plan-13-raid:123', __e); } });
-              try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:124', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:124', __e); }
-              const names = g.wanted.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ');
-              g.pick = { ...(g.pick || {}), mine: g.wanted.mine.slice(), allies: g.wanted.allies, allyNames: g.wanted.allyNames, ko: g.wanted.ko };
-              delete g.wanted; Plan.save();
-              Log.add(`Shiny Raid: ${names} are back - using the first pick again`);
-              return `raid on · first pick back: ${names}`;
-            }
+            const names = g.wanted.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ');
+            delete g.wanted; Plan.save();
+            Log.add(`Shiny Raid: ${names} are back - simulating again with everyone home`);
+            try { const msg = await raidRepick('automatically'); return `raid on · ${names} back: ${msg}`; } catch (e) { Log.add('Shiny Raid: could not re-pick (' + (e?.message || e) + ')'); }
           }
         } else if (g.wanted) { delete g.wanted; Plan.save(); }
         if (inTeam < need && (!g.refillAt || Date.now() - g.refillAt > 10 * 60_000)) {
@@ -6566,7 +6558,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}${inTeam < need ? ` · only ${inTeam} of your Pokémon in it` : ''}`;
       }
-      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:142', __e); }
+      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:134', __e); }
       const day = r.dateKey(), lane = (() => { try { return r.lane() || []; } catch { return []; } })();
       const bossOf = (k) => lane.find((x) => x.key === k)?.boss;
       // the reroll: once a day, only when today's boss is a shiny you own or clearly weak, and
@@ -6595,8 +6587,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = mine.map((m) => m.uid);
       const allyN = +C.ALLIES || 2;
       const bots = g.pick.allies.slice(0, allyN).map((key) => ({ b: { key, name: g.pick.allyNames[g.pick.allies.indexOf(key)] } }));
-      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:171', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:172', __e); }
+      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:163', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:164', __e); }
       // safety: your 2 (read back from the game) and the ally trainers must be set as picked
       { const read = S().eventTeams?.[r.teamKey(reg)] || [];
         let why = Guard.team(read, { need: +C.MINE || 2, want: g.pick.mine, minLevel: 70 });
@@ -6618,7 +6610,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         g.blockSaid = null; }
       let ok = false; try { ok = E.call('Adventure.startRaid', reg); } catch (e) { Log.add('Shiny Raid: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:194', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:186', __e); }
       if (ok && S().adv?.event?.raid) { Log.add(`Shiny Raid: started vs ${name(boss)} (${reg}) with ${mine.map((m) => name(m.id)).join(' & ')} + ${bots.slice(0, allyN).map((x) => x.b.name).join(' & ')}`); return `started vs ${name(boss)}`; }
       Log.add('Shiny Raid: the game did not start it and gave no reason - trying again shortly');
       return 'could not start the raid - trying again shortly';
