@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.2
+// @version      2.9.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.2';
+const VERSION = '2.9.3';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1980,7 +1980,9 @@ const DexInfo = (() => {
     const d = D()[id] || {}, s = S();
     const owned = (E.read('Game.ownedMons', []) || []).filter((m) => +m.id === id);
     const evo = evoFrom(id);
-    const pre = evo ? (E.read('Game.ownedMons', []) || []).filter((m) => +m.id === evo.from).sort((a, b) => b.level - a.level)[0] || null : null;
+    // only one you can reach (Game.ownedMons also lists Pokémon tied up elsewhere, e.g. a trade offer: leveling
+    // those ended 'gone' at once and the Pokédex goal re-added it every minute - 24 times for one Oshawott)
+    const pre = evo ? (E.read('Game.ownedMons', []) || []).filter((m) => +m.id === evo.from && E.read('Game.getMon', null, m.uid)).sort((a, b) => b.level - a.level)[0] || null : null;
     const z = safe(() => Legends.get(id));
     return {
       id, name: name(id), types: d.types || [], legendary: !!d.legendary, mythical: !!d.mythical,
@@ -4079,7 +4081,7 @@ const GymPlan = (() => {
   };
   const simWin = (team, G, runs = 300) => safe(() => Sim.gymEval(team, G.foes, G.gym, runs).win, 0) || 0;
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
-  const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
+  const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg && !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })());
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
   const sig = () => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|');
 
@@ -4630,7 +4632,7 @@ const Buddy = (() => {
   function pick() {
     const team = (S().team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
     const cur = E.read('Game.getMon', null, S().buddy?.uid);
-    const ok = (m) => canLevel(m) && !(bad.get(m.uid) > Date.now());
+    const ok = (m) => canLevel(m) && !(bad.get(m.uid) > Date.now()) && !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })(); // never push a Pokédex keeper into evolving
     const growing = team.filter(ok);
     if (growing.length) {
       const low = Math.min(...growing.map((m) => m.level));
@@ -4831,11 +4833,23 @@ const GoalKit = (() => {
   // Rule: a chapter team is always full. Goals pick the Pokémon that matter (trainees, carriers, the gym
   // plan); any slot left over gets the strongest free Pokémon from this side (not in the Underground,
   // not an egg, no repeats), so nothing ever fights with 4 or 5 by accident.
+  // Pokédex keepers (2026-11-19: a Deino leveled on through Zweilous into Hydreigon, and both Deino and
+  // Zweilous went to 'lost' in the Pokédex): your ONLY copy of a species, within 3 levels of evolving by level,
+  // loses that Pokédex entry when it evolves. Mega keeps it off the teams it fills, out of idle leveling and
+  // never makes it the buddy - unless a goal is leveling it on purpose to evolve it.
+  function dexHold(m) {
+    if (!m || m.egg) return false;
+    const next = ((E.get('EVOLUTIONS') || {})[m.id] || []).filter((e) => e.level && !e.item).map((e) => +e.level);
+    if (!next.length || m.level < Math.min(...next) - 3) return false;
+    if ((E.read('Game.allMons', []) || []).filter((x) => +x.id === +m.id && !x.egg).length > 1) return false;
+    try { if (Plan.goals.some((g) => !g.done && g.type === 'level' && g.forDex && (g.uids || []).includes(m.uid))) return false; } catch (__e) { __h('70-plan-00-core:105', __e); }
+    return true;
+  }
   function fullTeam(uids) {
     const out = [...new Set((uids || []).filter(Boolean))].slice(0, 6);
     if (out.length >= 6) return out;
     const away = awayNow(), have = new Set(out);
-    const spare = (E.read('Game.sideMons', []) || []).filter((m) => m && !m.egg && !have.has(m.uid) && !away.has(m.uid)).sort((a, b) => b.level - a.level);
+    const spare = (E.read('Game.sideMons', []) || []).filter((m) => m && !m.egg && !have.has(m.uid) && !away.has(m.uid) && !dexHold(m)).sort((a, b) => b.level - a.level);
     for (const m of spare) { if (out.length >= 6) break; out.push(m.uid); }
     return out;
   }
@@ -4844,8 +4858,8 @@ const GoalKit = (() => {
     uids = fullTeam(uids);
     s.team = uids.slice(0, 6);
     s.road = null; // the game rebuilds the road team from .team (same as its own team editor)
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:109', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:110', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:121', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:122', __e); }
     const now = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
     return uids.every((u) => now.includes(u));
   }
@@ -4864,8 +4878,8 @@ const GoalKit = (() => {
   function hatchMissing() {
     for (const e of [...(S().pension?.eggs || [])]) {
       if (E.read('Game.inDex', false, +e.id) || !E.read('Game.eggReady', false, e)) continue;
-      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:129', __e); }
-      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:130', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:130', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
+      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:141', __e); }
+      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:142', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:142', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
     }
   }
   const LZ = () => E.get('LegendZones');
@@ -4876,7 +4890,7 @@ const GoalKit = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:141', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:153', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -4904,10 +4918,10 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:169', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:170', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:181', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:182', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:172', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:184', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -4915,7 +4929,7 @@ const GoalKit = (() => {
   // otherwise (or if that's missing) step out and back - re-opening the same chapter just continues (Jimmy)
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:180', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:192', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -4924,9 +4938,9 @@ const GoalKit = (() => {
   const putBack = (g) => GoalTypes.wild.finish(g);
 
 
-  return { E, S, name, pending, holder, setTeam, fullTeam, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
+  return { E, S, name, pending, holder, setTeam, fullTeam, dexHold, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
 })();
-Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, setChapterTeam: GoalKit.setChapterTeam, here: GoalKit.here, hatchMissing: GoalKit.hatchMissing });
+Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, setTeam: GoalKit.setTeam, setChapterTeam: GoalKit.setChapterTeam, here: GoalKit.here, hatchMissing: GoalKit.hatchMissing });
 
 // goal module: legend (takes shared helpers from GoalKit, registers itself in GoalTypes)
 (() => {
@@ -5257,11 +5271,20 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const need = g.uids.reduce((n, u) => n + t - (g.startLv[u] ?? 0), 0), have = g.uids.reduce((n, u, i) => n + lv[i] - (g.startLv[u] ?? 0), 0);
       return need > 0 ? { have: Math.max(0, have), need, unit: 'levels' } : null;
     },
-    label: (g) => `Level ${g.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')} to ${g.target || 100}${g.forFoe ? ` (for ${name(g.forFoe)})` : g.forDex ? ` (evolves into ${name(g.forDex)})` : ''}`,
+    label: (g) => `Level ${g.forDex && g.fromId ? name(g.fromId) : g.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')} to ${g.target || 100}${g.forFoe ? ` (for ${name(g.forFoe)})` : g.forDex ? ` (evolves into ${name(g.forDex)})` : ''}`,
     sprite: (g) => E.read('Game.getMon', {}, g.uids[0])?.id,
     check(g) {
       if (g.forDex && E.read('Game.inDex', false, g.forDex)) return { state: 'done', why: `${name(g.forDex)} registered` };
-      if (g.forDex && g.uids.every((u) => (lvl(u) || 0) >= (g.target || 100)) && !E.read('Game.inDex', false, g.forDex)) return { state: 'wait', why: `reached Lv ${g.target} but did not evolve - evolve it from its Pokémon screen` };
+      if (g.forDex) {
+        // the species it has to evolve FROM (Deino for Zweilous) - names the goal, even after the Pokémon changed
+        if (!g.fromId) { for (const [f, l] of Object.entries(E.get('EVOLUTIONS') || {})) if ((l || []).some((e) => +e.to === +g.forDex)) { g.fromId = +f; Plan.save(); break; } }
+        const m = E.read('Game.getMon', null, g.uids[0]);
+        if (m && +m.id === +g.forDex) return { state: 'done', why: `evolved into ${name(g.forDex)}` };
+        if (m && g.fromId && +m.id !== +g.fromId) return { state: 'done', why: `it evolved past ${name(g.forDex)} (now ${name(m.id)}) - the Pokédex goal finds another way` };
+        // evolving happens when it GAINS a level: one caught at (or above) the evolution level needs one more
+        if (m && +m.id === +g.fromId && m.level >= (g.target || 100) && !g.bumped) { g.target = m.level + 1; g.bumped = true; Plan.save(); }
+        if (g.uids.every((u) => (lvl(u) || 0) > (g.target || 100))) return { state: 'wait', why: `passed Lv ${g.target} but did not evolve - evolve it from its Pokémon screen` };
+      }
       const gone = g.uids.filter((u) => !E.read('Game.getMon', null, u));
       if (gone.length === g.uids.length) return { state: 'done', why: 'those Pokémon are gone' };
       if (!needs(g).length) {
@@ -5280,14 +5303,14 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       const s = S(), a = s.adv || {};
       const best = bestChapter(g);
       if (!best) return 'waiting: no chapter to train in';
-      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-03-level:79', __e); } }
+      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-03-level:88', __e); } }
       if (!g.restore) {
         g.restore = { team: [...(s.team || [])], chapter: a.chapter, loopAdded: null, buddy: s.buddy?.uid ?? null };
         Plan.save();
         Log.add(`${level.label(g)}: training in ${best.name} (wild Lv ${best.top}). Your team, buddy and chapter come back when it's done.`);
       }
       // leave a legendary zone first (the game's own way back)
-      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-03-level:86', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-03-level:95', __e); } return 'leaving the legendary zone…'; }
       // team: 4 trainees + 2 carriers (Jimmy's rule - every team member gets the full XP of each win).
       // A 3rd carrier only when the simulator says it raises total XP per hour: 3 trainees earn 25% less
       // per win, so the 3rd carrier has to make wins come more than a third faster (hard chapters).
@@ -5316,7 +5339,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
             if (x3 > x2 * 1.02) g.nCarry = 3;
             why = ` - 2 carriers ${Math.round(x2 / Math.max(x2, x3) * 100)}% vs 3 carriers ${Math.round(x3 / Math.max(x2, x3) * 100)}% of the best XP/h`;
           }
-        } catch (__e) { __h('70-plan-03-level:115', __e); }
+        } catch (__e) { __h('70-plan-03-level:124', __e); }
         Plan.save();
         if (picks.length) Log.add(`carriers for ${best.name}: ${picks.slice(0, g.nCarry).map((p) => name(p.m.id)).join(', ')}${why}`);
       }
@@ -5348,11 +5371,11 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
       if (g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:147', __e); }
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:156', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
       if (!E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:151', __e); }
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:160', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -5360,11 +5383,11 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:159', __e); }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:160', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:168', __e); }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:169', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:163', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:172', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
@@ -6381,7 +6404,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
         if (!have) {
           if (r.kind === 'legend') { const roamer = !!Legends.get(id)?.roam; Plan.insertAfter(g.id, roamer ? 'roam' : 'legend', { foe: id, parent: g.id }); added++; }
           if (r.kind === 'wild') { Plan.insertAfter(g.id, 'wild', { foe: id, ch: r.ch, parent: g.id }); added++; }
-          if (r.kind === 'evolve') { Plan.insertAfter(g.id, 'level', { uids: [r.uid], target: r.level, forDex: id, parent: g.id }); added++; }
+          if (r.kind === 'evolve' && !Plan.goals.some((x) => x.type === 'level' && +x.forDex === +id && x.done && Date.now() - x.done < 60 * 60_000 && (x.uids || [])[0] === r.uid)) { const pm = E.read('Game.getMon', null, r.uid); Plan.insertAfter(g.id, 'level', { uids: [r.uid], target: Math.max(r.level, (pm?.level || 0) + 1), forDex: id, fromId: pm ? +pm.id : null, parent: g.id }); added++; }
           if (r.kind === 'loot') { Plan.insertAfter(g.id, 'loot', { item: r.item, ch: r.ch, place: r.place, foe: id, parent: g.id }); added++; }
           if (r.kind === 'breed') { Plan.insertAfter(g.id, 'breed', { foe: id, from: r.parent, parent: g.id }); added++; }
           if (r.kind === 'special') {
@@ -6556,7 +6579,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
 
 // goal module: idlePick (takes shared helpers from GoalKit, registers itself in GoalTypes)
 (() => {
-  const { E, S, capOf } = GoalKit;
+  const { E, S, capOf, dexHold } = GoalKit;
   // ---- idle leveling: what Mega trains when every goal is done or waiting ----
   // Jimmy's order: Pokémon that took a gem (ranked up - they went back to Lv 5) first, then shinies,
   // then the ones closest to Lv 100. Only below their level cap, in the PC (not the Underground /
@@ -6564,7 +6587,7 @@ Object.assign(GoalTypes, { holder: GoalKit.holder, setTeam: GoalKit.setTeam, set
   function idlePick(n = 4) {
     const away = new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
     return (S().mons || [])
-      .filter((m) => !away.has(m.uid) && m.level < capOf(m.uid))
+      .filter((m) => !away.has(m.uid) && m.level < capOf(m.uid) && !dexHold(m))
       .sort((a, b) => ((b.rank || 0) > 0) - ((a.rank || 0) > 0) || (!!b.shiny - !!a.shiny) || b.level - a.level)
       .slice(0, n).map((m) => m.uid);
   }
