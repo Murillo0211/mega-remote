@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.6
+// @version      2.9.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.6';
+const VERSION = '2.9.7';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6242,7 +6242,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     }
     return { mine: best.p.map((m) => m.uid), allies: allies.map((x) => x.b.key), allyNames: allies.map((x) => x.b.name), ko: best.ko, tested };
   }
-  async function raidRepick() {
+  async function raidRepick(by = 'from the phone') {
     const r = RD(), C = E.get('CONFIG')?.RAID || {}, a = S().adv || {};
     const g = Plan.goals.find((x) => x.type === 'raid' && !x.done);
     let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:74', __e); } }
@@ -6258,7 +6258,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = pick.mine;
       pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:85', __e); } });
       try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:86', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:86', __e); }
-      Log.add(`Shiny Raid: re-picked from the phone - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
+      Log.add(`Shiny Raid: re-picked ${by} - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
       return `now ${names} + ${pick.allyNames.join(' & ')} (sim ${Math.round(pick.ko * 100)}%)`;
     }
     return `picked ${names} + ${pick.allyNames.join(' & ')} for when the raid starts (sim ${Math.round(pick.ko * 100)}%)`;
@@ -6288,7 +6288,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (inTeam < need && (!g.refillAt || Date.now() - g.refillAt > 10 * 60_000)) {
           g.refillAt = Date.now(); Plan.save();
           Log.add(`Shiny Raid: the raid team is down to ${inTeam} of ${need} (one was sent away) - picking a full team again`);
-          try { const msg = await raidRepick(); return `raid on · team refilled: ${msg}`; } catch (e) { Log.add('Shiny Raid: could not refill the team (' + (e?.message || e) + ')'); }
+          try { const msg = await raidRepick('automatically'); return `raid on · team refilled: ${msg}`; } catch (e) { Log.add('Shiny Raid: could not refill the team (' + (e?.message || e) + ')'); }
         }
         return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}${inTeam < need ? ` · only ${inTeam} of your Pokémon in it` : ''}`;
       }
