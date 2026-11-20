@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.5
+// @version      2.9.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.5';
+const VERSION = '2.9.6';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5413,6 +5413,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (g.done) continue;
       if (g.type === 'legend') { for (const u of E.read('Game.zoneTeam', [], g.foe) || []) out.add(u); for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       if (g.type === 'level') { for (const u of [...(g.uids || []), ...(g.carriers || [])]) out.add(u); }
+      // the Shiny Raid team and roamer teams (2026-11-19: Palkia went to the Underground mid-raid, leaving Dialga alone)
+      if (g.type === 'raid') { for (const u of g.pick?.mine || []) out.add(u); try { const r = E.get('Raids'), reg = S().adv?.event?.raid ? S().adv.event.reg : r.drawn(); for (const u of S().eventTeams?.[r.teamKey(reg)] || []) out.add(u); } catch (__e) { __h('70-plan-04-underground:18', __e); } }
+      if (g.type === 'roam') { for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       // the World Boss capture team: expeditions take Pokémon out for hours, and the capture window comes once an edition
       if (g.type === 'wboss') { const z = (E.get('LegendZones')?.ZONES || []).find((x) => x.wb); if (z) { for (const u of E.read('Game.zoneTeam', [], z.id) || []) out.add(u); for (const u of Legends.sims()[z.id]?.uids || []) out.add(u); } }
     }
@@ -5464,12 +5467,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:68', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:71', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:72', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:73', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:75', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:76', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -5505,8 +5508,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, from);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:109', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:110', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:112', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:113', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${from} - about floor ${pl.floors} by the game's own simulation`);
           delete ugPlans[bay];
         }
@@ -6277,8 +6280,19 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     },
     async step(g) {
       const r = RD(), C = E.get('CONFIG')?.RAID || {};
-      if (S().adv?.event?.raid) { const ev = S().adv.event; return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}`; }
-      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:110', __e); }
+      if (S().adv?.event?.raid) {
+        const ev = S().adv.event;
+        // a raid Pokémon left mid-raid (sent to the Underground, traded...): refill the team before the next fight
+        const team = S().eventTeams?.[r.teamKey(ev.reg)] || [], need = +C.MINE || 2;
+        const inTeam = team.filter((u) => E.read('Game.getMon', null, u) && !awayNow().has(u)).length;
+        if (inTeam < need && (!g.refillAt || Date.now() - g.refillAt > 10 * 60_000)) {
+          g.refillAt = Date.now(); Plan.save();
+          Log.add(`Shiny Raid: the raid team is down to ${inTeam} of ${need} (one was sent away) - picking a full team again`);
+          try { const msg = await raidRepick(); return `raid on · team refilled: ${msg}`; } catch (e) { Log.add('Shiny Raid: could not refill the team (' + (e?.message || e) + ')'); }
+        }
+        return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}${inTeam < need ? ` · only ${inTeam} of your Pokémon in it` : ''}`;
+      }
+      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:121', __e); }
       const day = r.dateKey(), lane = (() => { try { return r.lane() || []; } catch { return []; } })();
       const bossOf = (k) => lane.find((x) => x.key === k)?.boss;
       // the reroll: once a day, only when today's boss is a shiny you own or clearly weak, and
@@ -6307,8 +6321,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = mine.map((m) => m.uid);
       const allyN = +C.ALLIES || 2;
       const bots = g.pick.allies.slice(0, allyN).map((key) => ({ b: { key, name: g.pick.allyNames[g.pick.allies.indexOf(key)] } }));
-      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:139', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:140', __e); }
+      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:150', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:151', __e); }
       // safety: your 2 (read back from the game) and the ally trainers must be set as picked
       { const read = S().eventTeams?.[r.teamKey(reg)] || [];
         let why = Guard.team(read, { need: +C.MINE || 2, want: g.pick.mine, minLevel: 70 });
@@ -6330,7 +6344,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         g.blockSaid = null; }
       let ok = false; try { ok = E.call('Adventure.startRaid', reg); } catch (e) { Log.add('Shiny Raid: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:162', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:173', __e); }
       if (ok && S().adv?.event?.raid) { Log.add(`Shiny Raid: started vs ${name(boss)} (${reg}) with ${mine.map((m) => name(m.id)).join(' & ')} + ${bots.slice(0, allyN).map((x) => x.b.name).join(' & ')}`); return `started vs ${name(boss)}`; }
       Log.add('Shiny Raid: the game did not start it and gave no reason - trying again shortly');
       return 'could not start the raid - trying again shortly';
