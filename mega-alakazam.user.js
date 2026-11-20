@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.4
+// @version      2.9.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.4';
+const VERSION = '2.9.5';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6315,10 +6315,25 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const picks = (() => { try { return (r.picks(reg) || []).filter(Boolean); } catch { return []; } })();
         if (!why && g.pick.allies.length && picks.length < Math.min(allyN, g.pick.allies.length)) why = 'the ally trainers are not set';
         if (why) return Guard.stop('the Shiny Raid', why); }
+      // ask the game first (Raids.block = its own reason it won't start). 2026-11-19: the ally trainers picked in
+      // the afternoon were gone from the board by evening - the game said "Pick 2 allies" and Mega only showed
+      // "could not start - see the log" with nothing in the log
+      { const blk = (() => { try { return r.block(reg); } catch { return null; } })();
+        if (blk) {
+          if (/all(y|ies)|alli/i.test(String(blk)) && !g.repickedAt || (/all(y|ies)|alli/i.test(String(blk)) && Date.now() - g.repickedAt > 10 * 60_000)) {
+            g.pick = null; g.repickedAt = Date.now(); Plan.save();
+            Log.add('Shiny Raid: the ally trainers you had are no longer on the board - picking new ones');
+            return 'picking new ally trainers (the board changed)';
+          }
+          if (g.blockSaid !== String(blk)) { g.blockSaid = String(blk); Log.add(`Shiny Raid: the game won't start it yet - "${Casing.names(String(blk))}"`); }
+          return `waiting: the game says "${Casing.names(String(blk))}"`;
+        }
+        g.blockSaid = null; }
       let ok = false; try { ok = E.call('Adventure.startRaid', reg); } catch (e) { Log.add('Shiny Raid: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:148', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:162', __e); }
       if (ok && S().adv?.event?.raid) { Log.add(`Shiny Raid: started vs ${name(boss)} (${reg}) with ${mine.map((m) => name(m.id)).join(' & ')} + ${bots.slice(0, allyN).map((x) => x.b.name).join(' & ')}`); return `started vs ${name(boss)}`; }
-      return 'could not start the raid - see the log';
+      Log.add('Shiny Raid: the game did not start it and gave no reason - trying again shortly');
+      return 'could not start the raid - trying again shortly';
     },
   };
   Object.assign(GoalTypes, { raid, raidRepick });
