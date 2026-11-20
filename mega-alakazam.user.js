@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.12
+// @version      2.9.14
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.12';
+const VERSION = '2.9.14';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1884,7 +1884,7 @@ const DexInfo = (() => {
       if (ch > unlocked) blockers.push('chapter not unlocked yet');
       if (st.once && s.adv?.gifts?.[st.once]) blockers.push('already met');
       if (st.after && !s.adv?.gifts?.[st.after]) blockers.push('an earlier event first');
-      if (st.needs && have < (st.needN || 1)) blockers.push(`${st.needN} ${st.needs.replace(/-/g, ' ')}${st.needN > 1 ? 's' : ''} (you have ${have})`);
+      if (st.needs && have < (st.needN || 1)) blockers.push(`${st.needN} ${itemName(st.needs)}${st.needN > 1 && !/s$/.test(itemName(st.needs)) ? 's' : ''} (you have ${have})${lootWhere(st.needs)}`);
       if (missingCaught.length) blockers.push(`register ${missingCaught.map(name).join(', ')} first`);
       out.push({
         ch, chapter: c.name || 'chapter ' + ch, place: st.name, chance: st.chance ?? 1, level: safe(() => ST.staticLevel(ch, st)),
@@ -1932,9 +1932,17 @@ const DexInfo = (() => {
     }));
     return out.sort((a, b) => a.blockers.length - b.blockers.length || b.chance - a.chance);
   }
+  // where an item drops, for items the game hands out at one chapter stop (Axew's Broken Tusks)
+  const lootWhere = (item) => {
+    try {
+      const ST = E.get('STORY');
+      for (let ch = 0; ch < (ST?.CHAPTERS?.length || 0); ch++) for (const st of ST.CHAPTERS[ch].steps || []) if (st.loot?.[item]) return ` - found at ${st.name} (${ST.CHAPTERS[ch].name} chapter), ${Math.round((+st.loot[item].p || 0) * 100)}% at each item find`;
+    } catch (__e) { __h('56-dexinfo:153', __e); }
+    return '';
+  };
   const itemName = (key) => {
     if (key.startsWith('egg:')) return `${name(+key.slice(4))} Egg`;
-    let n = null; try { n = E.get('UI')?.itemName?.(key); } catch (__e) { __h('56-dexinfo:150', __e); }
+    let n = null; try { n = E.get('UI')?.itemName?.(key); } catch (__e) { __h('56-dexinfo:158', __e); }
     return n && typeof n === 'string' ? n : key.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   };
   // every rare find on the routes (Prism Scale, Griseous Orb, Drives…), with what it's for
@@ -2008,7 +2016,7 @@ const DexInfo = (() => {
     if (sp) {
       const soul = sp.needs && sp.have < sp.needN ? { item: sp.needs, need: sp.needN, have: sp.have } : null;
       const regMiss = sp.missingCaught.length;
-      out.push({ kind: 'special', ch: sp.ch, place: sp.place, soul, regMiss, text: `special encounter at ${sp.place} (${sp.chapter}) · ${conditionText(sp)}${sp.chance < 1 ? ` · ${pct(sp.chance)} each time the chapter is built` : ''}${soul ? ` · needs ${soul.need} ${soul.item}s, you have ${soul.have}` : ''}${regMiss ? ` · register ${sp.missingCaught.map(name).join(', ')} first` : ''}` });
+      out.push({ kind: 'special', ch: sp.ch, place: sp.place, soul, regMiss, text: `special encounter at ${sp.place} (${sp.chapter}) · ${conditionText(sp)}${sp.chance < 1 ? ` · ${pct(sp.chance)} each time the chapter is built` : ''}${soul ? ` · needs ${soul.need} ${itemName(soul.item)}${/s$/.test(itemName(soul.item)) ? '' : 's'}${lootWhere(soul.item)}, you have ${soul.have}` : ''}${regMiss ? ` · register ${sp.missingCaught.map(name).join(', ')} first` : ''}` });
     }
     let evo = null;
     if (h.evolve?.pre) {
@@ -6059,39 +6067,59 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     }
     return best;
   }
+  // ---- an item that drops at one chapter stop (Axew's Broken Tusks: Mistralton Cave in the Jet Badge chapter, 5% at
+  // each item find, Jimmy 2026-11-19 - Mega was hunting Ghost types for it). The game marks those stops loot: { item: {...} }.
+  function lootChapter(item) {
+    const ST = E.get('STORY'), unlocked = +(S().adv?.unlocked ?? 0);
+    let best = null;
+    for (let ch = 0; ch <= unlocked && ch < (ST?.CHAPTERS?.length || 0); ch++) {
+      const steps = ST.CHAPTERS[ch].steps || [];
+      steps.forEach((st, i) => {
+        const L = st.loot?.[item]; if (!L) return;
+        const p = +L.p || 0;
+        if (!best || p > best.score) best = { ch, score: p, share: p, cut: i < steps.length - 1 ? i : null, stop: st.name || null, loot: true, name: ST.CHAPTERS[ch]?.name || 'chapter ' + ch };
+      });
+    }
+    return best;
+  }
+  const isLoot = (g) => !!lootChapter(g.item);
+  const iname = (g) => { try { return DexInfo.itemName(g.item); } catch { return g.item; } };
+  const plural = (g) => { const n = iname(g); return /s$/.test(n) ? n : n + 's'; };
   // the item belongs to the region it's farmed in (Spiritomb's souls: Sinnoh) - count that region's bag,
   // even while you're on Unova's side (the game keeps the other bag in its stash)
   const soulHave = (g) => DexInfo.itemFor(g.item, g.pick?.ch ?? g.ch ?? (() => { try { return DexInfo.special(g.forDex)[0]?.ch; } catch { return null; } })());
   const souls = {
     uses: 'screen',
-    progress: (g) => ({ have: Math.min(g.need, soulHave(g)), need: g.need, unit: g.item + 's' }),
-    label: (g) => `Collect ${g.need} ${g.item}s${g.forDex ? ` (for ${name(g.forDex)})` : ''}`,
+    progress: (g) => ({ have: Math.min(g.need, soulHave(g)), need: g.need, unit: plural(g) }),
+    label: (g) => `Collect ${g.need} ${plural(g)}${g.forDex ? ` (for ${name(g.forDex)})` : ''}`,
     sprite: (g) => g.forDex || null,
     check(g) {
       const have = soulHave(g);
       if (have >= g.need) return { state: 'done', why: `${have}/${g.need}` };
       const cfg = E.get('CONFIG')?.SOULS || {};
+      if (isLoot(g)) return { state: 'ready', why: null };
       if (!soulChapter(cfg)) return { state: 'wait', why: `no ${cfg.type || ''} Pokémon in reach right now (time of day / weather)` };
       return { state: 'ready', why: null };
     },
     async step(g) {
       const cfg = E.get('CONFIG')?.SOULS || {};
       // re-pick every 10 minutes: Ghost types depend on the time of day
-      if (!g.pick || Date.now() - (g.pickAt || 0) > 600_000) { const old = g.pick; g.pick = soulChapter(cfg); g.pickAt = Date.now(); Plan.save(); if (g.pick && (old?.ch !== g.pick.ch || old?.cut !== g.pick.cut)) Log.add(`${souls.label(g)}: farming in ${g.pick.name}${g.pick.cut != null ? `, restarting after stop ${g.pick.cut + 1}` : ''} (${Math.round(g.pick.score * 100)}% of fights are ${cfg.type})`); }
+      const loot = lootChapter(g.item);
+      if (!g.pick || !!g.pick.loot !== !!loot || Date.now() - (g.pickAt || 0) > 600_000) { const old = g.pick; g.pick = loot || soulChapter(cfg); g.pickAt = Date.now(); Plan.save(); if (g.pick && (old?.ch !== g.pick.ch || old?.cut !== g.pick.cut)) Log.add(g.pick.loot ? `${souls.label(g)}: farming in ${g.pick.name}${g.pick.stop ? `, restarting after ${g.pick.stop}` : ''} (${Math.round(g.pick.score * 100)}% at each item find)` : `${souls.label(g)}: farming in ${g.pick.name}${g.pick.cut != null ? `, restarting after stop ${g.pick.cut + 1}` : ''} (${Math.round(g.pick.score * 100)}% of fights are ${(cfg.type || '').toLowerCase()})`); }
       if (!g.pick) return 'no chapter with them right now';
       const w = goChapter(g, g.pick.ch, souls.label(g)); if (w) return w;
       // past the last stop with ghosts: restart the chapter (the game's own Restart) instead of playing it out
       // (the run's own stops: a run can have more stops than the chapter map)
       const a = S().adv || {}, at = +a.node || 0, inFight = !!a.battle, nodes = a.nodes || [], D0 = E.get('Game.DEX') || {};
-      const ghostAt = nodes.map((n, i) => (n?.areas?.length && poolAt(n, g.pick.ch).some((x) => x.on !== false && (D0[x.id]?.types || []).includes(cfg.type)) ? i : -1)).filter((i) => i >= 0);
+      const ghostAt = g.pick.loot ? (() => { const a2 = nodes.map((n, i) => (n?.loot?.[g.item] ? i : -1)).filter((i) => i >= 0); return a2.length ? a2 : g.pick.cut != null ? [g.pick.cut] : []; })() : nodes.map((n, i) => (n?.areas?.length && poolAt(n, g.pick.ch).some((x) => x.on !== false && (D0[x.id]?.types || []).includes(cfg.type)) ? i : -1)).filter((i) => i >= 0);
       const last = ghostAt.length ? Math.max(...ghostAt) : -1;
       if (g.pick.cut != null && last >= 0 && at > last && !inFight && !a.event && !a.zone) {
-        if (rebuild(g.pick.ch)) { g.restarts = (g.restarts || 0) + 1; Plan.save(); return `restarted ${g.pick.name} - no ${cfg.type || ''} Pokémon after stop ${last + 1} (${g.restarts} restarts)`; }
+        if (rebuild(g.pick.ch)) { g.restarts = (g.restarts || 0) + 1; Plan.save(); return g.pick.loot ? `restarted ${g.pick.name} - no ${plural(g)} after stop ${last + 1} (${g.restarts} restarts)` : `restarted ${g.pick.name} - no ${cfg.type || ''} Pokémon after stop ${last + 1} (${g.restarts} restarts)`; }
       }
       const have = soulHave(g);
       if (g.startHave == null) { g.startHave = have; g.startAt = Date.now(); Plan.save(); }
       const got = have - g.startHave, hrs = (Date.now() - g.startAt) / 3_600_000, rate = hrs > 0.05 ? got / hrs : null;
-      return `${have}/${g.need} ${g.item}s · ${g.pick.name}${g.pick.cut != null ? ` stops 1-${g.pick.cut + 1}` : ''} (${Math.round(g.pick.score * 100)}% of fights ${cfg.type})${rate ? ` · ~${Math.round(rate)}/h, about ${Math.ceil((g.need - have) / Math.max(0.1, rate))} h to go` : ''}`;
+      return `${have}/${g.need} ${plural(g)} · ${g.pick.name}${g.pick.cut != null ? ` stops 1-${g.pick.cut + 1}` : ''} (${g.pick.loot ? `${Math.round(g.pick.score * 100)}% at each item find${g.pick.stop ? ` in ${g.pick.stop}` : ''}` : `${Math.round(g.pick.score * 100)}% of fights ${cfg.type}`})${rate ? ` · ~${Math.round(rate)}/h, about ${Math.ceil((g.need - have) / Math.max(0.1, rate))} h to go` : ''}`;
     },
     finish: (g) => putBack(g),
   };
