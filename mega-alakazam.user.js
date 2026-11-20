@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.7
+// @version      2.9.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.7';
+const VERSION = '2.9.8';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2291,6 +2291,66 @@ Views.plan = (w, ui, esc) => {
   h += `<div class="card"><h3>What Mega did</h3>${lines.length ? lines.map((l) => `<div class="row" style="justify-content:flex-start"><span class="k" style="white-space:nowrap;flex:none;width:78px">${new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span style="text-align:left">${esc(l.text)}</span></div>`).join('') : '<div class="dim">Nothing yet.</div>'}<button class="btn" data-act="log-more">${ui.showLog ? 'Show less' : 'Show more'}</button></div>`;
   return h;
 };
+
+/* ---------------------------------------------------------------------------------------------
+ * Trade picker tags (Jimmy, 2026-11-19, from the old helper): in the game's "Wanted species" window
+ * (Trades > new offer, step 1) every species gets a tag - its rarity (COMMON / UNCOMMON / RARE / LEGEND,
+ * which is also what you have to offer for it) and ✓ ×N when you own it - plus a "Hide ones I own"
+ * checkbox above the grid (remembered).
+ * The rarity is the game's own: it marks each cell with a glow class (t-common / t-uncommon / t-rare /
+ * t-legendary). "Own" is what you have right now (Pokémon traded away or evolved don't count), not the
+ * game's "Already caught" mark. Read-only: it only adds tags and hides cells, it never picks or trades.
+ * ------------------------------------------------------------------------------------------- */
+const TradePick = (() => {
+  const KEY = 'mega-trade-hideowned';
+  const LABEL = { 't-common': 'COMMON', 't-uncommon': 'UNCOMMON', 't-rare': 'RARE', 't-legendary': 'LEGEND', 't-legend': 'LEGEND', 't-unique': 'UNIQUE' };
+  let hide = (() => { try { return localStorage.getItem(KEY) !== '0'; } catch { return true; } })();
+  function css() {
+    if (document.getElementById('mega-tradepick-css')) return;
+    const st = document.createElement('style'); st.id = 'mega-tradepick-css';
+    st.textContent = `
+      .mega-tp{position:absolute;left:3px;top:3px;z-index:3;pointer-events:none;display:flex;gap:3px;flex-wrap:wrap}
+      .mega-tp b{font:800 10px/1 Inter,system-ui,sans-serif;padding:3px 5px;border-radius:6px;letter-spacing:.03em;box-shadow:0 1px 4px #0007}
+      .mega-tp .t-common{background:#9aa4b1;color:#111}.mega-tp .t-uncommon{background:#3b82f6;color:#fff}.mega-tp .t-rare{background:#a855f7;color:#fff}
+      .mega-tp .t-legendary,.mega-tp .t-legend,.mega-tp .t-unique{background:#f6c744;color:#1a1405}.mega-tp .own{background:#5ad68a;color:#0d1a12}
+      .ot-cell.mega-owned{opacity:.55}.ot-cell.mega-owned:hover{opacity:1}
+      .mega-hideowned .ot-cell.mega-owned{display:none}
+      .mega-tpbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:6px 2px 8px;font:600 14px/1.3 Inter,system-ui,sans-serif}
+      .mega-tpbar label{display:flex;align-items:center;gap:6px;cursor:pointer}.mega-tpbar input{width:18px;height:18px}
+      .mega-tpbar span{opacity:.75;font-weight:500}`;
+    document.head.appendChild(st);
+  }
+  function scan() {
+    const dlg = [...document.querySelectorAll('.ot-pickdlg')].find((d) => d.offsetParent || d.getClientRects().length);
+    if (!dlg) return;
+    const cells = [...dlg.querySelectorAll('.ot-cell')];
+    if (!cells.length || dlg.querySelector('.ot-box.give') || /step 2/i.test(dlg.querySelector('.ot-step, h2, h3')?.textContent || dlg.textContent.slice(0, 80))) return; // step 2 is your own Pokémon: leave it
+    css();
+    const counts = {};
+    try { for (const m of Engine.read('Game.allMons', []) || []) if (!m.egg) counts[+m.id] = (counts[+m.id] || 0) + 1; } catch (__e) { __h('58-tradepick:36', __e); }
+    for (const c of cells) {
+      const id = +c.querySelector('img[data-id]')?.dataset.id; if (!id) continue;
+      const tier = [...(c.querySelector('.tglow')?.classList || [])].find((x) => /^t-/.test(x)) || '';
+      const n = counts[id] || 0, sig = tier + '|' + n;
+      if (c.dataset.megaTp === sig) continue;
+      c.dataset.megaTp = sig;
+      let tag = c.querySelector('.mega-tp');
+      if (!tag) { tag = document.createElement('div'); tag.className = 'mega-tp'; if (getComputedStyle(c).position === 'static') c.style.position = 'relative'; c.appendChild(tag); }
+      tag.innerHTML = (LABEL[tier] ? `<b class="${tier}">${LABEL[tier]}</b>` : '') + (n ? `<b class="own">✓ ×${n}</b>` : '');
+      c.classList.toggle('mega-owned', n > 0);
+    }
+    if (!dlg.querySelector('.mega-tpbar')) {
+      const bar = document.createElement('div'); bar.className = 'mega-tpbar';
+      bar.innerHTML = `<label><input type="checkbox"> Hide ones I own</label><span>Tag = rarity (what you must offer) · ✓ ×N = you own N</span>`;
+      const cb = bar.querySelector('input'); cb.checked = hide;
+      cb.addEventListener('change', () => { hide = cb.checked; try { localStorage.setItem(KEY, hide ? '1' : '0'); } catch (__e) { __h('58-tradepick:52', __e); } dlg.classList.toggle('mega-hideowned', hide); });
+      const grid = cells[0].parentElement; grid.parentElement.insertBefore(bar, grid);
+    }
+    dlg.classList.toggle('mega-hideowned', hide);
+  }
+  setInterval(() => { try { if (Engine.ready()) scan(); } catch (e) { console.warn('[Mega Alakazam] trade picker tags', e); } }, 700);
+  return { scan };
+})();
 
 /* ---------------------------------------------------------------------------------------------
  * Pokédex detail page: everything about one Pokémon - status, where it lives, special encounters
