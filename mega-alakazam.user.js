@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.15
+// @version      2.9.16
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.15';
+const VERSION = '2.9.16';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -128,6 +128,39 @@ const Health = (() => {
     return test;
   }
   return { record, recent, clear, flush, goalErr, goalOk, selfTest, get test() { return test; }, get sites() { return sites; } };
+})();
+
+/* ---------------------------------------------------------------------------------------------
+ * Black box (Jimmy 2026-11-20: Chrome went to a solid grey page on the Mac, white on the PC - the
+ * tab froze). Every minute Mega writes one line to localStorage: memory, page size, the longest
+ * stall in that minute, what the plan was doing and where. localStorage survives the freeze and
+ * the reload, so after the next one the last lines show what led up to it. The last 6 hours are kept.
+ * Read-only for the game; nothing here clicks or changes anything.
+ * ------------------------------------------------------------------------------------------- */
+const Blackbox = (() => {
+  const KEY = 'mega-blackbox', KEEP = 360;
+  let worst = 0, worstAt = 0, stalls = 0;
+  try {
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) { stalls++; if (e.duration > worst) { worst = e.duration; worstAt = Date.now(); } } }).observe({ type: 'longtask', buffered: false });
+  } catch (__e) { __h('02-blackbox:13', __e); }
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch { return []; } };
+  function write(row) {
+    const rows = read(); rows.push(row);
+    while (rows.length > KEEP) rows.shift();
+    try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch { rows.splice(0, rows.length >> 1); try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (__e) { __h('02-blackbox:18', __e); } }
+  }
+  function tick() {
+    const m = performance.memory || {};
+    let what = '', where = '';
+    try { what = String(globalThis.__MEGA?.Plan?.top || '').slice(0, 140); } catch (__e) { __h('02-blackbox:23', __e); }
+    try { const a = Engine.read('Game.S', {})?.adv || {}; where = `ch${a.chapter ?? '?'} stop${a.node ?? '?'}/${(a.nodes || []).length}${a.battle ? ' fight' : ''}`; } catch (__e) { __h('02-blackbox:24', __e); }
+    write({ t: Date.now(), up: Math.round(performance.now() / 60000), heap: Math.round((m.usedJSHeapSize || 0) / 1048576), dom: document.getElementsByTagName('*').length,
+      img: document.images.length, stall: Math.round(worst), stalls, hidden: document.hidden ? 1 : 0, what, where });
+    worst = 0; stalls = 0; void worstAt;
+  }
+  write({ t: Date.now(), start: VERSION, gap: (() => { const r = read(); const last = r[r.length - 1]; return last ? Math.round((Date.now() - last.t) / 60000) : null; })() });
+  setInterval(() => { try { tick(); } catch (__e) { __h('02-blackbox:30', __e); } }, 60_000);
+  return { read, tick };
 })();
 
 // Mega Alakazam sprite supplied by Jimmy (2026-11-15), white background removed, 96 px wide
@@ -8203,7 +8236,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, TradePick, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, Engine, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
