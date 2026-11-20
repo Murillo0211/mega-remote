@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.11
+// @version      2.9.12
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.11';
+const VERSION = '2.9.12';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2320,6 +2320,9 @@ const TradePick = (() => {
       .mega-tp .spare,.mega-tpbar i.spare{background:#5ad68a;color:#0d1a12}.mega-tp .keep,.mega-tpbar i.keep{background:#ffb547;color:#1a1405}.mega-tp .last,.mega-tpbar i.last{background:#ff6b6b;color:#fff}
       .mega-tpbar i{font:800 10px/1 Inter,system-ui,sans-serif;font-style:normal;padding:2px 5px;border-radius:6px}
       .mega-onlyspare .ot-cell:not(.mega-spare){display:none}
+      .mega-hot{font:800 10px/1 Inter,system-ui,sans-serif;padding:3px 5px;border-radius:6px;background:#ff7a1a;color:#fff;box-shadow:0 1px 4px #0007;letter-spacing:.03em}
+      .pc-cell>.mega-hot{position:absolute;left:2px;top:2px;z-index:3;pointer-events:none}
+      .meta b .mega-hot{margin-left:6px;vertical-align:middle}
       .mega-tpbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:6px 2px 8px;font:600 14px/1.3 Inter,system-ui,sans-serif}
       .mega-tpbar label{display:flex;align-items:center;gap:6px;cursor:pointer}.mega-tpbar input{width:18px;height:18px}
       .mega-tpbar span{opacity:.75;font-weight:500}`;
@@ -2333,7 +2336,7 @@ const TradePick = (() => {
     css();
     if (dlg.querySelector('.ot-box.give') || /step 2/i.test(dlg.textContent.slice(0, 80))) return scanGive(dlg, cells); // step 2: your own Pokémon
     const counts = {};
-    try { for (const m of Engine.read('Game.ownedMons', []) || []) counts[+m.id] = (counts[+m.id] || 0) + 1; } catch (__e) { __h('58-tradepick:42', __e); }
+    try { for (const m of Engine.read('Game.ownedMons', []) || []) counts[+m.id] = (counts[+m.id] || 0) + 1; } catch (__e) { __h('58-tradepick:45', __e); }
     for (const c of cells) {
       const id = +c.querySelector('img[data-id]')?.dataset.id; if (!id) continue;
       const tier = [...(c.querySelector('.tglow')?.classList || [])].find((x) => /^t-/.test(x)) || '';
@@ -2351,7 +2354,7 @@ const TradePick = (() => {
       const bar = document.createElement('div'); bar.className = 'mega-tpbar';
       bar.innerHTML = `<label><input type="checkbox"> Hide ones I own</label><span>Tag = rarity (what you must offer) · ✓ ×N = you own N</span>`;
       const cb = bar.querySelector('input'); cb.checked = hide;
-      cb.addEventListener('change', () => { hide = cb.checked; try { localStorage.setItem(KEY, hide ? '1' : '0'); } catch (__e) { __h('58-tradepick:60', __e); } dlg.classList.toggle('mega-hideowned', hide); });
+      cb.addEventListener('change', () => { hide = cb.checked; try { localStorage.setItem(KEY, hide ? '1' : '0'); } catch (__e) { __h('58-tradepick:63', __e); } dlg.classList.toggle('mega-hideowned', hide); });
       const grid = cells[0].parentElement; grid.parentElement.insertBefore(bar, grid);
     }
     dlg.classList.toggle('mega-hideowned', hide);
@@ -2364,7 +2367,7 @@ const TradePick = (() => {
     const s = Engine.read('Game.S', {}) || {};
     const owned = (Engine.read('Game.ownedMons', []) || []).filter((m) => m && m.id);
     let rsv = new Set();
-    try { rsv = GoalTypes.reserved(); } catch (__e) { __h('58-tradepick:73', __e); }
+    try { rsv = GoalTypes.reserved(); } catch (__e) { __h('58-tradepick:76', __e); }
     for (const u of [...(s.team || []), s.buddy?.uid]) if (u) rsv.add(u);
     const care = new Set((s.pension?.mons || []).map((x) => x.mon?.uid).filter(Boolean));
     const by = {};
@@ -2402,14 +2405,68 @@ const TradePick = (() => {
       const bar = document.createElement('div'); bar.className = 'mega-tpbar give';
       bar.innerHTML = `<label><input type="checkbox"> Show only spares</label><span><i class="spare">SPARE</i> you have 2+, any one can go · <i class="keep">IN USE</i> team, buddy, Day Care or a Mega goal · <i class="last">LAST ONE</i> your only copy</span>`;
       const cb = bar.querySelector('input'); cb.checked = onlySpare;
-      cb.addEventListener('change', () => { onlySpare = cb.checked; try { localStorage.setItem(KEY2, onlySpare ? '1' : '0'); } catch (__e) { __h('58-tradepick:111', __e); } dlg.classList.toggle('mega-onlyspare', onlySpare); });
+      cb.addEventListener('change', () => { onlySpare = cb.checked; try { localStorage.setItem(KEY2, onlySpare ? '1' : '0'); } catch (__e) { __h('58-tradepick:114', __e); } dlg.classList.toggle('mega-onlyspare', onlySpare); });
       const grid = cells[0].parentElement; grid.parentElement.insertBefore(bar, grid);
     }
     dlg.classList.toggle('mega-onlyspare', onlySpare);
     return sig;
   }
+  // ---- Trade demand (Jimmy 2026-11-19): which species people keep asking for on the trade board, tagged in the
+  // Day Care so he knows what's worth breeding. Every 12 h Mega reads every species' offers (the read-only call the
+  // Trades screen makes, one species every 2 s) and counts what each offer WANTS. Shiny offers are left out.
+  const DKEY = 'mega-trade-demand', DEVERY = 12 * 3600_000;
+  let demand = (() => { try { return JSON.parse(localStorage.getItem(DKEY) || 'null'); } catch { return null; } })();
+  let crawling = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function crawl() {
+    if (crawling || !Engine.ready() || !Engine.get('Cloud.trades')) return;
+    if (demand && Date.now() - demand.at < DEVERY) return;
+    crawling = true;
+    try {
+      const R = [...new Set((Engine.get('STORY.REGIONS') || []).filter((r) => r.open && r.dex).map((r) => r.key))];
+      const sp = await Engine.call('Cloud.trades.species', R, [], []);
+      const rows = (sp?.data || []).filter((r) => !r[1] && +r[2] > 0);
+      const counts = {}; let offers = 0;
+      for (const r of rows) {
+        const res = await Engine.call('Cloud.trades.offers', R, +r[0], false).catch(() => null);
+        for (const o of res?.data || []) { const w = +o.want_id; if (w) { counts[w] = (counts[w] || 0) + 1; offers++; } }
+        await sleep(2000);
+      }
+      if (offers) { demand = { at: Date.now(), counts, offers }; try { localStorage.setItem(DKEY, JSON.stringify(demand)); } catch (__e) { __h('58-tradepick:141', __e); } }
+    } catch (e) { console.warn('[Mega Alakazam] trade demand', e); } finally { crawling = false; }
+  }
+  // "high demand" = the 25 most-wanted species (at least 4 offers asking for it)
+  function hot() {
+    if (!demand?.counts) return new Map();
+    if (hot.at === demand.at) return hot.map;
+    const top = Object.entries(demand.counts).filter(([, n]) => n >= 4).sort((a, b) => b[1] - a[1]).slice(0, 25);
+    hot.at = demand.at; hot.map = new Map(top.map(([id, n], i) => [+id, { n, rank: i + 1 }]));
+    return hot.map;
+  }
+  function scanCare() {
+    const scr = document.getElementById('screen-pension');
+    if (!scr || !scr.classList.contains('active')) return;
+    const H = hot(); if (!H.size) return;
+    css();
+    const D = Engine.get('Game.DEX') || {};
+    for (const c of scr.querySelectorAll('.pen-res, .pc-cell')) {
+      const id = +c.querySelector('img[data-id]')?.dataset.id; if (!id) continue;
+      const h = H.get(id), sig = h ? `${h.n}|${h.rank}` : '';
+      if (c.dataset.megaHot === sig) continue;
+      c.dataset.megaHot = sig;
+      c.querySelector('.mega-hot')?.remove();
+      if (!h) continue;
+      const b = document.createElement('b'); b.className = 'mega-hot';
+      b.textContent = `WANTED ×${h.n}`;
+      b.title = `Mega: ${h.n} trade offers ask for ${D[id]?.name || '#' + id} (#${h.rank} most wanted on the board, checked ${new Date(demand.at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}). Breeding its family gives you copies to trade.`;
+      if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
+      (c.querySelector('.meta b') || c).appendChild(b);
+    }
+  }
+  setInterval(() => { try { if (Engine.ready()) scanCare(); } catch (e) { console.warn('[Mega Alakazam] day care demand tags', e); } }, 1500);
+  setTimeout(() => crawl(), 60_000); setInterval(() => crawl(), 30 * 60_000);
   setInterval(() => { try { if (Engine.ready()) scan(); } catch (e) { console.warn('[Mega Alakazam] trade picker tags', e); } }, 700);
-  return { scan };
+  return { scan, crawl, get demand() { return demand; }, hot };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -8118,7 +8175,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, Engine, TradePick, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
