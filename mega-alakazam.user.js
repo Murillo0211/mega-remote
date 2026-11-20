@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.13
+// @version      2.9.14
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.13';
+const VERSION = '2.9.14';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6105,7 +6105,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const cfg = E.get('CONFIG')?.SOULS || {};
       // re-pick every 10 minutes: Ghost types depend on the time of day
       const loot = lootChapter(g.item);
-      if (!g.pick || !!g.pick.loot !== !!loot || Date.now() - (g.pickAt || 0) > 600_000) { const old = g.pick; g.pick = loot || soulChapter(cfg); g.pickAt = Date.now(); Plan.save(); if (g.pick && (old?.ch !== g.pick.ch || old?.cut !== g.pick.cut)) Log.add(`${souls.label(g)}: farming in ${g.pick.name}${g.pick.cut != null ? `, restarting after stop ${g.pick.cut + 1}` : ''} (${Math.round(g.pick.score * 100)}% of fights are ${cfg.type})`); }
+      if (!g.pick || !!g.pick.loot !== !!loot || Date.now() - (g.pickAt || 0) > 600_000) { const old = g.pick; g.pick = loot || soulChapter(cfg); g.pickAt = Date.now(); Plan.save(); if (g.pick && (old?.ch !== g.pick.ch || old?.cut !== g.pick.cut)) Log.add(g.pick.loot ? `${souls.label(g)}: farming in ${g.pick.name}${g.pick.stop ? `, restarting after ${g.pick.stop}` : ''} (${Math.round(g.pick.score * 100)}% at each item find)` : `${souls.label(g)}: farming in ${g.pick.name}${g.pick.cut != null ? `, restarting after stop ${g.pick.cut + 1}` : ''} (${Math.round(g.pick.score * 100)}% of fights are ${(cfg.type || '').toLowerCase()})`); }
       if (!g.pick) return 'no chapter with them right now';
       const w = goChapter(g, g.pick.ch, souls.label(g)); if (w) return w;
       // past the last stop with ghosts: restart the chapter (the game's own Restart) instead of playing it out
