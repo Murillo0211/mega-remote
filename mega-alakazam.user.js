@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.10
+// @version      2.9.11
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.10';
+const VERSION = '2.9.11';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2357,8 +2357,8 @@ const TradePick = (() => {
     dlg.classList.toggle('mega-hideowned', hide);
   }
   // Step 2 ("Your Pokémon", Jimmy 2026-11-19): how many spares you have of each species, and a "Show only spares" box.
-  // A spare = a copy you can give and still keep the species: not your best copy (shiny first, then highest level),
-  // not in your team / buddy / Day Care, and not a Pokémon a Mega goal is using (level goals, Legendary and roamer
+  // A spare = any copy of a species you have 2+ of (Jimmy: one left is fine, he breeds more), unless it's
+  // in your team / buddy / Day Care or a Pokémon a Mega goal is using (level goals, Legendary and roamer
   // teams, the Shiny Raid team). The grid has no uid, so copies are matched by species + level (spares first).
   function scanGive(dlg, cells) {
     const s = Engine.read('Game.S', {}) || {};
@@ -2371,12 +2371,11 @@ const TradePick = (() => {
     for (const m of owned) (by[+m.id] ||= []).push(m);
     const info = {}; // id -> { n, spares: Set(uid), why: uid -> text }
     for (const [id, list] of Object.entries(by)) {
-      const keep = [...list].sort((a, b) => (!!b.shiny - !!a.shiny) || (b.level - a.level))[0];
       const why = {}, spares = new Set();
       for (const m of list) {
-        why[m.uid] = m === keep ? 'your best copy (kept for the Pokédex)' : m.shiny ? 'shiny' : care.has(m.uid) ? 'in the Day Care'
+        why[m.uid] = m.shiny ? 'shiny' : care.has(m.uid) ? 'in the Day Care'
           : rsv.has(m.uid) ? ((s.team || []).includes(m.uid) ? 'in your team' : s.buddy?.uid === m.uid ? 'your buddy' : 'a Mega goal is using it') : '';
-        if (!why[m.uid]) spares.add(m.uid);
+        if (!why[m.uid] && list.length >= 2) spares.add(m.uid);
       }
       info[id] = { n: list.length, spares, why };
     }
@@ -2388,22 +2387,22 @@ const TradePick = (() => {
       const I = info[id] || { n: 0, spares: new Set(), why: {} };
       const cands = (by[id] || []).filter((m) => +m.level === lv && !used.has(m.uid) && !m.shiny).sort((a, b) => (I.spares.has(b.uid) - I.spares.has(a.uid)));
       const m = cands[0]; if (m) used.add(m.uid);
-      const spare = !!m && I.spares.has(m.uid), k = I.spares.size;
+      const spare = !!m && I.spares.has(m.uid);
       const kind = spare ? 'spare' : I.n <= 1 ? 'last' : 'keep';
-      const text = spare ? `SPARE ${k} of ${I.n}` : I.n <= 1 ? 'LAST ONE' : `KEEP · ${k} spare`;
+      const text = spare ? `SPARE · have ${I.n}` : I.n <= 1 ? 'LAST ONE' : `IN USE · have ${I.n}`;
       sig += kind;
       let tag = c.querySelector('.mega-tp');
       if (!tag) { tag = document.createElement('div'); tag.className = 'mega-tp'; if (getComputedStyle(c).position === 'static') c.style.position = 'relative'; c.appendChild(tag); }
       if (tag.dataset.t !== text) { tag.dataset.t = text; tag.innerHTML = `<b class="${kind}">${text}</b>`; }
       c.classList.toggle('mega-spare', spare);
-      c.title = `Mega: you have ${I.n}, ${k} spare` + (m && !spare ? ` - this one is ${I.n <= 1 ? 'your only one: trading it sends its Pokédex entry back to "seen"' : I.why[m.uid] || 'kept'}` : '');
+      c.title = `Mega: you have ${I.n}` + (m && !spare ? ` - this one is ${I.n <= 1 ? 'your only one: trading it sends its Pokédex entry back to "seen"' : I.why[m.uid] || 'kept'}` : '');
     }
     dlg.querySelector('.mega-tpbar:not(.give)')?.remove(); dlg.classList.remove('mega-hideowned');
     if (!dlg.querySelector('.mega-tpbar.give')) {
       const bar = document.createElement('div'); bar.className = 'mega-tpbar give';
-      bar.innerHTML = `<label><input type="checkbox"> Show only spares</label><span><i class="spare">SPARE</i> safe to give, you keep the species · <i class="keep">KEEP</i> your best copy, team, buddy, Day Care or a Mega goal · <i class="last">LAST ONE</i> your only copy</span>`;
+      bar.innerHTML = `<label><input type="checkbox"> Show only spares</label><span><i class="spare">SPARE</i> you have 2+, any one can go · <i class="keep">IN USE</i> team, buddy, Day Care or a Mega goal · <i class="last">LAST ONE</i> your only copy</span>`;
       const cb = bar.querySelector('input'); cb.checked = onlySpare;
-      cb.addEventListener('change', () => { onlySpare = cb.checked; try { localStorage.setItem(KEY2, onlySpare ? '1' : '0'); } catch (__e) { __h('58-tradepick:112', __e); } dlg.classList.toggle('mega-onlyspare', onlySpare); });
+      cb.addEventListener('change', () => { onlySpare = cb.checked; try { localStorage.setItem(KEY2, onlySpare ? '1' : '0'); } catch (__e) { __h('58-tradepick:111', __e); } dlg.classList.toggle('mega-onlyspare', onlySpare); });
       const grid = cells[0].parentElement; grid.parentElement.insertBefore(bar, grid);
     }
     dlg.classList.toggle('mega-onlyspare', onlySpare);
