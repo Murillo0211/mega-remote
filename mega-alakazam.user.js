@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.8
+// @version      2.9.9
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.8';
+const VERSION = '2.9.9';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2299,7 +2299,7 @@ Views.plan = (w, ui, esc) => {
  * checkbox above the grid (remembered).
  * The rarity is the game's own: it marks each cell with a glow class (t-common / t-uncommon / t-rare /
  * t-legendary). "Own" is what you have right now (Pokémon traded away or evolved don't count), not the
- * game's "Already caught" mark. Read-only: it only adds tags and hides cells, it never picks or trades.
+ * game's "Already caught" mark; it includes the Underground, and m.egg only means "hatched from an egg". Read-only: it only adds tags and hides cells, it never picks or trades.
  * ------------------------------------------------------------------------------------------- */
 const TradePick = (() => {
   const KEY = 'mega-trade-hideowned';
@@ -2327,7 +2327,7 @@ const TradePick = (() => {
     if (!cells.length || dlg.querySelector('.ot-box.give') || /step 2/i.test(dlg.querySelector('.ot-step, h2, h3')?.textContent || dlg.textContent.slice(0, 80))) return; // step 2 is your own Pokémon: leave it
     css();
     const counts = {};
-    try { for (const m of Engine.read('Game.allMons', []) || []) if (!m.egg) counts[+m.id] = (counts[+m.id] || 0) + 1; } catch (__e) { __h('58-tradepick:36', __e); }
+    try { for (const m of Engine.read('Game.ownedMons', []) || []) counts[+m.id] = (counts[+m.id] || 0) + 1; } catch (__e) { __h('58-tradepick:36', __e); }
     for (const c of cells) {
       const id = +c.querySelector('img[data-id]')?.dataset.id; if (!id) continue;
       const tier = [...(c.querySelector('.tglow')?.classList || [])].find((x) => /^t-/.test(x)) || '';
@@ -4141,7 +4141,7 @@ const GymPlan = (() => {
   };
   const simWin = (team, G, runs = 300) => safe(() => Sim.gymEval(team, G.foes, G.gym, runs).win, 0) || 0;
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
-  const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !m.egg && !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })());
+  const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })());
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
   const sig = () => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|');
 
@@ -4288,7 +4288,7 @@ const GymPlan = (() => {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
       // never your only copy of a species: evolving it would take that entry out of your Pokédex ('lost')
-      if ((E.read('Game.allMons', []) || []).filter((x) => +x.id === +m.id && !x.egg).length <= 1) continue;
+      if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length <= 1) continue;
       const to = +ev[0].to; const before = m.id;
       try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:238', __e); }
       const now = E.read('Game.getMon', null, m.uid);
@@ -4689,7 +4689,7 @@ const Buddy = (() => {
   const E = Engine;
   const S = () => E.get('Game.S') || {};
   const cap = (m) => { let c = 100; try { c = +E.read('Game.capFor', 0, m) || 100; } catch (__e) { __h('69-buddy:12', __e); } return Math.min(100, c); };
-  const canLevel = (m) => m && !m.egg && m.level < cap(m);
+  const canLevel = (m) => m && m.level < cap(m);
   const bad = new Map(); // uid -> until: the game refused it as buddy (other side, Day Care...)
   function pick() {
     const team = (S().team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
@@ -4900,10 +4900,10 @@ const GoalKit = (() => {
   // loses that Pokédex entry when it evolves. Mega keeps it off the teams it fills, out of idle leveling and
   // never makes it the buddy - unless a goal is leveling it on purpose to evolve it.
   function dexHold(m) {
-    if (!m || m.egg || m.level >= 100) return false; // Lv 100 can't level up, so it can't evolve any more
+    if (!m || m.level >= 100) return false; // Lv 100 can't level up, so it can't evolve any more
     const next = ((E.get('EVOLUTIONS') || {})[m.id] || []).filter((e) => e.level && !e.item).map((e) => +e.level);
     if (!next.length || m.level < Math.min(...next) - 3) return false;
-    if ((E.read('Game.allMons', []) || []).filter((x) => +x.id === +m.id && !x.egg).length > 1) return false;
+    if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length > 1) return false;
     try { if (Plan.goals.some((g) => !g.done && g.type === 'level' && g.forDex && (g.uids || []).includes(m.uid))) return false; } catch (__e) { __h('70-plan-00-core:105', __e); }
     return true;
   }
@@ -4911,7 +4911,7 @@ const GoalKit = (() => {
     const out = [...new Set((uids || []).filter(Boolean))].slice(0, 6);
     if (out.length >= 6) return out;
     const away = awayNow(), have = new Set(out);
-    const spare = (E.read('Game.sideMons', []) || []).filter((m) => m && !m.egg && !have.has(m.uid) && !away.has(m.uid) && !dexHold(m)).sort((a, b) => b.level - a.level);
+    const spare = (E.read('Game.sideMons', []) || []).filter((m) => m && !have.has(m.uid) && !away.has(m.uid) && !dexHold(m)).sort((a, b) => b.level - a.level);
     for (const m of spare) { if (out.length >= 6) break; out.push(m.uid); }
     return out;
   }
@@ -5118,7 +5118,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const pend = S().adv?.pending;
       if (pend) { if (!g.askedPend) { g.askedPend = true; Plan.save(); try { Notify.send('problem', 'Poke\'Catch needs you', 'The game is waiting for a choice in your story run (a gift or a question). Open the game and choose.'); } catch (__e) { __h('70-plan-02-story:31', __e); } } return { state: 'wait', why: 'the game is waiting for you to choose something' }; }
       g.askedPend = false;
-      const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
+      const mons = (E.read('Game.sideMons', []) || []);
       if (!mons.length) return { state: 'wait', why: 'no Pokémon on this side yet - pick your starter' };
       // catch jobs for the gym plan go first - but only ones that can run now: a catch that waits for
       // the weather or the time of day never holds up the gyms (it's dropped at the next step)
@@ -5161,7 +5161,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
       } catch (__e) { __h('70-plan-02-story:74', __e); }
       if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; g.goFight = null; g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
-      const mons = (E.read('Game.sideMons', []) || []).filter((m) => !m.egg);
+      const mons = (E.read('Game.sideMons', []) || []);
       const sp = (m) => Sim.species(m);
       // stuck: 2 losses in the frontier chapter since the last try -> level the planned team to the level cap,
       // then try again (Jimmy: train to the cap, not for a fixed time). Already all at the cap: re-plan and retry now.
@@ -5221,7 +5221,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             // already there, then the strongest Pokémon at the cap - never two random high-level fillers (Jimmy:
             // "why is it leveling Herdier and Stoutland" - 4 + 2 carriers left the slots to the 6-team top-up)
             const capped = members.filter((m) => !low.includes(m));
-            const carriers = (E.read('Game.sideMons', []) || []).filter((m) => !members.includes(m) && !m.egg && m.level >= capOfM(m)).sort((a, b) => b.level - a.level);
+            const carriers = (E.read('Game.sideMons', []) || []).filter((m) => !members.includes(m) && m.level >= capOfM(m)).sort((a, b) => b.level - a.level);
             const uids = [...low, ...capped, ...carriers].map((m) => m.uid).filter((u, i, a) => a.indexOf(u) === i).slice(0, 6);
             const done = chs.filter((c) => c < front);
             const r = safe(() => XpChap.rank().filter((x) => done.includes(x.ch)), []) || [];
