@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.3
+// @version      2.9.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.3';
+const VERSION = '2.9.4';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4227,10 +4227,12 @@ const GymPlan = (() => {
     for (const m of sideMons()) {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
+      // never your only copy of a species: evolving it would take that entry out of your Pokédex ('lost')
+      if ((E.read('Game.allMons', []) || []).filter((x) => +x.id === +m.id && !x.egg).length <= 1) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:236', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:238', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:238', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:240', __e); } }
     }
     return out;
   }
@@ -4241,7 +4243,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:249', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:251', __e); } }, 5 * 60_000);
   return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
@@ -4838,7 +4840,7 @@ const GoalKit = (() => {
   // loses that Pokédex entry when it evolves. Mega keeps it off the teams it fills, out of idle leveling and
   // never makes it the buddy - unless a goal is leveling it on purpose to evolve it.
   function dexHold(m) {
-    if (!m || m.egg) return false;
+    if (!m || m.egg || m.level >= 100) return false; // Lv 100 can't level up, so it can't evolve any more
     const next = ((E.get('EVOLUTIONS') || {})[m.id] || []).filter((e) => e.level && !e.item).map((e) => +e.level);
     if (!next.length || m.level < Math.min(...next) - 3) return false;
     if ((E.read('Game.allMons', []) || []).filter((x) => +x.id === +m.id && !x.egg).length > 1) return false;
