@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.16
+// @version      2.9.17
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.16';
+const VERSION = '2.9.17';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -158,9 +158,18 @@ const Blackbox = (() => {
       img: document.images.length, stall: Math.round(worst), stalls, hidden: document.hidden ? 1 : 0, what, where });
     worst = 0; stalls = 0; void worstAt;
   }
-  write({ t: Date.now(), start: VERSION, gap: (() => { const r = read(); const last = r[r.length - 1]; return last ? Math.round((Date.now() - last.t) / 60000) : null; })() });
-  setInterval(() => { try { tick(); } catch (__e) { __h('02-blackbox:30', __e); } }, 60_000);
-  return { read, tick };
+  write({ t: Date.now(), start: VERSION, before: (() => { try { return JSON.parse(localStorage.getItem('mega-bb-trail') || '[]').slice(-15); } catch { return []; } })(), gap: (() => { const r = read(); const last = r[r.length - 1]; return last ? Math.round((Date.now() - last.t) / 60000) : null; })() });
+  // breadcrumbs: the last things Mega started (game calls, plan steps). The latest is kept in localStorage, so a
+  // freeze leaves behind what was running when it hit; the trail of the last 30 goes into the minute line.
+  const trail = [];
+  let lastSet = 0;
+  function mark(s) {
+    const now = Date.now(); trail.push(`${new Date(now).toLocaleTimeString([], { hour12: false })} ${s}`); if (trail.length > 30) trail.shift();
+    if (now - lastSet > 250 || /^game /.test(s)) { lastSet = now; try { localStorage.setItem('mega-bb-trail', JSON.stringify(trail)); } catch (__e) { __h('02-blackbox:36', __e); } }
+  }
+  const lastTrail = () => { try { return JSON.parse(localStorage.getItem('mega-bb-trail') || '[]'); } catch { return []; } };
+  setInterval(() => { try { tick(); } catch (__e) { __h('02-blackbox:39', __e); } }, 60_000);
+  return { read, tick, mark, lastTrail };
 })();
 
 // Mega Alakazam sprite supplied by Jimmy (2026-11-15), white background removed, 96 px wide
@@ -297,11 +306,14 @@ const Engine = (() => {
     const parts = path.split('.'), fn = parts.pop(), owner = get(parts.join('.'));
     const f = owner && owner[fn];
     if (typeof f !== 'function') throw new Error('engine: ' + path + ' is not available in this game build');
+    if (!reading) Blackbox.mark('game ' + path);
     return f.apply(owner, args);
   }
+  let reading = false;
   // for reads: never throws, returns fallback on any problem
   function read(path, fallback, ...args) {
-    try { const v = typeof get(path) === 'function' ? call(path, ...args) : get(path); return v === undefined ? fallback : v; } catch { return fallback; }
+    reading = true;
+    try { const v = typeof get(path) === 'function' ? call(path, ...args) : get(path); return v === undefined ? fallback : v; } catch { return fallback; } finally { reading = false; }
   }
   function audit() {
     const missing = REQUIRED.filter((p) => get(p) === undefined);
@@ -314,7 +326,7 @@ const Engine = (() => {
   function pool(stop, ch) {
     // a stop with 0 wild fights (the League rooms) lists Pokémon that can never be met there
     if (!stop || stop.wild === 0) return [];
-    try { if (get('STORY.CHAPTERS')?.[ch]?.league) return []; } catch (__e) { __h('20-engine:70', __e); } // nothing is caught in the League
+    try { if (get('STORY.CHAPTERS')?.[ch]?.league) return []; } catch (__e) { __h('20-engine:73', __e); } // nothing is caught in the League
     let raw = [];
     try { raw = get('Adventure').zonePool(stop, ch, true) || []; } catch { raw = []; }
     // Entry by entry, the game uses one of two shapes: Pokémon you can meet right now come with a weight
@@ -7034,7 +7046,7 @@ const Plan = (() => {
         const ws = waitSince.get(g.id);
         if (ws && Date.now() - ws.at > 30 * 60_000) { Log.add(`started: ${name(g)} (was waiting: ${ws.why || 'its conditions'})`); Notify.send('daily', `Started: ${name(g)}`, `It was waiting ${Math.round((Date.now() - ws.at) / 3_600_000 * 10) / 10} h: ${ws.why || 'its conditions'}`); }
         waitSince.delete(g.id);
-        try { live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); fillTeam(); }
+        try { Blackbox.mark('goal ' + g.type + ' ' + (g.foe || g.item || '')); live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); fillTeam(); }
         catch (e) { live[g.id] = { state: 'wait', why: 'error: ' + (e?.message || e) }; Log.add(`${name(g)}: error - ${e?.message || e}`); Health.goalErr(g, e, name(g)); }
       }
       // idle only after 2 min with no screen goal, so a goal that waits a moment between runs doesn't flip-flop
