@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.17
+// @version      2.9.18
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.17';
+const VERSION = '2.9.18';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5733,13 +5733,16 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           }
           pl.uids.forEach((x) => taken.add(x));
           if (!Plan.running || Plan.oldOn() || !Plan.hasType('under')) return; // paused or removed while picking
+          // the pick takes a while (the game's expedition sim): a raid / catch goal may have claimed one of these meanwhile
+          // (2026-11-20: Lugia and Gyarados went underground right after the Shiny Raid picked them) - check again just before sending
+          { const now = reserved(); if (pl.uids.some((x) => now.has(x))) { delete ugPlans[bay]; ugStatus = 'a goal just claimed one of the picked Pokémon - picking again'; return; } }
           const who = pl.uids.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', '); // before: once sent, they're out of the PC
           { const why = Guard.team(pl.uids, { need: (E.get('CONFIG')?.UNDERGROUND?.TEAM) || 3, minLevel: 1 });
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, from);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:112', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:113', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:115', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:116', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${from} - about floor ${pl.floors} by the game's own simulation`);
           delete ugPlans[bay];
         }
