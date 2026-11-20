@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.14
+// @version      2.9.15
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.14';
+const VERSION = '2.9.15';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6068,7 +6068,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     return best;
   }
   // ---- an item that drops at one chapter stop (Axew's Broken Tusks: Mistralton Cave in the Jet Badge chapter, 5% at
-  // each item find, Jimmy 2026-11-19 - Mega was hunting Ghost types for it). The game marks those stops loot: { item: {...} }.
+  // each item find - only 'item' stops roll it, not fights. A run whose cave has no item find left is restarted at once. Jimmy 2026-11-19 - Mega was hunting Ghost types for it). The game marks those stops loot: { item: {...} }.
   function lootChapter(item) {
     const ST = E.get('STORY'), unlocked = +(S().adv?.unlocked ?? 0);
     let best = null;
@@ -6111,10 +6111,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // past the last stop with ghosts: restart the chapter (the game's own Restart) instead of playing it out
       // (the run's own stops: a run can have more stops than the chapter map)
       const a = S().adv || {}, at = +a.node || 0, inFight = !!a.battle, nodes = a.nodes || [], D0 = E.get('Game.DEX') || {};
-      const ghostAt = g.pick.loot ? (() => { const a2 = nodes.map((n, i) => (n?.loot?.[g.item] ? i : -1)).filter((i) => i >= 0); return a2.length ? a2 : g.pick.cut != null ? [g.pick.cut] : []; })() : nodes.map((n, i) => (n?.areas?.length && poolAt(n, g.pick.ch).some((x) => x.on !== false && (D0[x.id]?.types || []).includes(cfg.type)) ? i : -1)).filter((i) => i >= 0);
+      const ghostAt = g.pick.loot ? (() => { return nodes.map((n, i) => (n?.type === 'item' && n?.loot?.[g.item] ? i : -1)).filter((i) => i >= 0); })() : nodes.map((n, i) => (n?.areas?.length && poolAt(n, g.pick.ch).some((x) => x.on !== false && (D0[x.id]?.types || []).includes(cfg.type)) ? i : -1)).filter((i) => i >= 0);
       const last = ghostAt.length ? Math.max(...ghostAt) : -1;
-      if (g.pick.cut != null && last >= 0 && at > last && !inFight && !a.event && !a.zone) {
-        if (rebuild(g.pick.ch)) { g.restarts = (g.restarts || 0) + 1; Plan.save(); return g.pick.loot ? `restarted ${g.pick.name} - no ${plural(g)} after stop ${last + 1} (${g.restarts} restarts)` : `restarted ${g.pick.name} - no ${cfg.type || ''} Pokémon after stop ${last + 1} (${g.restarts} restarts)`; }
+      if ((g.pick.loot ? nodes.length > 0 : g.pick.cut != null && last >= 0) && at > last && !inFight && !a.event && !a.zone) {
+        if (rebuild(g.pick.ch)) { g.restarts = (g.restarts || 0) + 1; Plan.save(); return g.pick.loot ? `restarted ${g.pick.name} - ${last < 0 ? `no item find in ${g.pick.stop || 'the cave'} this time` : `no more item finds with ${plural(g)} after stop ${last + 1}`} (${g.restarts} restarts)` : `restarted ${g.pick.name} - no ${cfg.type || ''} Pokémon after stop ${last + 1} (${g.restarts} restarts)`; }
       }
       const have = soulHave(g);
       if (g.startHave == null) { g.startHave = have; g.startAt = Date.now(); Plan.save(); }
