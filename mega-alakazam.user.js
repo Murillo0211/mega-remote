@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.21
+// @version      2.9.23
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.21';
+const VERSION = '2.9.23';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5118,6 +5118,8 @@ const GoalKit = (() => {
     }
   }
   const LZ = () => E.get('LegendZones');
+  // the World Boss zone: game 0.5.10 keeps it out of LegendZones.ZONES (only LegendZones.get finds it; the boss is Arceus, #493)
+  const wbZone = () => { const L = LZ(); return (L?.ZONES || []).find((z) => z.wb) || (() => { try { const z = L?.get?.(493); return z?.wb ? z : null; } catch { return null; } })(); };
 
   // ---- shared: go to a chapter and keep it (remember what to put back) -------------------------------
   // the best team for a chapter you're only passing through (catching, a special encounter, souls,
@@ -5125,7 +5127,7 @@ const GoalKit = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:153', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:155', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -5153,10 +5155,10 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:181', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:182', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:183', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:184', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:184', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:186', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -5164,7 +5166,7 @@ const GoalKit = (() => {
   // otherwise (or if that's missing) step out and back - re-opening the same chapter just continues (Jimmy)
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:192', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:194', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -5173,7 +5175,7 @@ const GoalKit = (() => {
   const putBack = (g) => GoalTypes.wild.finish(g);
 
 
-  return { E, S, name, pending, holder, setTeam, fullTeam, dexHold, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
+  return { wbZone, E, S, name, pending, holder, setTeam, fullTeam, dexHold, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
 })();
 Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, setTeam: GoalKit.setTeam, setChapterTeam: GoalKit.setChapterTeam, here: GoalKit.here, hatchMissing: GoalKit.hatchMissing });
 
@@ -5650,7 +5652,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (g.type === 'raid') { for (const u of g.pick?.mine || []) out.add(u); try { const r = E.get('Raids'), reg = S().adv?.event?.raid ? S().adv.event.reg : r.drawn(); for (const u of S().eventTeams?.[r.teamKey(reg)] || []) out.add(u); } catch (__e) { __h('70-plan-04-underground:18', __e); } }
       if (g.type === 'roam') { for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       // the World Boss capture team: expeditions take Pokémon out for hours, and the capture window comes once an edition
-      if (g.type === 'wboss') { const z = (E.get('LegendZones')?.ZONES || []).find((x) => x.wb); if (z) { for (const u of E.read('Game.zoneTeam', [], z.id) || []) out.add(u); for (const u of Legends.sims()[z.id]?.uids || []) out.add(u); } }
+      if (g.type === 'wboss') { const z = GoalKit.wbZone(); if (z) { for (const u of E.read('Game.zoneTeam', [], z.id) || []) out.add(u); for (const u of Legends.sims()[z.id]?.uids || []) out.add(u); } }
     }
     return out;
   }
@@ -6834,18 +6836,21 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
 
 // goal module: wboss (takes shared helpers from GoalKit, registers itself in GoalTypes)
 (() => {
-  const { E, name, LZ } = GoalKit;
+  const { E, name, wbZone } = GoalKit;
   // ---- World Boss: 3 attacks a day while its shield is up, then the capture window ----------------
   // Attacks: the game's own pick (WorldBoss.autoTeam: your strongest that haven't attacked today) and
   // its own server call (WorldBoss.attack). Capture: its zone, like a legendary (Golden Razz on).
+  let wbRefreshAt = 0;
   const wboss = {
     uses: 'screen', daily: true,
     label: () => 'World Boss (every edition)',
-    sprite: () => (LZ()?.ZONES || []).find((z) => z.wb)?.id || null,
+    sprite: () => wbZone()?.id || null,
     check(g) {
       const W = E.get('WorldBoss'); if (!W) return { state: 'wait', why: 'not in this game version' };
       if (!W.open()) return { state: 'wait', why: 'opens once you beat the Sinnoh League' };
-      let st = {}; try { st = W.state() || {}; } catch (__e) { __h('70-plan-18-worldboss:14', __e); }
+      let st = {}; try { st = W.state() || {}; } catch (__e) { __h('70-plan-18-worldboss:15', __e); }
+      // right after a reload the game only knows "soon" until its World Boss screen asks the server: ask it ourselves
+      if ((!st.phase || st.phase === 'soon') && !st.n && Date.now() - (wbRefreshAt || 0) > 5 * 60_000) { wbRefreshAt = Date.now(); try { W.refresh(); } catch (__e) { __h('70-plan-18-worldboss:17', __e); } }
       if (st.phase === 'shield') { const left = +W.left(st) || 0; return left > 0 ? { state: 'ready', why: null } : { state: 'wait', why: `today's 3 attacks are done · ${Math.round((st.pct ?? 0) * 100)}% of its shield left` }; }
       if (st.phase === 'capture') return W.caught(st) ? { state: 'wait', why: `caught this edition ✔ · next ${DexInfo.clock(st.next)}` } : { state: 'ready', why: null };
       return { state: 'wait', why: st.next ? `next edition ${DexInfo.clock(st.next)}` : 'no edition yet' };
@@ -6860,14 +6865,14 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         { const why = Guard.team(team.map((x) => x?.uid ?? x), { need: 1, minLevel: 1 }); if (why) return Guard.stop('the World Boss attack', why); }
         const r = await W.attack(team);
         if (r?.error) { Log.add(`World Boss: the game said "${r.error}"`); return 'could not attack: ' + r.error; }
-        try { E.call('Game.save'); } catch (__e) { __h('70-plan-18-worldboss:29', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-18-worldboss:29', __e); }
+        try { E.call('Game.save'); } catch (__e) { __h('70-plan-18-worldboss:32', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-18-worldboss:32', __e); }
         const dmg = r?.dmg ?? r?.damage ?? null;
         Log.add(`World Boss: attacked with ${team.map((m) => name(m.id)).join(', ')}${dmg ? ` - ${(+dmg).toLocaleString()} damage` : ''} (${W.left()} left today)`);
         if (!W.left()) Notify.send('daily', 'World Boss: today\'s attacks done', `${Math.round((W.state()?.pct ?? 0) * 100)}% of its shield left`);
         return `attacked (${W.left()} left today)`;
       }
       if (st.phase === 'capture') {
-        const z = (LZ()?.ZONES || []).find((x) => x.wb); if (!z) return 'waiting: no World Boss zone in the data';
+        const z = wbZone(); if (!z) return 'waiting: no World Boss zone in the data';
         if (!g.told || g.told !== st.n) { g.told = st.n; Plan.save(); Notify.send('win', 'World Boss is down - catching it!', `Capture window until ${DexInfo.clock(st.captureEnd)}`); }
         return GoalTypes.legend.step({ ...g, foe: z.id }, ctx); // same as catching a legendary (team from the simulator, Golden Razz)
       }
