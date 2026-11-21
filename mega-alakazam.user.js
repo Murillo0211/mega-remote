@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.0
+// @version      2.10.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.0';
+const VERSION = '2.10.1';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3848,23 +3848,25 @@ Views.blocs = (esc) => {
   const BB = E.get('BlocBoss');
   if (BB) {
     let why = null, day = null, last = null; try { why = BB.why(); day = BB.today(); last = BB.last(); } catch (__e) { __h('63-blocview:30', __e); }
+    if (!day && Date.now() - (Views.__blocDayAt || 0) > 300_000) { Views.__blocDayAt = Date.now(); try { BB.loadDay(); } catch (__e) { __h('63-blocview:31', __e); } }
     const weekend = [0, 6].includes(new Date().getDay());
     h += `<div class="card"><h3>Pokéblock Boss</h3>
       <div class="row"><span class="k">Today</span><span class="v">${day ? `${nm(day.boss)} · ${day.taste === 'all' || (BB.isMulti && BB.isMulti(day.taste)) ? 'every colour (weekend)' : `${chip(day.taste)}${COLOUR[day.taste] || day.taste} day`}` : '<span class="dim">not loaded yet</span>'}</span></div>
       <div class="row"><span class="k">Status</span><span class="v">${why === 'played' ? '<span class="ok">✔ done today</span>' : why === 'locked' ? 'locked (beat the Unova League)' : Plan.hasType('bloc') ? 'Mega attacks it after 4 PM' : 'not in your plan'}</span></div>
-      ${last ? `<div class="row"><span class="k">Last attack</span><span class="v">${(() => { try { return esc(BB.stepName(last.step, last.taste)); } catch { return 'step ' + last.step; } })()} · ${last.got} Pokéblocks${last.rb ? ` + ${last.rb} Rainbow` : ''}</span></div>` : ''}
-      <div class="row"><span class="k">Record</span><span class="v">${(() => { try { const b = BB.best(); return b >= 0 ? `${b + 1} bars` : '—'; } catch { return '—'; } })()}</span></div>
+      ${last ? `<div class="row"><span class="k">Last attack</span><span class="v">reached ${(() => { try { return esc(BB.stepName(last.step, last.taste)); } catch { return 'step ' + last.step; } })()} · ${last.got} Pokéblocks${last.rb ? ` + ${last.rb} Rainbow` : ''}</span></div>` : ''}
+      <div class="row"><span class="k">Your record</span><span class="v">${(() => { try { const b = BB.best(); return b >= 0 ? esc(BB.stepName(b)) : '—'; } catch { return '—'; } })()}</span></div>
       ${weekend ? '' : '<div class="dim" style="font-size:13px;margin-top:4px">Saturday and Sunday: Pokéblocks of every colour and 5 Rainbows.</div>'}</div>`;
   }
 
   // who matters most: the Pokémon your saved teams use (legendary / roamer sims, raid pick, zone and event teams)
   const use = new Map(), bump = (u, n = 1) => { if (u) use.set(u, (use.get(u) || 0) + n); };
-  try { for (const s of Object.values(Legends.sims() || {})) for (const u of s?.uids || []) bump(u, 2); } catch (__e) { __h('63-blocview:42', __e); }
+  try { for (const s of Object.values(Legends.sims() || {})) for (const u of s?.uids || []) bump(u, 2); } catch (__e) { __h('63-blocview:43', __e); }
   for (const [k, list] of Object.entries(S.eventTeams || {})) for (const u of list || []) bump(u, /^raid|^bloc/.test(k) ? 2 : 1);
   for (const g of Plan.goals || []) if (!g.done && g.pick?.mine) for (const u of g.pick.mine) bump(u, 3);
   const own = (E.read('Game.ownedMons', []) || []).filter((m) => m && !m.egg);
   const bst = (m) => Object.values(DX[m.id]?.stats || {}).reduce((a, x) => a + (+x || 0), 0);
-  const hitStat = (m) => { const s = DX[m.id]?.stats || {}; return (+s.spa || 0) > (+s.atk || 0) ? 'spa' : 'atk'; };
+  // the stat it attacks with: the category of its best move (Lugia's Aeroblast is special, Ho-Oh's Sacred Fire physical)
+  const hitStat = (m) => { try { const mv = G.bestMoveAgainst(m, ['normal']); if (mv?.cat) return mv.cat === 'spec' ? 'spa' : 'atk'; } catch (__e) { __h('63-blocview:49', __e); } const s = DX[m.id]?.stats || {}; return (+s.spa || 0) > (+s.atk || 0) ? 'spa' : 'atk'; };
   const ups = (t) => { try { return T.ups(t) || []; } catch { return Object.keys(t?.up || {}); } };
   const boost = (t, k) => { try { return T.mult(t, k) - 1; } catch { return 0; } };
 
