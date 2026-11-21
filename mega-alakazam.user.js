@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.6
+// @version      2.10.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.6';
+const VERSION = '2.10.7';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1902,7 +1902,8 @@ const DexInfo = (() => {
   const safe = (f, d = null) => { try { const v = f(); return v === undefined ? d : v; } catch { return d; } };
   const pct = (x) => (x >= 0.1 ? Math.round(x * 100) : Math.round(x * 1000) / 10) + '%';
   const WX = { rain: 'rain', storm: 'storm', sun: 'sun', snow: 'snow', blizzard: 'blizzard', ash: 'ash', fog: 'fog', sand: 'sandstorm' };
-  const wxName = (k) => (k ? WX[k] || k : 'clear');
+  // the game's own English names (sun = "Harsh sunlight", ash = "Ashfall", sand = "Sandstorm")
+  const wxName = (k) => (k ? (() => { try { return E.get('DAYTIME').cond(k)?.name || E.get('WEATHER').info(k)?.name; } catch { return null; } })() || WX[k] || k : 'clear');
   const clock = (t) => {
     const d = new Date(t), now = new Date(), tm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -1928,12 +1929,40 @@ const DexInfo = (() => {
     return null;
   }
 
+  // the next time a season starts: 3 days each, spring > summer > autumn > winter (DAYTIME.season / seasonUntil)
+  function nextSeason(key) {
+    const DT = E.get('DAYTIME'), L = (DT?.SEASONS || []).map((x) => x.key);
+    const cur = safe(() => DT.season()?.key), i = L.indexOf(cur), j = L.indexOf(key);
+    if (i < 0 || j < 0) return null;
+    if (i === j) return Date.now();
+    const b = safe(() => DT.seasonUntil()), n = (j - i + 4) % 4;
+    return b ? b + (n - 1) * 3 * 86_400_000 : null;
+  }
+  // the next moment one of `when` holds at a chapter stop (a wild Pokémon's "night" / "rain" / "spring"…):
+  // { now, at, key } - the soonest of the alternatives. Time of day and seasons follow the calendar, weather the
+  // game's own forecast for that stop (a week ahead).
+  function nextWhen(ch, placeName, when) {
+    if (!when || !when.length) return { now: true, at: Date.now(), key: null };
+    const ST = E.get('STORY'), st = (ST?.CHAPTERS?.[ch]?.steps || []).find((x) => x.name === placeName && x.kind === 'route') || (ST?.CHAPTERS?.[ch]?.steps || []).find((x) => x.name === placeName);
+    const place = st ? placeOf(ch, st) : { name: placeName, ch };
+    let best = null;
+    for (const k of when) {
+      let t = null;
+      if (['morning', 'day', 'night'].includes(k)) t = nextPhase((p) => p === k);
+      else if (['spring', 'summer', 'autumn', 'winter'].includes(k)) t = nextSeason(k);
+      else { const w = nextWindow(place, [k], () => true); t = w ? w.at : null; }
+      if (t != null && (!best || t < best.at)) best = { at: t, key: k, now: t <= Date.now() + 1000 };
+    }
+    return best;
+  }
+  const whenLine = (r) => (r ? (r.now ? `possible now (${wxName(r.key)})` : `next: ${clock(r.at)} (${wxName(r.key)})`) : 'not in the next week');
+
   // ---- places ----
   const placeOf = (ch, st) => ({ name: st.name, bg: st.bg, scene: st.scene, indoor: st.indoor, climate: st.climate, habitat: st.habitat, ch });
   const weatherNow = (place) => safe(() => E.get('WEATHER').current(place));
   // next hour (game forecast) where the weather is one of `keys` and the time-of-day test passes
   function nextWindow(place, keys, timeOk) {
-    const hours = safe(() => E.get('WEATHER').hours(place), []) || [];
+    const hours = safe(() => E.get('WEATHER').hours(place, 168), []) || []; // a week ahead (the game's forecast takes any length; it defaults to 24 h)
     const now = Date.now();
     if ((!keys || keys.includes(weatherNow(place))) && timeOk(safe(() => E.get('DAYTIME').phase().key))) return { at: now, now: true };
     if (!keys) { const t = nextPhase(timeOk); return t ? { at: t, now: t <= now } : null; } // time of day only
@@ -2024,12 +2053,12 @@ const DexInfo = (() => {
     try {
       const ST = E.get('STORY');
       for (let ch = 0; ch < (ST?.CHAPTERS?.length || 0); ch++) for (const st of ST.CHAPTERS[ch].steps || []) if (st.loot?.[item]) return ` - found at ${st.name} (${ST.CHAPTERS[ch].name} chapter), ${Math.round((+st.loot[item].p || 0) * 100)}% at each item find`;
-    } catch (__e) { __h('56-dexinfo:153', __e); }
+    } catch (__e) { __h('56-dexinfo:182', __e); }
     return '';
   };
   const itemName = (key) => {
     if (key.startsWith('egg:')) return `${name(+key.slice(4))} Egg`;
-    let n = null; try { n = E.get('UI')?.itemName?.(key); } catch (__e) { __h('56-dexinfo:158', __e); }
+    let n = null; try { n = E.get('UI')?.itemName?.(key); } catch (__e) { __h('56-dexinfo:187', __e); }
     return n && typeof n === 'string' ? n : key.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   };
   // every rare find on the routes (Prism Scale, Griseous Orb, Drives…), with what it's for
@@ -2160,7 +2189,7 @@ const DexInfo = (() => {
     return v;
   }
 
-  return { timeOf, itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
+  return { timeOf, nextWhen, whenLine, nextSeason, itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -6006,7 +6035,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (g.ch > +(S().adv?.unlocked ?? 0)) return { state: 'wait', why: 'that chapter is not unlocked yet' };
       const spots = wildSpots(g.foe, g.ch);
       if (!spots.length) return { state: 'wait', why: 'not found in that chapter any more' };
-      if (!spots.some((x) => x.on)) { const w = [...new Set(spots.flatMap((x) => x.when || []))]; return { state: 'wait', why: `only appears ${w.length ? 'in ' + w.join(' / ') : 'at another time'}` }; }
+      if (!spots.some((x) => x.on)) { const w = [...new Set(spots.flatMap((x) => x.when || []))]; const nx = spots.map((x) => DexInfo.nextWhen(g.ch, x.name, x.when)).filter(Boolean).sort((a, b) => a.at - b.at)[0]; return { state: 'wait', why: `only appears ${w.length ? 'in ' + w.map((k) => DexInfo.whenText([k])).join(' / ') : 'at another time'} · ${DexInfo.whenLine(nx)}` }; }
       return { state: 'ready', why: null };
     },
     async step(g) {
@@ -6089,7 +6118,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (g.ch > +(S().adv?.unlocked ?? 0)) return { state: 'wait', why: 'that chapter is not unlocked yet' };
       const spots = wildSpots(g.foe, g.ch);
       if (!spots.length) return { state: 'wait', why: 'not found in that chapter any more' };
-      if (!spots.some((x) => x.on)) { const w = [...new Set(spots.flatMap((x) => x.when || []))]; return { state: 'wait', why: `only appears ${w.length ? 'in ' + w.join(' / ') : 'at another time'}` }; }
+      if (!spots.some((x) => x.on)) { const w = [...new Set(spots.flatMap((x) => x.when || []))]; const nx = spots.map((x) => DexInfo.nextWhen(g.ch, x.name, x.when)).filter(Boolean).sort((a, b) => a.at - b.at)[0]; return { state: 'wait', why: `only appears ${w.length ? 'in ' + w.map((k) => DexInfo.whenText([k])).join(' / ') : 'at another time'} · ${DexInfo.whenLine(nx)}` }; }
       return { state: 'ready', why: null };
     },
     async step(g) {
@@ -6357,7 +6386,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const readyEgg = (S().pension?.eggs || []).some((e) => E.read('Game.eggReady', false, e));
         if (sl.used >= sl.max && !readyEgg) return { state: 'wait', why: `the Day Care's egg slots are full (${sl.used}/${sl.max}) - the egg needs a free one; the next egg is ready ${DexInfo.clock(sl.next)} and Mega hatches it then` };
       }
-      if (L.skies && !L.skies.includes((() => { try { return E.get('WEATHER').current({ name: L.place, ch: L.ch }); } catch { return null; } })())) return { state: 'wait', why: `only in ${L.skies.join(' / ')}` };
+      // the weather at that very stop (its own climate, not just its name - 2026-11-21) and when it comes next
+      if (L.skies) { const nx = DexInfo.nextWhen(L.ch, L.place, L.skies); if (!nx?.now) return { state: 'wait', why: `only in ${DexInfo.whenText(L.skies)} at ${L.place} · ${DexInfo.whenLine(nx)}` }; }
       return { state: 'ready', why: null };
     },
     async step(g) {
@@ -6366,7 +6396,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const sl = DexInfo.eggSlots();
         if (sl.used >= sl.max) {
           const e = (S().pension?.eggs || []).find((x) => E.read('Game.eggReady', false, x));
-          if (e) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-09-loot:32', __e); } if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-09-loot:32', __e); } Log.add(`hatched a ${name(e.id)} egg to free a Day Care egg slot for the ${DexInfo.itemName(g.item)}`); } }
+          if (e) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-09-loot:33', __e); } if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-09-loot:33', __e); } Log.add(`hatched a ${name(e.id)} egg to free a Day Care egg slot for the ${DexInfo.itemName(g.item)}`); } }
           return 'making room in the Day Care…';
         }
       }
