@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.9
+// @version      2.10.10
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.9';
+const VERSION = '2.10.10';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6868,7 +6868,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   }
   function moneyPick(g) {
     const R = rankReal();
-    const want = g?.test?.length ? g.test : R.slice(0, 3).map((x) => x.ch);
+    // g.alsoTry: chapters to measure as well (the Discord's pick), ahead of the top 3 estimates
+    const want = g?.test?.length ? g.test : [...(g?.alsoTry || []), ...R.slice(0, 3).map((x) => x.ch)];
     const scout = want.map((ch) => R.find((x) => x.ch === +ch)).find((x) => x && !x.real);
     return scout ? { ...scout, scout: true } : (g?.test?.length ? R.find((x) => g.test.includes(x.ch)) : R[0]) || null;
   }
@@ -6890,10 +6891,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       measure(best.ch);
       if (!g.restore) { g.restore = { team: [...(s.team || [])], chapter: s.adv?.chapter, loopAdded: null }; Plan.save(); Log.add(`${money.label(g)}: farming in ${best.name} (Lv ${best.top}). Your team and chapter come back when it's done.`); }
       const w = goChapter(g, best.ch, money.label(g)); if (w) return w;
-      try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-14-money:81', __e); } // fights per hour here feed the ₽/hour ranking too
+      try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-14-money:82', __e); } // fights per hour here feed the ₽/hour ranking too
       // carriers: the fastest clearers of this chapter
       if (g.carriersFor !== best.ch || g.carriersV !== Sim.CARRIER_V) {
-        let picks = []; try { picks = Sim.carriers(best.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-14-money:84', __e); }
+        let picks = []; try { picks = Sim.carriers(best.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-14-money:85', __e); }
         g.carriersFor = best.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
         if (picks.length && setChapterTeam(g.carriers)) Log.add(`money team for ${best.name}: ${picks.map((p) => name(p.m.id)).join(', ')}`);
       }
