@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.2
+// @version      2.10.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.2';
+const VERSION = '2.10.3';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2048,11 +2048,14 @@ const DexInfo = (() => {
   // { to, item } or { to, level, party }. A level one happens when the Pokémon GAINS a level at or past that level,
   // and - when set - only with the party species in your team (Shelmet + Karrablast, Karrablast + Shelmet,
   // Mantyke + Remoraid) and only at the time of day in CONFIG.TIME_EVOLUTIONS (Espeon by day, Umbreon at night…).
-  // An item one is the item used on it (Link Cable = trade evolutions, Soothe Bell = friendship ones).
+  // An item one is the item used on it (Soothe Bell = the friendship ones); 'link-cable' is a trade evolution (below).
   const timeOf = (to) => (E.get('CONFIG')?.TIME_EVOLUTIONS || {})[to] || null;
+  const evoFromId = (e) => { if (e.from) return e.from; for (const [f, l] of Object.entries(E.get('EVOLUTIONS') || {})) if ((l || []).includes(e)) return +f; return e.to; };
   function evoText(e) {
     if (!e) return '';
-    if (e.item === 'link-cable') return 'with a Link Cable (the game\'s trade evolution)';
+    // trade evolutions: there is no Link Cable item to use - a Pokémon you RECEIVE in a trade arrives evolved
+    // (offer your Kadabra for someone's Kadabra: theirs comes to you as Alakazam). The game's code, 2026-11-21.
+    if (e.item === 'link-cable') return `by trading: get a ${name(evoFromId(e))} in a trade and it arrives as ${name(e.to)}`;
     const bits = [];
     if (e.item) bits.push(`with a ${itemName(e.item)}`);
     if (e.party) bits.push(`by gaining a level with ${name(e.party)} in your team`);
