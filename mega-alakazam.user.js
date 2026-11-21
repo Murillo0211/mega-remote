@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.7
+// @version      2.10.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.7';
+const VERSION = '2.10.8';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2390,7 +2390,7 @@ Views.plan = (w, ui, esc) => {
     <div class="note dim">Plays one Battle Tower run each week (the game picks the lineup from all your Pokémon) and lets it run to the end. Goes ahead of your other goals like the other dailies.</div></div>`;
   } else if (ui.addType === 'bloc') {
     h += `<button class="btn" data-act="plan-add-bloc" ${Plan.hasType('bloc') ? 'disabled' : ''}>Add to plan</button>
-    <div class="note dim">Once a day after 4 PM: tries hundreds of 10-Pokémon teams with the game's own Pokéblock Boss forecast (the same team on the same day always ends the same way), then attacks with the one that empties the most bars. The attack is instant - nobody is sent away, so the 10 stay free for raids and the Underground.</div></div>`;
+    <div class="note dim">Once a day, after the daily reset: tries hundreds of 10-Pokémon teams with the game's own Pokéblock Boss forecast (the same team on the same day always ends the same way), then attacks with the one that empties the most bars. The attack is instant - nobody is sent away, so the 10 stay free for raids and the Underground.</div></div>`;
   } else if (ui.addType === 'candy') {
     h += `<button class="btn" data-act="plan-add-candy" ${Plan.hasType('candy') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Runs the Candy Factory once a day as soon as it opens: reads the day's type, picks the six that beat it best, starts the run, and lets it play out. Dailies go ahead of your other goals, like in 4.x.</div></div>`;
@@ -3905,7 +3905,7 @@ Views.blocs = (esc) => {
     const weekend = [0, 6].includes(new Date().getDay());
     h += `<div class="card"><h3>Pokéblock Boss</h3>
       <div class="row"><span class="k">Today</span><span class="v">${day ? `${nm(day.boss)} · ${day.taste === 'all' || (BB.isMulti && BB.isMulti(day.taste)) ? 'every colour (weekend)' : `${chip(day.taste)}${COLOUR[day.taste] || day.taste} day`}` : '<span class="dim">not loaded yet</span>'}</span></div>
-      <div class="row"><span class="k">Status</span><span class="v">${why === 'played' ? '<span class="ok">✔ done today</span>' : why === 'locked' ? 'locked (beat the Unova League)' : Plan.hasType('bloc') ? 'Mega attacks it after 4 PM' : 'not in your plan'}</span></div>
+      <div class="row"><span class="k">Status</span><span class="v">${why === 'played' ? '<span class="ok">✔ done today</span>' : why === 'locked' ? 'locked (beat the Unova League)' : Plan.hasType('bloc') ? 'Mega attacks it after the daily reset' : 'not in your plan'}</span></div>
       ${last ? `<div class="row"><span class="k">Last attack</span><span class="v">reached ${(() => { try { return esc(BB.stepName(last.step, last.taste)); } catch { return 'step ' + last.step; } })()} · ${last.got} Pokéblocks${last.rb ? ` + ${last.rb} Rainbow` : ''}</span></div>` : ''}
       <div class="row"><span class="k">Your record</span><span class="v">${(() => { try { const b = BB.best(); return b >= 0 ? esc(BB.stepName(b)) : '—'; } catch { return '—'; } })()}</span></div>
       ${weekend ? '' : '<div class="dim" style="font-size:13px;margin-top:4px">Saturday and Sunday: Pokéblocks of every colour and 5 Rainbows.</div>'}</div>`;
@@ -7417,6 +7417,8 @@ const Plan = (() => {
   // Mega tries many teams with that same plan (under 1 ms each) and attacks with the one that goes furthest.
   const B = () => E.get('BlocBoss');
   let dayAskAt = 0;
+  // the daily reset is the Shiny Raid's (3 PM Pacific - midnight in France)
+  const nextReset = () => { try { return DexInfo.clock(+E.get('Raids').nextDay()); } catch { return 'at the daily reset'; } };
   const val = (p) => (p ? p.step + (p.pct || 0) : -1);
   function search(day) {
     const BB = B(), away = new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
@@ -7451,25 +7453,25 @@ const Plan = (() => {
       const BB = B(); if (!BB) return { state: 'wait', why: 'not in this game version' };
       let why = null; try { why = BB.why(); } catch { why = 'locked'; }
       if (why === 'locked') return { state: 'wait', why: 'opens after you beat the Unova League' };
-      if (why === 'played') { const l = (() => { try { return BB.last(); } catch { return null; } })(); return { state: 'wait', why: `done today${l ? ` · ${l.got} Pokéblocks${l.rb ? ` + ${l.rb} Rainbow` : ''}` : ''} · next at 4 PM` }; }
-      if (why === 'day' && Date.now() - dayAskAt > 5 * 60_000) { dayAskAt = Date.now(); try { BB.loadDay(); } catch (__e) { __h('70-plan-21-bloc:46', __e); } }
+      if (why === 'played') { const l = (() => { try { return BB.last(); } catch { return null; } })(); return { state: 'wait', why: `done today${l ? ` · ${l.got} Pokéblocks${l.rb ? ` + ${l.rb} Rainbow` : ''}` : ''} · next ${nextReset()}` }; }
+      if (why === 'day' && Date.now() - dayAskAt > 5 * 60_000) { dayAskAt = Date.now(); try { BB.loadDay(); } catch (__e) { __h('70-plan-21-bloc:48', __e); } }
       if (why === 'day') return { state: 'wait', why: 'checking today\'s boss…' };
       return { state: 'ready', why: null };
     },
     async step(g) {
       const BB = B();
-      let day = null; try { day = BB.today() || await BB.loadDay(); } catch (__e) { __h('70-plan-21-bloc:52', __e); }
+      let day = null; try { day = BB.today() || await BB.loadDay(); } catch (__e) { __h('70-plan-21-bloc:54', __e); }
       if (!day) return 'waiting for today\'s boss';
       const r = search(day);
       if (!r || !r.team.length) return 'no Pokémon free to send';
       const uids = r.team.map((m) => m.uid);
       { const why = Guard.team(uids, { need: 1, minLevel: 1 }); if (why) return Guard.stop('the Pokéblock Boss', why); }
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[BB.TEAM_KEY || 'bloc'] = uids;
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-21-bloc:59', __e); }
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-21-bloc:61', __e); }
       // the game's own result must match what Mega planned with (same team, same day)
       const res = BB.attack();
-      if (!res) { let why = '?'; try { why = BB.why(); } catch (__e) { __h('70-plan-21-bloc:62', __e); } return `the game would not attack (${why})`; }
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-21-bloc:63', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-21-bloc:63', __e); }
+      if (!res) { let why = '?'; try { why = BB.why(); } catch (__e) { __h('70-plan-21-bloc:64', __e); } return `the game would not attack (${why})`; }
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-21-bloc:65', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-21-bloc:65', __e); }
       const items = Object.entries(res.items || {}).map(([k, n]) => `${n} ${DexInfo.itemName(k)}`).join(', ');
       g.lastRun = { day: day.day, step: res.step, pct: res.pct, got: res.got, rb: res.rb, tried: r.tried }; Plan.save();
       Log.add(`Pokéblock Boss (${name(day.boss)}, ${day.taste} day): ${r.tried} teams tried - reached ${stepText(res, day)}${res.record ? ' - new record!' : ''}: ${items || 'nothing'} · team ${r.team.map((m) => name(m.id)).join(', ')}`);
