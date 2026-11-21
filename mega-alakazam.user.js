@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.1
+// @version      2.10.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.1';
+const VERSION = '2.10.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2044,14 +2044,21 @@ const DexInfo = (() => {
     for (const [f, list] of Object.entries(E.get('EVOLUTIONS') || {})) for (const e of list || []) if (+e.to === +id) return { from: +f, ...e };
     return null;
   }
+  // the game's own rules (Jimmy 2026-11-21: "don't assume"), read from its code: an evolution is { to, level } or
+  // { to, item } or { to, level, party }. A level one happens when the Pokémon GAINS a level at or past that level,
+  // and - when set - only with the party species in your team (Shelmet + Karrablast, Karrablast + Shelmet,
+  // Mantyke + Remoraid) and only at the time of day in CONFIG.TIME_EVOLUTIONS (Espeon by day, Umbreon at night…).
+  // An item one is the item used on it (Link Cable = trade evolutions, Soothe Bell = friendship ones).
+  const timeOf = (to) => (E.get('CONFIG')?.TIME_EVOLUTIONS || {})[to] || null;
   function evoText(e) {
     if (!e) return '';
-    if (e.item === 'link-cable') return 'when traded';
+    if (e.item === 'link-cable') return 'with a Link Cable (the game\'s trade evolution)';
     const bits = [];
-    if (e.level) bits.push(`at Lv ${e.level}`);
-    if (e.item) bits.push(`with ${e.item.replace(/-/g, ' ')}`);
-    if (e.time) bits.push(`at ${e.time}`);
-    if (e.happy || e.friendship) bits.push('with high friendship');
+    if (e.item) bits.push(`with a ${itemName(e.item)}`);
+    if (e.party) bits.push(`by gaining a level with ${name(e.party)} in your team`);
+    else if (e.level && e.level > 1) bits.push(`at Lv ${e.level}`);
+    else if (e.level) bits.push('by gaining a level');
+    const t = timeOf(e.to); if (t) bits.push(t === 'night' ? 'at night' : 'during the day');
     return bits.join(', ') || 'by a special condition';
   }
 
@@ -2096,7 +2103,7 @@ const DexInfo = (() => {
       const copies = (E.read('Game.allMons', []) || []).filter((m) => +m.id === +h.evolve.from).length;
       const last = copies <= 1;
       const warn = last ? ` - it's your only ${h.evolve.fromName}, so ${h.evolve.fromName} leaves your Pokédex (getting it back means a Day Care egg)` : ` - you have ${copies}, so you keep a ${h.evolve.fromName}`;
-      if (h.evolve.level && !h.evolve.item) evo = { kind: 'evolve', uid: h.evolve.pre.uid, level: h.evolve.level, from: h.evolve.from, last, text: `level your ${h.evolve.fromName} (Lv ${h.evolve.pre.level}) to ${h.evolve.level} to evolve${warn}` };
+      if (h.evolve.level && !h.evolve.item) evo = { kind: 'evolve', uid: h.evolve.pre.uid, level: h.evolve.level, from: h.evolve.from, party: h.evolve.party || null, time: timeOf(id), last, text: `${h.evolve.level > 1 && h.evolve.pre.level < h.evolve.level ? `level your ${h.evolve.fromName} (Lv ${h.evolve.pre.level}) to ${h.evolve.level}` : `level your ${h.evolve.fromName} (Lv ${h.evolve.pre.level}) once`}${h.evolve.party ? ` with ${name(h.evolve.party)} in the team` : ''}${timeOf(id) ? (timeOf(id) === 'night' ? ' at night' : ' during the day') : ''} to evolve${warn}` };
       else evo = { kind: 'manual', last, text: `evolve your ${h.evolve.fromName} ${h.evolve.how}${warn}` };
     }
     const w = h.wild.find((x) => x.open);
@@ -2136,7 +2143,7 @@ const DexInfo = (() => {
     return v;
   }
 
-  return { itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
+  return { timeOf, itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5598,6 +5605,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const gym = ch != null ? (ST.CHAPTERS[ch]?.steps || []).find((x) => x.kind === 'gym') : null;
     return gym ? `beat ${gym.leader || ST.CHAPTERS[ch]?.name} to raise it, then training picks back up` : 'it goes up as you beat the next boss';
   }
+  // the evolution this goal is after (forDex): the game's own entry, so a party partner / time of day is known
+  const evoRule = (g) => { if (!g.forDex || !g.fromId) return null; return ((E.get('EVOLUTIONS') || {})[g.fromId] || []).find((e) => +e.to === +g.forDex) || null; };
+  const timeOk = (t) => { if (!t) return true; try { return !!E.get('DAYTIME').matches(t); } catch { return true; } };
+  // a partner the game counts: one you own, here (not away), not a Pokémon this goal is leveling
+  const partnerOf = (g, id) => (E.read('Game.ownedMons', []) || []).filter((m) => +m.id === +id && !g.uids.includes(m.uid) && E.read('Game.getMon', null, m.uid) && !awayNow().has(m.uid)).sort((a, b) => b.level - a.level)[0] || null;
   const needs = (g) => g.uids.filter((u) => lvl(u) != null && lvl(u) < Math.min(g.target || 100, capOf(u)));
 
   // Rule: while leveling, keep a Pinap Berry (XP x1.25, 60 min) going. One at a time, never
@@ -5609,7 +5621,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const have = +E.read('Game.itemCount', 0, 'pinap-berry') || 0;
     if (!have) { if (!pinapOut) Log.add('out of Pinap Berries - training continues without the XP boost'); pinapOut = true; return ' · no Pinap Berries left'; }
     let ok = null;
-    try { ok = E.call('Game.useBuffBerry', 'pinap-berry'); } catch (__e) { __h('70-plan-03-level:42', __e); }
+    try { ok = E.call('Game.useBuffBerry', 'pinap-berry'); } catch (__e) { __h('70-plan-03-level:47', __e); }
     const now = (E.read('Game.activeBuffs', []) || []).find((b) => b.family === 'xp');
     if (now && now.left > 120_000) { Log.add(`used a Pinap Berry (XP x1.25 for 60 min) - ${have - 1} left`); return ` · Pinap ${Math.ceil(now.left / 60_000)} min`; }
     return ok == null ? ' · could not use a Pinap Berry' : '';
@@ -5635,6 +5647,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (m && g.fromId && +m.id !== +g.fromId) return { state: 'done', why: `it evolved past ${name(g.forDex)} (now ${name(m.id)}) - the Pokédex goal finds another way` };
         // evolving happens when it GAINS a level: one caught at (or above) the evolution level needs one more
         if (m && +m.id === +g.fromId && m.level >= (g.target || 100) && !g.bumped) { g.target = m.level + 1; g.bumped = true; Plan.save(); }
+        const rule = evoRule(g), when = rule ? (DexInfo.timeOf(g.forDex) || null) : null;
+        if (rule?.party && !partnerOf(g, rule.party)) return { state: 'wait', why: `evolves only with ${name(rule.party)} in the team - you have no ${name(rule.party)} free to bring (catch or hatch one)` };
+        // it gained a level but the condition wasn't met (wrong time of day): the next level-up can still do it
+        if (m && +m.id === +g.fromId && m.level >= (g.target || 100) && (rule?.party || when)) { g.target = m.level + 1; Plan.save(); }
+        if (when && !timeOk(when)) return { state: 'wait', why: `evolves into ${name(g.forDex)} only ${when === 'night' ? 'at night' : 'during the day'} - training waits for ${when === 'night' ? 'night' : 'daytime'}` };
         if (g.uids.every((u) => (lvl(u) || 0) > (g.target || 100))) return { state: 'wait', why: `passed Lv ${g.target} but did not evolve - evolve it from its Pokémon screen` };
       }
       const gone = g.uids.filter((u) => !E.read('Game.getMon', null, u));
@@ -5655,14 +5672,14 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s = S(), a = s.adv || {};
       const best = bestChapter(g);
       if (!best) return 'waiting: no chapter to train in';
-      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-03-level:88', __e); } }
+      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-03-level:98', __e); } }
       if (!g.restore) {
         g.restore = { team: [...(s.team || [])], chapter: a.chapter, loopAdded: null, buddy: s.buddy?.uid ?? null };
         Plan.save();
         Log.add(`${level.label(g)}: training in ${best.name} (wild Lv ${best.top}). Your team, buddy and chapter come back when it's done.`);
       }
       // leave a legendary zone first (the game's own way back)
-      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-03-level:95', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-03-level:105', __e); } return 'leaving the legendary zone…'; }
       // team: 4 trainees + 2 carriers (Jimmy's rule - every team member gets the full XP of each win).
       // A 3rd carrier only when the simulator says it raises total XP per hour: 3 trainees earn 25% less
       // per win, so the 3rd carrier has to make wins come more than a third faster (hard chapters).
@@ -5691,7 +5708,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (x3 > x2 * 1.02) g.nCarry = 3;
             why = ` - 2 carriers ${Math.round(x2 / Math.max(x2, x3) * 100)}% vs 3 carriers ${Math.round(x3 / Math.max(x2, x3) * 100)}% of the best XP/h`;
           }
-        } catch (__e) { __h('70-plan-03-level:124', __e); }
+        } catch (__e) { __h('70-plan-03-level:134', __e); }
         Plan.save();
         if (picks.length) Log.add(`carriers for ${best.name}: ${picks.slice(0, g.nCarry).map((p) => name(p.m.id)).join(', ')}${why}`);
       }
@@ -5699,6 +5716,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const extra = trainees.filter((u) => !g.uids.includes(u));
       if (extra.join() !== (g.extra || []).join()) { g.extra = extra; Plan.save(); if (extra.length) Log.add(`free trainee slots: also leveling ${extra.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} Lv ${lvl(u)}`).join(', ')}`); }
       const want = [...trainees];
+      // a party evolution (Shelmet needs Karrablast in the team): the partner rides along in a carrier slot
+      { const rule = evoRule(g); const p = rule?.party ? partnerOf(g, rule.party) : null;
+        if (p && !want.includes(p.uid)) { want.push(p.uid); if (g.partnerLog !== p.uid) { g.partnerLog = p.uid; Plan.save(); Log.add(`${level.label(g)}: ${name(p.id)} (Lv ${p.level}) joins the team - ${name(g.fromId)} evolves only with it there${p.level < capOf(p.uid) ? `; note ${name(p.id)} may evolve too if it gains a level` : ''}`); } } }
       const byLevel = [...(g.carriers || []), ...(g.restore.team || []), ...here().sort((x, y) => y.level - x.level).map((m) => m.uid)].filter(((aw) => (u) => !aw.has(u))(awayNow()));
       for (const u of byLevel) { if (want.length >= 6) break; if (!want.includes(u) && (lvl(u) || 0) >= 90 && (lvl(u) || 0) >= capOf(u) && !g.uids.includes(u) && !(g.refused || []).includes(u) && E.read('Game.getMon', null, u) && !want.some((w) => Sim.species(E.read('Game.getMon', {}, w)) === Sim.species(E.read('Game.getMon', {}, u)))) want.push(u); }
       const cur = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
@@ -5723,11 +5743,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
       if (g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:156', __e); }
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:169', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
       if (!E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:160', __e); }
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:173', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -5735,11 +5755,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:168', __e); }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:169', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:181', __e); }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:182', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:172', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:185', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
