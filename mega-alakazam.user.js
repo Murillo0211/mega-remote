@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.23
+// @version      2.9.24
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.23';
+const VERSION = '2.9.24';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -486,7 +486,7 @@ const Sim = (() => {
   const canGet = (u, st) => {
     if (st === 'confusion') return !u.confused;
     if (u.status) return false;
-    if (st === 'sleep' && u.sleepCd > 0) return false;
+    if ((st === 'sleep' || st === 'freeze') && u.sleepCd > 0) return false;
     try { return !!G().STATUS.canGet({ id: u.id, status: null }, st); } catch { return true; }
   };
 
@@ -618,14 +618,25 @@ const Sim = (() => {
     const HURT = st.zone?.hurt ?? BSx.HURT ?? 40, RESIST = st.zone?.resist ?? 1, BURN_ATK = BSx.BURN_ATK ?? 0.75, SLEEP_CD = BSx.SLEEP_CD ?? 2;
     const SMC = c.STATUS_MOVE_CHANCE ?? 0.3, PARA = c.FULL_PARA_CHANCE ?? 0.25, THAW = c.THAW_CHANCE ?? 0.2, CONF = c.CONFUSION_SELF_HIT ?? 0.33;
     const STALL = c.STALL_ROUNDS ?? 8, MAXR = c.MAX_ROUNDS ?? 200;
+    // game 0.5.10 status rules (when its config has them): a status lowers one stat (burn Atk, poison Sp. Atk,
+    // sleep Def, freeze Sp. Def, x0.75 each), burn / poison wear off after DOT_TURNS ticks (4 on a boss, 5 on yours),
+    // paralysis after PARA_TURNS, and a boss stays asleep / frozen up to LOCK_MAX turns, then can't be again for LOCK_CD
+    const FX = c.STATUS_FX || null, NEW = !!FX && BSx.LOCK_MAX != null;
+    const STAT = FX?.STAT || {}, DOT_B = NEW ? +BSx.DOT_TURNS || 0 : 0, DOT_A = NEW ? +FX.DOT_TURNS || 0 : 0, PARA_T = NEW ? +FX.PARA_TURNS || 0 : 0;
+    const LOCK_MAX = +BSx.LOCK_MAX || 0, LOCK_CD = BSx.LOCK_CD ?? SLEEP_CD;
+    const sm = (u, stat) => { const e = STAT[u.status]; return e && e[0] === stat ? +e[1] || 1 : 1; };
+    // damage multiplier from both sides' status (old rules: burn halves your physical hits, BURN_ATK on the boss's)
+    const fxMult = (att, def, atk) => {
+      if (!NEW) return att.status === 'burn' && atk.phys ? (att.boss ? BURN_ATK : 0.5) : 1;
+      return (atk.phys ? sm(att, 'atk') : sm(att, 'spa')) / (atk.phys ? sm(def, 'def') : sm(def, 'spd'));
+    };
     const A = st.allies.map((a, i) => ({ ...a, cur: Math.max(1, Math.min(a.hp, st.startHp?.[i] ?? a.hp)), status: null, sleep: 0, confused: 0, recharge: false }));
     const B = { ...st.boss, cur: st.boss.hp, status: null, sleep: 0, confused: 0, rage: 0, sleepCd: 0, boss: true, recharge: false };
     const alive = () => A.filter((a) => a.cur > 0);
     const roll1 = (atk, burnMult, mult, scale = 1) => {
       if (rnd() * 100 > atk.acc) return 0;
       const cr = rnd() < crit ? critM : 1;
-      const burn = burnMult && atk.phys ? burnMult : 1;
-      const d = Math.max(1, Math.floor(atk.base * scale * burn * cr * (0.85 + rnd() * 0.15)));
+      const d = Math.max(1, Math.floor(atk.base * scale * (burnMult || 1) * cr * (0.85 + rnd() * 0.15)));
       return mult === 1 ? d : Math.max(1, Math.round(d * mult));
     };
     const roll = (atk, burnMult, mult) => {
@@ -639,20 +650,30 @@ const Sim = (() => {
       if (s === 'tri') s = ['burn', 'paralysis', 'freeze'][Math.floor(rnd() * 3)];
       if (!canGet(u, s)) return false;
       if (s === 'confusion') u.confused = 2 + Math.floor(rnd() * 4);
-      else { u.status = s; if (s === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); }
+      else { u.status = s; u.bit = 0; u.lost = 0; if (s === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); }
       return true;
     };
     let calm = 0, rounds = 0;
     const blocked = (u) => {
       if (u.recharge) { u.recharge = false; return true; }
-      if (u.boss && u.status === 'sleep') { u.status = null; u.sleep = 0; u.sleepCd = SLEEP_CD + 1; return true; }
+      if (NEW && u.boss && (u.status === 'sleep' || u.status === 'freeze')) {
+        const lost = u.lost || 0;
+        if (lost < LOCK_MAX && (u.status === 'sleep' ? lost < u.sleep : rnd() >= THAW)) { u.lost = lost + 1; return true; }
+        u.status = null; u.sleep = 0; u.lost = 0; u.sleepCd = LOCK_CD + 1; // wakes / thaws and acts this turn
+      } else if (u.boss && u.status === 'sleep') { u.status = null; u.sleep = 0; u.sleepCd = SLEEP_CD + 1; return true; }
       if (u.status === 'sleep') { if (u.sleep > 0) { u.sleep--; return true; } u.status = null; }
       else if (u.status === 'freeze') { if (rnd() >= THAW) return true; u.status = null; }
       else if (u.status === 'paralysis' && rnd() < PARA) return true;
       if (u.confused) { if (--u.confused <= 0) u.confused = 0; else if (rnd() < CONF) { u.cur -= u.selfHit; calm = 0; return true; } }
       return false;
     };
-    const tick = (u) => { if ((u.status === 'burn' || u.status === 'poison') && u.cur > 0) { u.cur -= Math.max(1, Math.floor(u.hp / (u.boss ? HURT : 8))); calm = 0; } };
+    const tick = (u) => {
+      if ((u.status === 'burn' || u.status === 'poison') && u.cur > 0) {
+        u.cur -= Math.max(1, Math.floor(u.hp / (u.boss ? HURT : 8))); calm = 0;
+        const lim = u.boss ? DOT_B : DOT_A;
+        u.bit = (u.bit || 0) + 1; if (lim && u.bit >= lim && u.cur > 0) { u.status = null; u.bit = 0; }
+      } else if (u.status === 'paralysis' && PARA_T) { u.bit = (u.bit || 0) + 1; if (u.bit >= PARA_T) { u.status = null; u.bit = 0; } }
+    };
     const thaw = (u, atk, dmg) => { if (dmg && u.status === 'freeze' && atk.type === 'fire' && u.cur > 0) u.status = null; };
     for (;;) {
       if (B.cur <= 0) return { ko: true, dealt: 1, rounds };
@@ -678,7 +699,7 @@ const Sim = (() => {
               if (rnd() * 100 < a.sm.chance * RESIST) { inflict(B, a.sm.st); calm = 0; }
             } else {
               const atk = fin ? fin.atk : a.atk, drain = fin ? fin.drain : a.atkDrain, before = B.cur;
-              dmg = roll(atk, a.status === 'burn' ? 0.5 : 0, 1);
+              dmg = roll(atk, fxMult(a, B, atk), 1);
               if (atk.recharge) a.recharge = true;
               if (dmg) {
                 calm = 0; B.cur -= dmg;
@@ -695,9 +716,8 @@ const Sim = (() => {
             B.rage = Math.min(RAGE, B.rage + 1);
             const targets = alive();
             if (targets.length) {
-              const bm = B.status === 'burn' ? BURN_ATK : 0;
-              if (B.rage >= RAGE) { B.rage = 0; for (const t of targets) t.cur -= roll(t.burst, bm, PR * BURST); }
-              else { const t = targets[Math.floor(rnd() * targets.length)]; t.cur -= roll(t.counter, bm, PR * CNT); }
+              if (B.rage >= RAGE) { B.rage = 0; for (const t of targets) t.cur -= roll(t.burst, fxMult(B, t, t.burst), PR * BURST); }
+              else { const t = targets[Math.floor(rnd() * targets.length)]; t.cur -= roll(t.counter, fxMult(B, t, t.counter), PR * CNT); }
               calm = 0;
             }
           }
@@ -712,7 +732,7 @@ const Sim = (() => {
                 if (rnd() * 100 < t.bossSm.chance) { inflict(t, t.bossSm.st); calm = 0; }
               } else {
                 const atk = fin ? fin.atk : t.bossHit, drain = fin ? fin.drain : t.bossDrain, before = t.cur;
-                const dmg = roll(atk, B.status === 'burn' ? BURN_ATK : 0, P);
+                const dmg = roll(atk, fxMult(B, t, atk), P);
                 if (atk.recharge) B.recharge = true;
                 if (dmg) {
                   calm = 0; t.cur -= dmg;
@@ -1014,7 +1034,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:575', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:595', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -1023,7 +1043,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:584', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:604', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -1766,7 +1786,9 @@ const Legends = (() => {
   const SIM_KEY = 'mega-sim';
 
   function list() {
-    const zs = E.get('LegendZones.ZONES') || [];
+    const zs = [...(E.get('LegendZones.ZONES') || [])];
+    // the World Boss zone (Arceus, #493): game 0.5.10 keeps it out of ZONES - add it so it can be simulated like the rest
+    if (!zs.some((z) => z.wb)) { const wb = safe(() => LZ().get(493), null); if (wb?.wb) zs.push(wb); }
     const DX = E.get('Game.DEX') || {}, owns = (id) => !!safe(() => E.read('Game.owns', false, id), false);
     return zs.map((z) => {
       const p = safe(() => LZ().progress(z));
@@ -1780,7 +1802,7 @@ const Legends = (() => {
         kn = form && form !== z.id ? (z.formKnobs || {})[form] || null : null;
       }
       return {
-        id: z.id, name: DX[z.id]?.name || '#' + z.id, region: z.region, place: z.zone || z.at,
+        id: z.id, name: (z.wb ? 'World Boss: ' : '') + (DX[z.id]?.name || '#' + z.id), wb: !!z.wb, region: z.region, place: z.zone || z.at,
         level: z.level, hp: kn?.hp ?? z.hp, power: kn?.power ?? z.power, burst: z.burst, weather: z.weather || null,
         forms, form, formName: form ? DX[form]?.name || null : null, allForms,
         state: safe(() => LZ().state(z), 'locked'), when: safe(() => LZ().whenText(z)),
@@ -1816,7 +1838,7 @@ const Legends = (() => {
   function saveSim(id, r) {
     const all = sims();
     all[id] = { uids: r.team.map((m) => m.uid), ko: r.final.ko, today: r.today ? r.today.ko : r.final.ko, toLevel: r.toLevel || [], asMax: !!r.asMax, rounds: r.final.rounds, current: r.current ? r.current.ko : null, at: r.at };
-    try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:64', __e); }
+    try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:66', __e); }
     return all[id];
   }
 
@@ -1829,7 +1851,7 @@ const Legends = (() => {
     return { fights: fights.length, ko, lost, rate: ko + lost ? ko / (ko + lost) : null };
   }
 
-  function dropSim(id) { const all = sims(); delete all[id]; try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:77', __e); } }
+  function dropSim(id) { const all = sims(); delete all[id]; try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:79', __e); } }
   return { list: listAll, zones: list, roamers, get, sims, saveSim, dropSim, realFor };
 })();
 
