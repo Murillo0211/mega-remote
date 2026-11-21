@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.5
+// @version      2.10.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.5';
+const VERSION = '2.10.6';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6786,19 +6786,36 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // ---- money: farm the best-paying chapter until a target ---------------------------------------
   // Only trainers pay (CONFIG.TRAINER_MONEY = 30 x level; WILD_MONEY is 0). Score each unlocked
   // chapter by what its trainers pay per loop, go there with the fastest-clearing carriers + Lansat.
-  function moneyChapter() {
-    const ST = E.get('STORY'), C = E.get('CONFIG') || {}, unlocked = +(S().adv?.unlocked ?? 0);
-    // wild Pokémon pay nothing here (WILD_MONEY = 0); trainers pay CONFIG.TRAINER_MONEY(level)
+  // ₽ per hour (Jimmy 2026-11-21: "how do you measure it?"). The game's own rules:
+  //  - only trainers pay: CONFIG.TRAINER_MONEY(level) = 30 x level each (WILD_MONEY = 0)
+  //  - a chapter in an older region than your newest pays less: CONFIG.BEHIND_MONEY = x0.75 one region behind,
+  //    x0.6 two, x0.5 three or more (until 2.10.6 Mega ignored this and could farm an old region)
+  //  - fights per hour: measured by XpChap while Mega trains / farms there (same counter as XP per hour)
+  //  ₽/hour = (trainer pay x behind factor) per fight x fights per hour (the share of trainer fights in its steps)
+  function behind(ch) {
+    const ST = E.get('STORY'), A = E.get('CONFIG')?.BEHIND_MONEY || [];
+    try {
+      const R = ST.REGIONS, un = +(S().adv?.unlocked ?? 0);
+      let f = un; while (f > 0 && !ST.regionOf(f).open) f--;
+      const d = R.indexOf(ST.regionOf(f)) - R.indexOf(ST.regionOf(ch));
+      return d > 0 && A.length ? +A[Math.min(d, A.length) - 1] : 1;
+    } catch { return 1; }
+  }
+  function moneyRank() {
+    const ST = E.get('STORY'), C = E.get('CONFIG') || {}, unlocked = +(S().adv?.unlocked ?? 0), out = [];
     const pay = (lv) => { try { return +C.TRAINER_MONEY(lv) || 0; } catch { return lv * 30; } };
-    let best = null;
     for (let ch = 0; ch <= unlocked && ch < (ST?.CHAPTERS?.length || 0); ch++) {
       const band = (() => { try { return ST.bandOf(ch); } catch { return null; } })(); const top = band && Math.max(...band.filter((x) => x != null));
       if (!top || !isFinite(top)) continue;
-      let run = 0; for (const st of ST.CHAPTERS[ch].steps || []) if (st.kind === 'route') run += (st.trainers || 0) * pay(top);
-      if (run && (!best || run > best.run)) best = { ch, run, top, name: ST.CHAPTERS[ch]?.name || 'chapter ' + ch };
+      let w = 0, t = 0; for (const st of ST.CHAPTERS[ch].steps || []) if (st.kind === 'route') { w += +st.wild || 0; t += +st.trainers || 0; }
+      if (!t) continue;
+      const k = behind(ch), perFight = (t / (w + t)) * pay(top) * k;
+      const r = (() => { try { return XpChap.rateOf(ch); } catch { return { rate: 400, learned: false }; } })();
+      out.push({ ch, top, behind: k, perFight, rate: r.rate, learned: r.learned, perHr: perFight * r.rate, run: t * pay(top) * k, name: ST.CHAPTERS[ch]?.name || 'chapter ' + ch });
     }
-    return best;
+    return out.sort((a, b) => b.perHr - a.perHr);
   }
+  const moneyChapter = () => moneyRank()[0] || null;
   const money = {
     uses: 'screen',
     progress: (g) => ({ have: Math.min(+g.target, History.homeMoney()), need: +g.target, money: true }),
@@ -6814,9 +6831,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const best = moneyChapter(), s = S();
       if (!g.restore) { g.restore = { team: [...(s.team || [])], chapter: s.adv?.chapter, loopAdded: null }; Plan.save(); Log.add(`${money.label(g)}: farming in ${best.name} (Lv ${best.top}). Your team and chapter come back when it's done.`); }
       const w = goChapter(g, best.ch, money.label(g)); if (w) return w;
+      try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-14-money:52', __e); } // fights per hour here feed the ₽/hour ranking too
       // carriers: the fastest clearers of this chapter
       if (g.carriersFor !== best.ch || g.carriersV !== Sim.CARRIER_V) {
-        let picks = []; try { picks = Sim.carriers(best.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-14-money:37', __e); }
+        let picks = []; try { picks = Sim.carriers(best.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-14-money:55', __e); }
         g.carriersFor = best.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
         if (picks.length && setChapterTeam(g.carriers)) Log.add(`money team for ${best.name}: ${picks.map((p) => name(p.m.id)).join(', ')}`);
       }
@@ -6832,7 +6850,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       putBack(g);
     },
   };
-  Object.assign(GoalTypes, { money });
+  Object.assign(GoalTypes, { money, moneyRank });
 })();
 
 // goal module: region, regionMissing (takes shared helpers from GoalKit, registers itself in GoalTypes)
