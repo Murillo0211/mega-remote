@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.4
+// @version      2.10.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.4';
+const VERSION = '2.10.5';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5035,7 +5035,10 @@ const Buddy = (() => {
  * XpChap - which chapter levels Pokémon fastest, in XP per hour.
  *
  *   XP per win  = the game's own formula, averaged over the chapter's wild Pokémon as they spawn:
- *                 levelXp(foe Lv) / XP_WINS_PER_LEVEL x sqrt(BASE_EXP[foe] / XP_BASE_REF) x REGION_XP
+ *                 levelXp(foe Lv) / XP_WINS_PER_LEVEL x sqrt(BASE_EXP[foe] / XP_BASE_REF), x1.5 for a trainer.
+ *                 (REGION_XP is NOT a reward: it is how much more XP every level costs once your newest region
+ *                 is Johto/Hoenn/Sinnoh/Unova - the same wherever you train. Until 2.10.5 Mega counted it as a
+ *                 bonus for the chapter's own region, so older regions looked 25-35% worse than they are.)
  *   wins / hour = learned: Mega counts the game's battles while it trains in a chapter (5+ min of data).
  *                 Chapters it hasn't trained in yet use your average from the chapters it has.
  *   XP / hour   = the two multiplied.
@@ -5047,18 +5050,19 @@ const XpChap = (() => {
   const E = Engine, KEY = 'mega-xprate';
   const S = () => E.get('Game.S') || {};
   const LEARN = 5 * 60_000, SCOUT = 10 * 60_000, CLOSE = 0.9, DEFAULT_RATE = 450;
-  let rates = {}; try { rates = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (__e) { __h('69-xpchap:17', __e); }
-  const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(rates)); } catch (__e) { __h('69-xpchap:18', __e); } };
+  let rates = {}; try { rates = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (__e) { __h('69-xpchap:20', __e); }
+  const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(rates)); } catch (__e) { __h('69-xpchap:21', __e); } };
   let last = null;
 
   function perWin(ch) {
     const C = E.get('CONFIG') || {}, B = E.get('BASE_EXP') || {}, ST = E.get('STORY');
     const ref = +C.XP_BASE_REF || 60, wins = +C.XP_WINS_PER_LEVEL || 15;
-    let pool = []; try { pool = Sim.chapterPool(ch); } catch (__e) { __h('69-xpchap:24', __e); }
+    let pool = []; try { pool = Sim.chapterPool(ch); } catch (__e) { __h('69-xpchap:27', __e); }
     if (!pool.length) return 0;
-    const reg = (() => { try { return ST.regionOf(ch)?.key; } catch { return null; } })();
     const xp = pool.reduce((t, p) => t + p.w * (E.read('Game.levelXp', 0, p.lv) || 0) / wins * Math.sqrt((+B[p.id] || ref) / ref), 0);
-    return xp * ((C.REGION_XP || {})[reg] || 1);
+    // trainers pay x1.5: weight by the chapter's wild and trainer stops (route steps: wild: n, trainers: n)
+    let w = 0, t = 0; for (const st of ST?.CHAPTERS?.[ch]?.steps || []) { if (st.kind === 'route') { w += +st.wild || 0; t += +st.trainers || 0; } }
+    return w + t > 0 ? xp * (w + 1.5 * t) / (w + t) : xp;
   }
   function avgRate() {
     let b = 0, ms = 0; for (const r of Object.values(rates)) if (r.ms >= LEARN) { b += r.b; ms += r.ms; }
@@ -5091,7 +5095,7 @@ const XpChap = (() => {
     const choice = (rates[top.ch]?.ms || 0) < SCOUT ? top : (untested || top);
     const scout = choice.ch !== top.ch;
     if (g.chPick !== choice.ch) {
-      try { Log.add(scout ? `checking ${choice.name} for 10 min: predicted ${fmt(choice.xpHr)} XP/h, close to ${top.name} (${fmt(top.xpHr)})` : `best leveling chapter: ${choice.name} - ${fmt(choice.xpHr)} XP/h${choice.learned ? ' (measured)' : ' (predicted)'}`); } catch (__e) { __h('69-xpchap:61', __e); }
+      try { Log.add(scout ? `checking ${choice.name} for 10 min: predicted ${fmt(choice.xpHr)} XP/h, close to ${top.name} (${fmt(top.xpHr)})` : `best leveling chapter: ${choice.name} - ${fmt(choice.xpHr)} XP/h${choice.learned ? ' (measured)' : ' (predicted)'}`); } catch (__e) { __h('69-xpchap:65', __e); }
     }
     g.chPick = choice.ch; g.chPickAt = Date.now(); g.chScout = scout;
     return { ...choice, scout };
@@ -5609,7 +5613,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const top = band && Math.max(...band.filter((x) => x != null));
       if (!top || !isFinite(top)) continue;
       const reg = (() => { try { return ST.regionOf(ch)?.key; } catch { return null; } })();
-      const score = (E.read('Game.levelXp', 0, top) || 0) * ((C.REGION_XP || {})[reg] || 1);
+      const score = (E.read('Game.levelXp', 0, top) || 0); // REGION_XP is a cost on every level, not a chapter bonus
       if (!best || score > best.score || (score === best.score && ch > best.ch)) best = { ch, top, reg, score, name: ST.CHAPTERS[ch]?.name || 'chapter ' + ch };
     }
     return best;
