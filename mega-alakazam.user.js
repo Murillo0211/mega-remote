@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.24
+// @version      2.9.25
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.24';
+const VERSION = '2.9.25';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2982,7 +2982,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-item"]')) { planUi.addItem = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-story"]')) { planUi.addStory = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-reg"]')) { planUi.addReg = e.target.value || null; renderBody(true); return; }
-      if (e.target.matches('select.sel')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
+      if (e.target.matches('select.sel') || e.target.matches('select[data-act="pick"]')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
     root.addEventListener('input', inputH = (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
     legUi.pick = prefs.leg || null;
     legUi.asMax = !!prefs.asMax; legUi.hideLocked = !!prefs.legHideLocked; legUi.hideCaught = !!prefs.legHideCaught;
