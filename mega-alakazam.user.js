@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.3
+// @version      2.10.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.3';
+const VERSION = '2.10.4';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -165,10 +165,24 @@ const Blackbox = (() => {
   let lastSet = 0;
   function mark(s) {
     const now = Date.now(); trail.push(`${new Date(now).toLocaleTimeString([], { hour12: false })} ${s}`); if (trail.length > 30) trail.shift();
-    if (now - lastSet > 250 || /^game /.test(s)) { lastSet = now; try { localStorage.setItem('mega-bb-trail', JSON.stringify(trail)); } catch (__e) { __h('02-blackbox:36', __e); } }
+    // every mark is written (2026-11-21: with a 250 ms throttle only the first step of each 3 s round was kept, so the
+    // trail always ended on 'goal region' and could not say which step was running when the page froze)
+    lastSet = now; try { localStorage.setItem('mega-bb-trail', JSON.stringify(trail)); } catch (__e) { __h('02-blackbox:38', __e); }
   }
   const lastTrail = () => { try { return JSON.parse(localStorage.getItem('mega-bb-trail') || '[]'); } catch { return []; } };
-  setInterval(() => { try { tick(); } catch (__e) { __h('02-blackbox:39', __e); } }, 60_000);
+  setInterval(() => { try { tick(); } catch (__e) { __h('02-blackbox:41', __e); } }, 60_000);
+  // heartbeat, every second: where the game is (chapter / stop / zone / battle turn and its foe) and the last thing
+  // Mega started. A freeze stops it, so after a reload the last beat says to the second when and in what it hung.
+  const hbOld = (() => { try { return JSON.parse(localStorage.getItem('mega-bb-hb') || 'null'); } catch { return null; } })();
+  if (hbOld) { try { const rows = read(); const st = rows[rows.length - 1]; if (st && st.start && !st.hb) { st.hb = hbOld; localStorage.setItem(KEY, JSON.stringify(rows)); } } catch (__e) { __h('02-blackbox:45', __e); } }
+  setInterval(() => {
+    try {
+      const a = Engine.read('Game.S', {})?.adv || {}, b = a.battle;
+      const foe = b ? (b.enemies || b.foes || []).map((u) => `${u.id}:${u.hp ?? ''}`).slice(0, 3).join(' ') : '';
+      localStorage.setItem('mega-bb-hb', JSON.stringify({ t: Date.now(), ch: a.chapter, node: a.node, zone: a.zone?.id ?? null, ev: a.event?.raid ? 'raid' : a.tower ? 'tower' : null,
+        kind: b?.kind || null, turn: b?.turn ?? null, queue: Array.isArray(b?.queue) ? b.queue.length : null, foe, mark: trail[trail.length - 1] || '', hidden: document.hidden ? 1 : 0 }));
+    } catch (__e) { __h('02-blackbox:52', __e); }
+  }, 1000);
   return { read, tick, mark, lastTrail };
 })();
 
