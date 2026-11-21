@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.22
+// @version      2.9.23
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.22';
+const VERSION = '2.9.23';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6840,6 +6840,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // ---- World Boss: 3 attacks a day while its shield is up, then the capture window ----------------
   // Attacks: the game's own pick (WorldBoss.autoTeam: your strongest that haven't attacked today) and
   // its own server call (WorldBoss.attack). Capture: its zone, like a legendary (Golden Razz on).
+  let wbRefreshAt = 0;
   const wboss = {
     uses: 'screen', daily: true,
     label: () => 'World Boss (every edition)',
@@ -6847,7 +6848,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     check(g) {
       const W = E.get('WorldBoss'); if (!W) return { state: 'wait', why: 'not in this game version' };
       if (!W.open()) return { state: 'wait', why: 'opens once you beat the Sinnoh League' };
-      let st = {}; try { st = W.state() || {}; } catch (__e) { __h('70-plan-18-worldboss:14', __e); }
+      let st = {}; try { st = W.state() || {}; } catch (__e) { __h('70-plan-18-worldboss:15', __e); }
+      // right after a reload the game only knows "soon" until its World Boss screen asks the server: ask it ourselves
+      if ((!st.phase || st.phase === 'soon') && !st.n && Date.now() - (wbRefreshAt || 0) > 5 * 60_000) { wbRefreshAt = Date.now(); try { W.refresh(); } catch (__e) { __h('70-plan-18-worldboss:17', __e); } }
       if (st.phase === 'shield') { const left = +W.left(st) || 0; return left > 0 ? { state: 'ready', why: null } : { state: 'wait', why: `today's 3 attacks are done · ${Math.round((st.pct ?? 0) * 100)}% of its shield left` }; }
       if (st.phase === 'capture') return W.caught(st) ? { state: 'wait', why: `caught this edition ✔ · next ${DexInfo.clock(st.next)}` } : { state: 'ready', why: null };
       return { state: 'wait', why: st.next ? `next edition ${DexInfo.clock(st.next)}` : 'no edition yet' };
@@ -6862,7 +6865,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         { const why = Guard.team(team.map((x) => x?.uid ?? x), { need: 1, minLevel: 1 }); if (why) return Guard.stop('the World Boss attack', why); }
         const r = await W.attack(team);
         if (r?.error) { Log.add(`World Boss: the game said "${r.error}"`); return 'could not attack: ' + r.error; }
-        try { E.call('Game.save'); } catch (__e) { __h('70-plan-18-worldboss:29', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-18-worldboss:29', __e); }
+        try { E.call('Game.save'); } catch (__e) { __h('70-plan-18-worldboss:32', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-18-worldboss:32', __e); }
         const dmg = r?.dmg ?? r?.damage ?? null;
         Log.add(`World Boss: attacked with ${team.map((m) => name(m.id)).join(', ')}${dmg ? ` - ${(+dmg).toLocaleString()} damage` : ''} (${W.left()} left today)`);
         if (!W.left()) Notify.send('daily', 'World Boss: today\'s attacks done', `${Math.round((W.state()?.pct ?? 0) * 100)}% of its shield left`);
