@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.26
+// @version      2.10.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.26';
+const VERSION = '2.10.0';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2305,7 +2305,7 @@ Views.plan = (w, ui, esc) => {
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
   h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
+    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -2335,13 +2335,16 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'tower') {
     h += `<button class="btn" data-act="plan-add-tower" ${Plan.hasType('tower') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Plays one Battle Tower run each week (the game picks the lineup from all your Pokémon) and lets it run to the end. Goes ahead of your other goals like the other dailies.</div></div>`;
+  } else if (ui.addType === 'bloc') {
+    h += `<button class="btn" data-act="plan-add-bloc" ${Plan.hasType('bloc') ? 'disabled' : ''}>Add to plan</button>
+    <div class="note dim">Once a day after 4 PM: tries hundreds of 10-Pokémon teams with the game's own Pokéblock Boss forecast (the same team on the same day always ends the same way), then attacks with the one that empties the most bars. The attack is instant - nobody is sent away, so the 10 stay free for raids and the Underground.</div></div>`;
   } else if (ui.addType === 'candy') {
     h += `<button class="btn" data-act="plan-add-candy" ${Plan.hasType('candy') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Runs the Candy Factory once a day as soon as it opens: reads the day's type, picks the six that beat it best, starts the run, and lets it play out. Dailies go ahead of your other goals, like in 4.x.</div></div>`;
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:79', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:82', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -2861,7 +2864,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       #team-mini{left:${w}px !important}`;
     if (host) host.style.setProperty('--w', w + 'px');
   }
-  const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['legends', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['engine', 'Settings']];
+  const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['legends', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['blocs', 'Pokéblocks'], ['engine', 'Settings']];
   // your tab order (drag to rearrange); tabs added in later versions go at the end
   const tabList = () => { const o = Array.isArray(prefs.tabOrder) ? prefs.tabOrder : [], byK = new Map(TABS); return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))]; };
   // drag with the mouse (pointer events - the browser's own drag-and-drop doesn't fire inside Mega's panel)
@@ -2909,7 +2912,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // 1.0: every tab but Now, Plan and Trades (those keep their phone shape - Trades does real trades from the phone)
   const MV = { engine: (w) => Views.engine(w, esc), fights: (w) => Views.fights(w, fightData, prefs, esc), league: () => Views.league(esc),
     dex: (w) => Views.dex(w, prefs, esc, dexUi), box: (w) => (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>'),
-    legends: (w) => Views.legends(w, legUi, esc), gems: (w) => (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>'), act: () => Views.activity(esc) };
+    legends: (w) => Views.legends(w, legUi, esc), gems: (w) => (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>'), blocs: (w) => (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>'), act: () => Views.activity(esc) };
   // ---- the phone has its own screen state: the open Pokémon, searches, filters and picks it changes
   // don't move Mega's panel on the PC (and the other way round). Swapped in only around a phone draw
   // or tap; the PC panel doesn't redraw while it's swapped. Shared on purpose: running simulations.
@@ -3038,6 +3041,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'elite-add') { Plan.add('elite', { foe: +t.dataset.id, upTo: 5 }); renderBody(true); }
     if (act === 'league-add') { Plan.add('league', { reg: t.dataset.reg, upTo: 5 }); renderBody(true); }
     if (act === 'plan-add-wboss') { Plan.add('wboss', {}); renderBody(true); }
+    if (act === 'plan-add-bloc') { Plan.add('bloc', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'sim-mode') { legUi.mode = t.dataset.mode || 'legendary'; prefs.simMode = legUi.mode; savePrefs(); renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'tr-pick') { Trades.pick = { id: +t.dataset.id, shiny: !!t.dataset.shiny }; Trades.openMsg = ''; renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'tr-back') { Trades.pick = null; Trades.openMsg = ''; renderBody(true); }
@@ -3054,7 +3058,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:257', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:258', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3075,7 +3079,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:278', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:279', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3098,19 +3102,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:301', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:302', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:307', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:308', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:310', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:311', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:313', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:314', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3153,8 +3157,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:356', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:357', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:357', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:358', __e); }
     renderBody(true, w);
   }
 
@@ -3165,11 +3169,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     // keep the search box focused while typing
     const focused = root.activeElement && root.activeElement.matches('input.q, select.sel');
     if (focused && !force) return;
-    const html = prefs.tab === 'act' ? Views.activity(esc) : prefs.tab === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'team' ? Views.teamEdit(esc) : prefs.tab === 'plan' ? Views.plan(w, planUi, esc) : prefs.tab === 'legends' ? Views.legends(w, legUi, esc) : prefs.tab === 'dex' ? Views.dex(w, prefs, esc, dexUi) : prefs.tab === 'engine' ? Views.engine(w, esc) : prefs.tab === 'fights' ? Views.fights(w, fightData, prefs, esc) : prefs.tab === 'trades' ? Views.trades(esc) : prefs.tab === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
+    const html = prefs.tab === 'act' ? Views.activity(esc) : prefs.tab === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'team' ? Views.teamEdit(esc) : prefs.tab === 'plan' ? Views.plan(w, planUi, esc) : prefs.tab === 'legends' ? Views.legends(w, legUi, esc) : prefs.tab === 'dex' ? Views.dex(w, prefs, esc, dexUi) : prefs.tab === 'engine' ? Views.engine(w, esc) : prefs.tab === 'fights' ? Views.fights(w, fightData, prefs, esc) : prefs.tab === 'trades' ? Views.trades(esc) : prefs.tab === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:372', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:373', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3177,18 +3181,18 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   function renderTest() {
     const w = World.build(), bad = [], odd = [];
     const tabs = { now: () => Views.now(w, esc, fmtIn), act: () => Views.activity(esc), plan: () => Views.plan(w, planUi, esc), box: () => Views.box(esc), dex: () => Views.dex(w, prefs, esc, dexUi),
-      legends: () => Views.legends(w, legUi, esc), engine: () => Views.engine(w, esc), fights: () => Views.fights(w, fightData || { list: [], at: 0 }, prefs, esc), trades: () => Views.trades(esc), gems: () => Views.gems(esc), league: () => Views.league(esc) };
+      legends: () => Views.legends(w, legUi, esc), engine: () => Views.engine(w, esc), fights: () => Views.fights(w, fightData || { list: [], at: 0 }, prefs, esc), trades: () => Views.trades(esc), gems: () => Views.gems(esc), blocs: () => Views.blocs(esc), league: () => Views.league(esc) };
     for (const [k, f] of Object.entries(tabs)) { try { const h = f(); if (typeof h !== 'string') bad.push(`${k}: drew nothing`); else if (/\bundefined\b|\bNaN\b|\[object Object\]/.test(h.replace(/<[^>]+>/g, ' '))) odd.push(k); } catch (e) { bad.push(`${k}: ${e?.message || e}`); } }
     renderTest.odd = odd; return bad;
   }
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:387', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:388', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:388', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:389', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:391', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:392', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3639,7 +3643,7 @@ Views.now = (w, esc, fmtIn) => {
   const ago = (t) => { if (!t || !isFinite(+t)) return 'not yet'; const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min ' : ''}ago` : `${Math.round(m / 1440)} days ago`; };
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const bar = (p) => `<div class="bar" style="margin-top:8px"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
-  const icon = (g) => ({ under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
+  const icon = (g) => ({ bloc: '🍡', under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
   const pic = (g, size = 52) => { const sp = GoalTypes[g.type]?.sprite?.(g); return sp ? `<img src="${E.sprite(sp)}" width="${size}" height="${size}" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : `<span style="width:${size}px;text-align:center;font-size:${Math.round(size * 0.55)}px;flex:none">${icon(g)}</span>`; };
   // progress: the goal's own numbers if it has them, else "x/y" read from its status line
   const prog = (g, L) => {
@@ -3811,6 +3815,90 @@ Views.now = (w, esc, fmtIn) => {
   if (team.length) {
     h += `<div class="card tmwrap"><h3>Team</h3><div class="tmgrid">${team.map((m) => `<div style="min-width:0"><img src="${E.sprite(m.id)}" width="48" height="48" style="image-rendering:pixelated;max-width:100%;height:auto"><div class="tmname" title="${nm(m.id)}">${nm(m.id)}</div><div class="dim" style="font-size:12px">Lv ${m.level}${S.buddy?.uid === m.uid ? ' ★' : ''}</div></div>`).join('')}</div><button class="btn" data-act="team-edit">✏️ Change Team</button></div>`;
   }
+  return h;
+};
+
+/* ---------------------------------------------------------------------------------------------
+ * Pokéblocks tab (Jimmy 2026-11-20): a cheat sheet like Gems - what you have, who to give a Rainbow
+ * Pokéblock to, which colour to feed each one, and today's Pokéblock Boss.
+ * Rules (the game's TASTES + CONFIG.TASTES): a Rainbow Pokéblock draws a disliked stat (-20%, for good) and a
+ * liked one (+10%); a coloured Pokéblock raises its stat up to +20% after 25 of them (fast at first, then
+ * slower), and the raises of all stats together stay under +20%; two raised stats at most; a Pokéblock of the
+ * disliked stat is refused; another colour switches the liked stat; a new Rainbow starts over; a trade resets it.
+ * Suggestions only: Mega never feeds Pokéblocks.
+ * ------------------------------------------------------------------------------------------- */
+Views.blocs = (esc) => {
+  const E = Engine, T = E.get('TASTES'), C = E.get('CONFIG.TASTES') || {}, DX = E.get('Game.DEX') || {};
+  const G = E.get('Game'), S = E.get('Game.S') || {};
+  if (!T) return '<div class="note">Pokéblocks are not in this game version.</div>';
+  const nm = (id) => esc(DX[id]?.name || '#' + id);
+  const STAT = { atk: 'Attack', def: 'Defense', spa: 'Sp. Atk', spd: 'Sp. Def', spe: 'Speed' };
+  const COLOUR = { atk: 'Red', def: 'Yellow', spa: 'Blue', spd: 'Green', spe: 'Pink' };
+  const DOT = { atk: '#e5484d', def: '#f5c542', spa: '#3b82f6', spd: '#3fb950', spe: '#f472b6' };
+  const chip = (k) => `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${DOT[k]};margin-right:4px;vertical-align:-1px"></span>`;
+  const count = (key) => { try { return +G.itemCount(key) || 0; } catch { return +(S.items?.[key] || 0); } };
+  const MAX = +C.MAX || 25, pct = (x) => `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`;
+  const rainbow = count('mystery-candy');
+  let h = `<div class="card"><h3>Pokéblocks</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:15px"><span>🌈 <b>${rainbow}</b> Rainbow</span>${T.ORDER.map((k) => `<span>${chip(k)}<b>${count(T.ITEM[k])}</b> ${COLOUR[k]} <span class="dim">(${STAT[k]})</span></span>`).join('')}</div>
+    <div class="dim" style="margin-top:8px;font-size:13px">A <b>Rainbow</b> reveals a Pokémon's tastes: one stat it dislikes (−20%, for good) and one it likes (+10%), both at random. Then each <b>coloured</b> Pokéblock raises its stat, up to +20% after ${MAX} (the first ones count most). All raises together stay under +20%, two stats at most. It refuses its disliked colour; another colour moves its liked stat. A new Rainbow starts over from scratch, and a trade wipes it. Boosts count in every fight.</div>
+    <div class="note dim" style="margin-top:8px">Suggestions only - Mega never feeds Pokéblocks. Get more from the Pokéblock Boss (weekends: every colour + 5 Rainbows) or the Battle Tower counter (20 BP each, Rainbow 150 BP).</div></div>`;
+
+  // today's Pokéblock Boss
+  const BB = E.get('BlocBoss');
+  if (BB) {
+    let why = null, day = null, last = null; try { why = BB.why(); day = BB.today(); last = BB.last(); } catch (__e) { __h('63-blocview:30', __e); }
+    const weekend = [0, 6].includes(new Date().getDay());
+    h += `<div class="card"><h3>Pokéblock Boss</h3>
+      <div class="row"><span class="k">Today</span><span class="v">${day ? `${nm(day.boss)} · ${day.taste === 'all' || (BB.isMulti && BB.isMulti(day.taste)) ? 'every colour (weekend)' : `${chip(day.taste)}${COLOUR[day.taste] || day.taste} day`}` : '<span class="dim">not loaded yet</span>'}</span></div>
+      <div class="row"><span class="k">Status</span><span class="v">${why === 'played' ? '<span class="ok">✔ done today</span>' : why === 'locked' ? 'locked (beat the Unova League)' : Plan.hasType('bloc') ? 'Mega attacks it after 4 PM' : 'not in your plan'}</span></div>
+      ${last ? `<div class="row"><span class="k">Last attack</span><span class="v">${(() => { try { return esc(BB.stepName(last.step, last.taste)); } catch { return 'step ' + last.step; } })()} · ${last.got} Pokéblocks${last.rb ? ` + ${last.rb} Rainbow` : ''}</span></div>` : ''}
+      <div class="row"><span class="k">Record</span><span class="v">${(() => { try { const b = BB.best(); return b >= 0 ? `${b + 1} bars` : '—'; } catch { return '—'; } })()}</span></div>
+      ${weekend ? '' : '<div class="dim" style="font-size:13px;margin-top:4px">Saturday and Sunday: Pokéblocks of every colour and 5 Rainbows.</div>'}</div>`;
+  }
+
+  // who matters most: the Pokémon your saved teams use (legendary / roamer sims, raid pick, zone and event teams)
+  const use = new Map(), bump = (u, n = 1) => { if (u) use.set(u, (use.get(u) || 0) + n); };
+  try { for (const s of Object.values(Legends.sims() || {})) for (const u of s?.uids || []) bump(u, 2); } catch (__e) { __h('63-blocview:42', __e); }
+  for (const [k, list] of Object.entries(S.eventTeams || {})) for (const u of list || []) bump(u, /^raid|^bloc/.test(k) ? 2 : 1);
+  for (const g of Plan.goals || []) if (!g.done && g.pick?.mine) for (const u of g.pick.mine) bump(u, 3);
+  const own = (E.read('Game.ownedMons', []) || []).filter((m) => m && !m.egg);
+  const bst = (m) => Object.values(DX[m.id]?.stats || {}).reduce((a, x) => a + (+x || 0), 0);
+  const hitStat = (m) => { const s = DX[m.id]?.stats || {}; return (+s.spa || 0) > (+s.atk || 0) ? 'spa' : 'atk'; };
+  const ups = (t) => { try { return T.ups(t) || []; } catch { return Object.keys(t?.up || {}); } };
+  const boost = (t, k) => { try { return T.mult(t, k) - 1; } catch { return 0; } };
+
+  // already revealed
+  const revealed = own.filter((m) => m.taste && m.taste.h).sort((a, b) => (use.get(b.uid) || 0) - (use.get(a.uid) || 0) || bst(b) - bst(a));
+  if (revealed.length) {
+    h += `<div class="card" style="border-color:var(--ok)"><h3>Revealed (${revealed.length})</h3>`;
+    for (const m of revealed) {
+      const t = m.taste, hs = hitStat(m), liked = ups(t), up = t.up || {};
+      const boosts = T.ORDER.filter((k) => Math.abs(boost(t, k)) > 0.0005).map((k) => `${chip(k)}${STAT[k]} <span class="${boost(t, k) > 0 ? 'ok' : 'warn'}">${pct(boost(t, k))}</span>`).join(' · ');
+      let tip;
+      if (t.h === hs) tip = `<span class="warn">Bad draw: it dislikes its attacking stat (${STAT[hs]} −20%). A new Rainbow rerolls both tastes.</span>`;
+      else if (liked.includes(hs)) { const n = +up[hs] || 0; tip = n >= MAX - 1e-6 ? `<span class="ok">✓ ${STAT[hs]} is maxed (+20%).</span>` : `Feed it <b>${COLOUR[hs]}</b> (${STAT[hs]}): about ${Math.ceil(MAX - n)} more to reach +20%.`; }
+      else tip = `It likes ${liked.map((k) => STAT[k]).join(' & ') || '—'}. Feed it <b>${COLOUR[hs]}</b> to move its liked stat to ${STAT[hs]}, the one it attacks with.`;
+      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><img src="${E.sprite(m.id)}" width="40" height="40" style="image-rendering:pixelated;flex:none">
+        <div style="flex:1;min-width:0"><b>${nm(m.id)}${m.shiny ? ' ✨' : ''}</b> <span class="dim">Lv ${m.level} · dislikes ${chip(t.h)}${STAT[t.h]}</span>
+        <div style="font-size:13px">${boosts || '<span class="dim">no boosts yet</span>'}</div><div style="font-size:13px">${tip}</div></div></div>`;
+    }
+    h += `</div>`;
+  }
+
+  // who to give a Rainbow to next
+  const seen = new Set();
+  const picks = own.filter((m) => !(m.taste && m.taste.h) && m.level >= 90)
+    .sort((a, b) => (use.get(b.uid) || 0) - (use.get(a.uid) || 0) || bst(b) - bst(a) || b.level - a.level)
+    .filter((m) => { const k = m.id + (m.shiny ? 's' : ''); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 10);
+  h += `<div class="card"><h3>Who Gets a Rainbow</h3><div class="dim" style="margin-bottom:4px">The Pokémon your teams use most (legendary and roamer teams, the raid pick, zone and event teams), then the strongest. Pick ones you'll keep: a trade wipes the tastes.</div>`;
+  picks.forEach((m, i) => {
+    const hs = hitStat(m), n = use.get(m.uid) || 0;
+    h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b><img src="${E.sprite(m.id)}" width="40" height="40" style="image-rendering:pixelated;flex:none">
+      <div style="flex:1;min-width:0"><b>${nm(m.id)}${m.shiny ? ' ✨' : ''}</b> <span class="dim">Lv ${m.level} · base ${bst(m)}${n ? ` · in ${n >= 6 ? 'many' : 'some'} of your teams` : ''}</span>
+      <div style="font-size:13px">Then feed ${chip(hs)}<b>${COLOUR[hs]}</b> (${STAT[hs]}, its attacking stat)${hs === 'atk' ? '' : ''}</div></div></div>`;
+  });
+  h += `<div class="dim" style="font-size:13px;margin-top:10px">1 in 5 draws makes its attacking stat the disliked one - check the Revealed list right after a Rainbow, and reroll that one if you have Rainbows to spare.</div></div>`;
   return h;
 };
 
@@ -6981,7 +7069,7 @@ const Plan = (() => {
     if (dupCatch(t, data)) return false;
     if (['shinyWild', 'shinyBreed'].includes(t) && st.goals.some((g) => ['shinyWild', 'shinyBreed'].includes(g.type) && (g.target || g.foe) === +(data.target || data.foe) && !g.done)) return false;
     if (t === 'under' && st.goals.some((g) => g.type === 'under' && !g.done)) return false;
-    if (['candy', 'tower', 'raid', 'money'].includes(t) && st.goals.some((g) => g.type === t && !g.done)) return false;
+    if (['candy', 'tower', 'raid', 'money', 'bloc', 'wboss'].includes(t) && st.goals.some((g) => g.type === t && !g.done)) return false;
     if (t === 'region' && st.goals.some((g) => g.type === 'region' && g.reg === data.reg && !g.done)) return false;
     if (['wild', 'special', 'breed'].includes(t) && st.goals.some((g) => g.type === t && g.foe === +data.foe && !g.done)) return false;
     if (t === 'loot' && st.goals.some((g) => g.type === 'loot' && g.item === data.item && !g.done)) return false;
@@ -7193,7 +7281,7 @@ const Plan = (() => {
     try {
       const open = Plan.goals.filter((g) => !g.done), si = open.findIndex((g) => g.type === 'story');
       if (si < 0) return;
-      const daily = ['raid', 'candy', 'tower', 'wboss'];
+      const daily = ['raid', 'candy', 'tower', 'wboss', 'bloc'];
       let last = -1; open.forEach((g, i) => { if (daily.includes(g.type)) last = i; });
       if (si > last) return; // already below every daily (wherever you put it) - leave it
       const want = last;
@@ -7226,6 +7314,79 @@ const Plan = (() => {
     has: (foe) => st.goals.find((g) => g.type === 'legend' && g.foe === +foe && !g.done) || null,
     hasType: (t) => st.goals.find((g) => g.type === t && !g.done) || null,
   };
+})();
+
+// goal module: bloc (takes shared helpers from GoalKit, registers itself in GoalTypes)
+(() => {
+  const { E, S, name } = GoalKit;
+  // ---- Pokéblock Boss (Jimmy 2026-11-20): one attack a day with 10 Pokémon, opens after the Unova League -------
+  // The attack is instant: the game's own BlocBoss.plan works the whole fight out from the day and the team (it is
+  // seeded, so the same 10 on the same day always reach the same step), then BlocBoss.attack hands out the
+  // Pokéblocks. Nobody is sent away - the 10 stay free for raids, the Underground and everything else.
+  // Mega tries many teams with that same plan (under 1 ms each) and attacks with the one that goes furthest.
+  const B = () => E.get('BlocBoss');
+  let dayAskAt = 0;
+  const val = (p) => (p ? p.step + (p.pct || 0) : -1);
+  function search(day) {
+    const BB = B(), away = new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
+    const size = +(E.get('CONFIG')?.BLOC_BOSS?.TEAM) || 10;
+    const pool = (E.read('Game.ownedMons', []) || []).filter((m) => m && !m.egg && !away.has(m.uid) && (() => { try { return BB.allowed(m); } catch { return false; } })());
+    if (pool.length < 1) return null;
+    const plan = (team) => { try { return BB.plan(team, day); } catch { return null; } };
+    // each one alone: how much it does to today's boss
+    const solo = pool.map((m) => ({ m, d: plan([m])?.dmg || 0 })).sort((a, b) => b.d - a.d);
+    const cands = solo.slice(0, 40).map((x) => x.m);
+    let team = cands.slice(0, size), best = plan(team), tried = 1 + pool.length;
+    for (let pass = 0; pass < 3; pass++) {
+      let better = false;
+      for (let slot = 0; slot < team.length; slot++) {
+        for (const c of cands) {
+          if (team.includes(c)) continue;
+          const trial = team.slice(); trial[slot] = c;
+          const p = plan(trial); tried++;
+          if (val(p) > val(best) + 1e-6 || (val(p) === val(best) && (p?.dmg || 0) > (best?.dmg || 0))) { best = p; team = trial; better = true; }
+        }
+      }
+      if (!better) break;
+    }
+    return { team, plan: best, tried };
+  }
+  const stepText = (p, day) => { try { return `${B().stepName(p.step, day.taste)} (${Math.round((p.pct || 0) * 100)}% of the next bar)`; } catch { return `step ${p.step}`; } };
+  const bloc = {
+    uses: 'background', daily: true,
+    label: () => 'Pokéblock Boss (every day)',
+    sprite: () => { try { return B().today()?.boss || null; } catch { return null; } },
+    check() {
+      const BB = B(); if (!BB) return { state: 'wait', why: 'not in this game version' };
+      let why = null; try { why = BB.why(); } catch { why = 'locked'; }
+      if (why === 'locked') return { state: 'wait', why: 'opens after you beat the Unova League' };
+      if (why === 'played') { const l = (() => { try { return BB.last(); } catch { return null; } })(); return { state: 'wait', why: `done today${l ? ` · ${l.got} Pokéblocks${l.rb ? ` + ${l.rb} Rainbow` : ''}` : ''} · next at 4 PM` }; }
+      if (why === 'day' && Date.now() - dayAskAt > 5 * 60_000) { dayAskAt = Date.now(); try { BB.loadDay(); } catch (__e) { __h('70-plan-21-bloc:46', __e); } }
+      if (why === 'day') return { state: 'wait', why: 'checking today\'s boss…' };
+      return { state: 'ready', why: null };
+    },
+    async step(g) {
+      const BB = B();
+      let day = null; try { day = BB.today() || await BB.loadDay(); } catch (__e) { __h('70-plan-21-bloc:52', __e); }
+      if (!day) return 'waiting for today\'s boss';
+      const r = search(day);
+      if (!r || !r.team.length) return 'no Pokémon free to send';
+      const uids = r.team.map((m) => m.uid);
+      { const why = Guard.team(uids, { need: 1, minLevel: 1 }); if (why) return Guard.stop('the Pokéblock Boss', why); }
+      const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[BB.TEAM_KEY || 'bloc'] = uids;
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-21-bloc:59', __e); }
+      // the game's own result must match what Mega planned with (same team, same day)
+      const res = BB.attack();
+      if (!res) { let why = '?'; try { why = BB.why(); } catch (__e) { __h('70-plan-21-bloc:62', __e); } return `the game would not attack (${why})`; }
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-21-bloc:63', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-21-bloc:63', __e); }
+      const items = Object.entries(res.items || {}).map(([k, n]) => `${n} ${DexInfo.itemName(k)}`).join(', ');
+      g.lastRun = { day: day.day, step: res.step, pct: res.pct, got: res.got, rb: res.rb, tried: r.tried }; Plan.save();
+      Log.add(`Pokéblock Boss (${name(day.boss)}, ${day.taste} day): ${r.tried} teams tried - reached ${stepText(res, day)}${res.record ? ' - new record!' : ''}: ${items || 'nothing'} · team ${r.team.map((m) => name(m.id)).join(', ')}`);
+      Notify.send('daily', `Pokéblock Boss: ${stepText(res, day)}`, items || 'no Pokéblocks');
+      return `attacked: ${stepText(res, day)} · ${items || 'nothing'}`;
+    },
+  };
+  Object.assign(GoalTypes, { bloc, blocSearch: search });
 })();
 
 /* ===================================================================================================
@@ -7914,7 +8075,7 @@ const Remote = (() => {
 
   // ---- what the phone may ask (the whole list) ----
   const D = () => E.get('Game.DEX') || {};
-  const ADD_OK = ['legend', 'under', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
+  const ADD_OK = ['legend', 'under', 'bloc', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
   // Leagues you can add "Beat a region's League" for: unlocked, not beaten (same list as Mega's Plan tab)
   function storyLeagues() {
     const ST = E.get('STORY'), un = +(E.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
