@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.20
+// @version      2.9.21
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.20';
+const VERSION = '2.9.21';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1129,6 +1129,9 @@ const Recorder = (() => {
   }
 
   function step(b) {
+    // the game's own damage meter (0.5.10 "Battle recap": dealt / taken / burn-poison per Pokémon, boss fights only):
+    // keep the latest copy, the battle is cleared the instant it ends
+    if (b.meter && cur) { try { cur.meter = { dealt: { ...b.meter.dealt }, dot: { ...b.meter.dot }, taken: { ...b.meter.taken } }; } catch (__e) { __h('40-record:90', __e); } }
     const s = state(b);
     const changed = s.turn !== prev.turn || s.boss !== prev.boss || s.rage !== prev.rage || s.st !== prev.st || s.team.some((h, i) => h !== prev.team[i]) || (s.head?.uid !== prev.head?.uid);
     if (!changed) return;
@@ -1158,7 +1161,7 @@ const Recorder = (() => {
     // caught it outright: a catch needs a KO, and the counters below may not have moved yet
     if (f.hadDex === false && E.read('Game.inDex', false, f.foeId)) return 'ko';
     // Shiny Raid boss: every KO adds a try to the raid's pity counter (raid fights don't count in stats)
-    if (f.raid && f.pity0 != null) { try { return +E.get('Raids').pity(f.raidReg) > f.pity0 ? 'ko' : 'wipe'; } catch (__e) { __h('40-record:117', __e); } }
+    if (f.raid && f.pity0 != null) { try { return +E.get('Raids').pity(f.raidReg) > f.pity0 ? 'ko' : 'wipe'; } catch (__e) { __h('40-record:120', __e); } }
     const tried = +(S.legTries?.[f.foeId] ?? 0) > f.tries0;
     const dB = +(S.stats?.battles ?? NaN) - f.battles0, dW = +(S.stats?.wins ?? NaN) - f.wins0;
     if (tried) return 'ko';
@@ -1177,7 +1180,7 @@ const Recorder = (() => {
     f.turns = f.events.length ? f.events[f.events.length - 1].turn : 0;
     f.ms = Date.now() - f.at;
     try { await put(f); } catch (e) { console.warn('[Mega Alakazam] could not store fight', e); }
-    for (const fn of listeners) try { fn(f); } catch (__e) { __h('40-record:136', __e); }
+    for (const fn of listeners) try { fn(f); } catch (__e) { __h('40-record:139', __e); }
   }
 
   function poll() {
