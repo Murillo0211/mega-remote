@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.9.25
+// @version      2.9.26
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.9.25';
+const VERSION = '2.9.26';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -562,7 +562,7 @@ const Sim = (() => {
     // weekly forms (Deoxys): fight this week's form with its own stats and strength
     let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:121', __e); } }
     const fk = form && form !== foeId ? (z.formKnobs || {})[form] : null;
-    const base = { id: foeId, foe: fk ? form : foeId, hp: fk?.hp ?? z.hp, power: fk?.power ?? z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true };
+    const base = { id: foeId, foe: fk ? form : foeId, hp: fk?.hp ?? z.hp, power: fk?.power ?? z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true, wb: !!z.wb };
     // the strength the game really used the last time you fought it (Calib keeps it from the Recorder);
     // not for a new form - those fights were against a different form
     let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:126', __e); } }
@@ -580,7 +580,7 @@ const Sim = (() => {
     let aura = 1;
     try { aura = (LZ.AURA || 0) && !zone?.wild ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:139', __e); } // no aura for roamers
     // tuning learned from your real fights (Calib): boss power / HP per kind of fight
-    const ctx = zone?.raid ? 'raid' : zone?.elite ? 'elite' : 'zone';
+    const ctx = zone?.raid ? 'raid' : zone?.elite ? 'elite' : zone?.wb ? 'wb' : 'zone';
     let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:142', __e); } }
     const pk = +(cal?.pk) || 1, hk = +(cal?.hk) || 1;
     const P = (zone?.power ?? 1) * aura * aura * (zone?.wild ? ED.wild ?? 0.85 : ED.static ?? 1) * pk; // roamers hit like wild Pokémon
@@ -753,7 +753,9 @@ const Sim = (() => {
     st = st || setup(team, foeId, zone === undefined ? zoneOf(foeId) : zone);
     let ko = 0, dealt = 0, rounds = 0;
     for (let i = 0; i < runs; i++) { const r = run(st, mulberry(seed * 7919 + i * 104729)); ko += r.ko ? 1 : 0; dealt += r.dealt; rounds += r.rounds; }
-    return { ko: ko / runs, dealt: dealt / runs, rounds: rounds / runs, score: ko / runs + 0.25 * (dealt / runs), aura: st.aura };
+    // a faster win scores a little higher (Jimmy 2026-11-20: at 100% every team tied, so the World Boss team kept two
+    // status Pokémon that added nothing): worth up to ~5 KO points between a 10-round and a 40-round win
+    return { ko: ko / runs, dealt: dealt / runs, rounds: rounds / runs, score: ko / runs + 0.25 * (dealt / runs) + 0.15 / (1 + rounds / runs / 10), aura: st.aura };
   }
 
   function trace(team, foeId, runs = 400, maxRound = 30) {
@@ -1034,7 +1036,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:595', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:597', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -1043,7 +1045,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:604', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:606', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -1435,20 +1437,21 @@ const Calib = (() => {
     for (let t = 1; t <= 5; t++) { let k = null; try { k = LZ.eliteKnobs(f.foeId, null, t); } catch (__e) { __h('46-calib:26', __e); } if (!k || !isFinite(+k.hp)) continue; if (Math.abs(+k.hp - +f.hpPower) < 0.02) { const d = Math.abs(+k.power - +f.power); if (d < bd) { bd = d; best = t; } } }
     return best;
   }
-  const ctxOf = (f, t) => (f.raid ? 'raid' : t > 0 ? 'elite' : 'zone');
+  // the World Boss (Arceus, #493) gets its own tuning: the zone tuning (boss power x0.6, HP x1.4) made it look easy (2026-11-20: sim 100%, real 1 KO in 8)
+  const ctxOf = (f, t) => (f.raid ? 'raid' : t > 0 ? 'elite' : +f.zone === 493 || +f.foeId === 493 ? 'wb' : 'zone');
   async function fights() {
-    let all = []; try { all = await Recorder.all(); } catch (__e) { __h('46-calib:31', __e); }
+    let all = []; try { all = await Recorder.all(); } catch (__e) { __h('46-calib:32', __e); }
     return all.filter((f) => f.kind === 'static' && (f.outcome === 'ko' || f.outcome === 'wipe') && f.team?.length && isFinite(+f.power) && isFinite(+f.hpPower) && Date.now() - f.at < 14 * DAY);
   }
   // remember the strength the game really used for each legendary + tier
   async function learnObserved() {
     const fs = await fights(); const next = {};
     for (const f of fs.filter((x) => !x.raid).sort((a, b) => a.at - b.at)) { const t = tierOf(f); next[`${f.foeId}:${t}`] = { hp: +f.hpPower, power: +f.power, at: f.at }; }
-    obs = next; try { localStorage.setItem(OBS, JSON.stringify(obs)); } catch (__e) { __h('46-calib:38', __e); }
+    obs = next; try { localStorage.setItem(OBS, JSON.stringify(obs)); } catch (__e) { __h('46-calib:39', __e); }
   }
   function zoneFor(f, t) {
     if (f.raid) return { id: f.foeId, foe: f.foeId, level: f.foeLevel || 100, static: true, raid: true, weather: null, burst: null, counter: null, hp: +f.hpPower, power: +f.power };
-    let z = null; try { z = Sim.zoneOf(f.foeId, t); } catch (__e) { __h('46-calib:42', __e); }
+    let z = null; try { z = Sim.zoneOf(f.foeId, t); } catch (__e) { __h('46-calib:43', __e); }
     return { ...(z || { id: f.foeId, foe: f.foeId, level: 100, static: true }), hp: +f.hpPower, power: +f.power };
   }
   function teamFor(f) { return f.team.map((t) => E.read('Game.getMon', null, t.uid) || { uid: t.uid, id: t.id, level: t.level, bot: true, statMult: +(E.get('CONFIG')?.RAID?.BOT_STATS) || 0.9, rank: t.rank || 0 }); }
@@ -1480,9 +1483,9 @@ const Calib = (() => {
         // with few fights, trust the tuning only partly
         const w = Math.min(1, n / 40), pk = +(1 + (best.pk - 1) * w).toFixed(3), hk = +(1 + (best.hk - 1) * w).toFixed(3);
         out[ctx] = { pk, hk, n, groups: gs.length, errBefore: Math.sqrt(before), errAfter: Math.sqrt(best.e), at: Date.now() };
-        Log.add(`simulator tuned for ${ctx === 'raid' ? 'Shiny Raids' : ctx === 'elite' ? 'elite tiers' : 'legendary zones'} from ${n} real fights: off by ${Math.round(Math.sqrt(before) * 100)} points before, ${Math.round(Math.sqrt(best.e) * 100)} after (boss power x${pk}, HP x${hk})`);
+        Log.add(`simulator tuned for ${ctx === 'raid' ? 'Shiny Raids' : ctx === 'elite' ? 'elite tiers' : ctx === 'wb' ? 'the World Boss' : 'legendary zones'} from ${n} real fights: off by ${Math.round(Math.sqrt(before) * 100)} points before, ${Math.round(Math.sqrt(best.e) * 100)} after (boss power x${pk}, HP x${hk})`);
       }
-      cal = out; try { localStorage.setItem(KEY, JSON.stringify(cal)); } catch (__e) { __h('46-calib:76', __e); }
+      cal = out; try { localStorage.setItem(KEY, JSON.stringify(cal)); } catch (__e) { __h('46-calib:77', __e); }
       return cal;
     } finally { busy = false; }
   }
@@ -1492,7 +1495,7 @@ const Calib = (() => {
     setTimeout(() => { learnObserved().catch(() => {}); }, 20_000);
     setTimeout(() => { fit().catch(() => {}); }, 90_000);
     timer = setInterval(() => { fit().catch(() => {}); }, 6 * 3_600_000);
-    try { Recorder.onFight((f) => { if (f.kind === 'static') { learnObserved().catch(() => {}); if (++newFights >= 25) { newFights = 0; fit().catch(() => {}); } } }); } catch (__e) { __h('46-calib:86', __e); }
+    try { Recorder.onFight((f) => { if (f.kind === 'static') { learnObserved().catch(() => {}); if (++newFights >= 25) { newFights = 0; fit().catch(() => {}); } } }); } catch (__e) { __h('46-calib:87', __e); }
   }
   return { get, observed, fit, boot, learnObserved, tierOf, get info() { return cal; }, get observedAll() { return obs; } };
 })();
