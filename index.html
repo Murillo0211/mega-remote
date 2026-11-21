@@ -419,7 +419,7 @@ function tabList() {
   const o = (snap?.tabs || []).map((k) => MEGA_TAB[k] || k), byK = new Map(TABS);
   return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))];
 }
-const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['set', 'Settings']];
+const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['blocs', 'Pokéblocks'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
 const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
@@ -620,7 +620,7 @@ function vPlan() {
   return h;
 }
 function addCard(s) {
-  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['wboss', 'World Boss (every edition)'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex'], ['story', 'Beat a region\'s League']];
+  const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['wboss', 'World Boss (every edition)'], ['bloc', 'Pokéblock Boss (every day)'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex'], ['story', 'Beat a region\'s League']];
   let h = `<div class="card"><h3>Add a Goal</h3><select id="addType">${types.map(([k, l]) => `<option value="${k}" ${ui.addType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   if (ui.addType === 'legend') {
     if (!ui.sims) { h += `<button class="btn" data-x="loadSims">Load Legendaries</button>`; }
@@ -640,6 +640,7 @@ function addCard(s) {
   } else if (ui.addType === 'money') h += `<select id="addVal">${[1e6, 2e6, 5e6, 1e7, 2e7, 5e7].filter((x) => x > s.money).map((x) => `<option value="${x}" ${+ui.addVal === x ? 'selected' : ''}>Up to ₽${x.toLocaleString()}</option>`).join('')}</select><div class="dim" style="margin-top:6px">You have ₽${s.money.toLocaleString()}.</div>`;
   else if (ui.addType === 'region') h += `<select id="addVal"><option value="">Choose a region…</option>${s.dex.filter((r) => r[1] < r[2]).map((r) => `<option value="${esc(r[3])}" ${ui.addVal === r[3] ? 'selected' : ''}>${esc(r[0])} · ${r[2] - r[1]} missing</option>`).join('')}</select>`;
   if (ui.addType === 'story') { const L = s.leagues || []; h += L.length ? `<select id="addVal"><option value="">Choose a region…</option>${L.map(([k, n, inp]) => `<option value="${esc(k)}" ${ui.addVal === k ? 'selected' : ''} ${inp ? 'disabled' : ''}>${esc(n)} League${inp ? ' (in your plan)' : ''}</option>`).join('')}</select><div class="dim" style="margin-top:8px">Plays that region's chapters in order with the Pokémon caught there, picks the best 6 for each gym, trains 30 min after 2 losses, and stays below your dailies.</div>` : `<div class="dim" style="margin-top:8px">${s.leagues ? 'Every League you\'ve unlocked is beaten.' : 'Update Mega on the PC to add this from your phone.'}</div>`; }
+  if (ui.addType === 'bloc') h += `<div class="dim" style="margin-top:8px">Once a day after 4 PM: Mega tries hundreds of 10-Pokémon teams with the game's own forecast and attacks with the one that empties the most bars. Instant - nobody is sent away.</div>`;
   if (ui.addType === 'wboss') h += `<div class="dim" style="margin-top:8px">Each edition: uses your 3 daily attacks while the shield is up, then catches it during the 24-hour window.</div>`;
   h += `<button class="btn gold" data-x="addGoal">Add to Plan</button><div class="dim" style="margin-top:8px">Wild catches, evolutions and special encounters: from the Pokédex tab. Elite tiers and the Elite League: from Simulate.</div></div>`;
   return h;
@@ -861,7 +862,7 @@ const foldKey = (tab, h3) => tab + '|' + h3.textContent.trim().slice(0, 40);
 function mvFolds() { for (const h of document.querySelectorAll('.mv .card > h3')) if (MV_FOLD.has(foldKey(h.closest('.mv').dataset.mvtab, h))) h.parentElement.classList.add('folded'); }
 function mvTab(tab) { return `<div class="dim" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 2px 8px;font-size:13px"><span>Live from your PC${MV.at[tab] ? ' · ' + (Date.now() - MV.at[tab] < 60_000 ? 'just now' : Math.round((Date.now() - MV.at[tab]) / 60_000) + ' min ago') : ''}</span><button class="btn sm" style="width:auto;flex:none;padding:0 14px" data-x="mvReload" data-t="${tab}" aria-label="Refresh">⟳</button></div>` + mvBox(tab); }
 // keep the open screen fresh: every 20 s, and every 3 s for a minute after a tap (sim progress, a run starting)
-setInterval(() => { const t = { box: 'box', act: 'act', dex: 'dex', sim: 'legends', gems: 'gems', fights: 'fights', set: 'engine' }[tab] || (tab === 'sim' ? 'league' : null); if (!t || document.hidden) return;
+setInterval(() => { const t = { box: 'box', act: 'act', dex: 'dex', sim: 'legends', gems: 'gems', blocs: 'blocs', fights: 'fights', set: 'engine' }[tab] || (tab === 'sim' ? 'league' : null); if (!t || document.hidden) return;
   const fast = Date.now() < (MV.fastUntil || 0); if (Date.now() - (MV.at[t] || 0) > (fast ? 3000 : 20000)) mvLoad(t); }, 1000);
 let mvTyping = null;
 document.addEventListener('input', (e) => { const el = e.target.closest('.mv input'); if (!el || el.type === 'checkbox') return; clearTimeout(mvTyping); mvTyping = setTimeout(() => mvSend(el, 'input'), 450); }, true);
@@ -1033,12 +1034,12 @@ function render() {
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
   // 1.0: Pokédex, PC, Simulate, Gems and Activity are Mega's own screens (Now, Plan and Trades keep their phone shape)
-  const V = { box: () => mvTab('box'), team: vTeam, act: () => mvTab('act'), now: vNow, plan: vPlan, dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), set: vSet }[tab] || vNow;
+  const V = { box: () => mvTab('box'), team: vTeam, act: () => mvTab('act'), now: vNow, plan: vPlan, dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:var(--gold-lo)"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const ae = document.activeElement, mvFocus = ae && ae.closest?.('.mv') && ae.matches('input') ? { tab: ae.closest('.mv').dataset.mvtab, sel: ae.className ? 'input.' + ae.className.trim().split(/\s+/)[0] : 'input', pos } : null;
   const why = relayWhy ? `<div class="card" style="border-color:var(--bad)"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
-  $('#main').className = ['now', 'act', 'plan', 'set', 'gems'].includes(tab) ? 'cols' : '';
+  $('#main').className = ['now', 'act', 'plan', 'set', 'gems', 'blocs'].includes(tab) ? 'cols' : '';
   $('#main').innerHTML = Icons.swap(why + (tab === 'set' ? '' : banner) + V());
   animateHp();
   if (mvFocus) { const el = document.querySelector(`.mv[data-mvtab="${mvFocus.tab}"] ${mvFocus.sel}`); if (el) { el.focus(); try { el.setSelectionRange(mvFocus.pos, mvFocus.pos); } catch {} } }
