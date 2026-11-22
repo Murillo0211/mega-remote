@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.22
+// @version      2.10.23
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.22';
+const VERSION = '2.10.23';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1689,6 +1689,14 @@ const Views = (() => {
       <label class="chk"><input type="checkbox" data-act="berries" ${Berries.on ? 'checked' : ''}> Use berries while goals run</label>
       <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Starf + Nanab while hunting a shiny, Rowap while chasing a roaming legendary (it doubles how long it stays put).</div>
       ${berryRows(esc)}</div>`;
+    h += (() => {
+      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:119', __e); }
+      const nm = (id) => { try { return Casing.names(Engine.get('Game.DEX')[id].name); } catch { return '#' + id; } };
+      return `<div class="card"><h3>🥋 Moves</h3>
+      <label class="chk"><input type="checkbox" data-act="movetune" ${MoveTune.on ? 'checked' : ''}> Let Mega turn status moves on and off before boss fights</label>
+      <div class="note dim" style="margin-top:8px">In a fight, a Pokémon with a status move (sleep, burn, paralysis…) uses it about 1 turn in 3 instead of attacking. Before a Legendary or Elite fight, Mega simulates each team member with its status moves on and off and keeps a change only when the fight clearly improves - the same as tapping the move on the Pokémon's card. Damaging moves and anything you turned off yourself are never touched.</div>
+      ${L.length ? `<div style="margin-top:8px">${L.map((x) => `<div class="row"><b>${esc(nm(x.id))}</b><span class="dim">off: ${esc(x.off.join(', '))}</span></div>`).join('')}</div><button class="btn sm" data-act="movetune-back" style="margin-top:8px">Give Back Every Move Mega Turned Off</button>` : '<div class="dim" style="margin-top:8px">No moves turned off by Mega right now.</div>'}</div>`;
+    })();
     h += `<div class="card"><h3>🔮 Top Bar</h3>
       <label class="chk"><input type="checkbox" data-act="topbar" ${TopBar.on ? 'checked' : ''}> Show what Mega is doing in the game's top bar</label>
       <div class="note dim" style="margin-top:8px">One short line next to your money: the goal running now (or what the idle plan is doing), and the next shiny egg when it's within a few eggs. Tap it to open Mega on the Plan tab.</div></div>`;
@@ -3267,6 +3275,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'n-quiet') { Notify.set('quiet', !!t.checked); }
     if (act === 'berries') { Berries.set(!!t.checked); }
     if (act === 'topbar') { TopBar.set(!!t.checked); }
+    if (act === 'movetune') { MoveTune.set(!!t.checked); Log.add(`moves: Mega ${t.checked ? 'may now turn status moves on and off before boss fights' : 'no longer changes moves (and gave back every move it had turned off)'}`); renderBody(true); }
+    if (act === 'movetune-back') { const n = MoveTune.giveBack(); Log.add(`moves: gave back the moves Mega had turned off on ${n} Pokémon`); renderBody(true); return; }
     if (act === 'berry-on' && t.dataset.k && phoneSwap) { Berries.setPref(t.dataset.k, { off: !t.checked }); Log.add(`phone: ${t.dataset.k.replace(/-/g, ' ')} ${t.checked ? 'on' : 'off'}`); renderBody(true); return; }
     if (act === 'idle-level') { Plan.setIdle(!!t.checked); }
     if (act === 'rm-on') { Remote.set(!!t.checked); setTimeout(() => renderBody(true), 50); }
@@ -3277,7 +3287,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:290', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:292', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3300,19 +3310,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:313', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:315', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:319', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:321', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:322', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:324', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:325', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:327', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3355,8 +3365,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:368', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:369', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:370', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:371', __e); }
     renderBody(true, w);
   }
 
@@ -3371,7 +3381,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:384', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:386', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3386,13 +3396,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:399', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:400', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:401', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:402', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:405', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:407', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5390,6 +5400,108 @@ const Buddy = (() => {
 })();
 
 /* ---------------------------------------------------------------------------------------------
+ * MoveTune: which status moves a boss team should use (game v0.5.12: a Pokémon's card lets you turn a
+ * learned move off; Jimmy 2026-11-22: "Mega taps the move itself").
+ * The game's rule (read in its code): a Pokémon with a status move that can land uses it 30% of the time
+ * (STATUS_MOVE_CHANCE) - the last one it learned - and otherwise its best attack on that foe. So turning a
+ * damaging move off never helps (the best one is already chosen); turning a status move off makes it attack
+ * every turn, or makes it use an earlier status move instead. Before a Legendary / Elite / World Boss fight,
+ * Mega tries those options in its tuned boss simulation, one Pokémon at a time, and keeps a change only when
+ * the fight clearly improves.
+ * Applying = exactly what the card's tap does (the game's own handler): the Pokémon's `ban` list, refused if no
+ * attacking move would be left, then Game.save() and the game's "mon-moves" signal. Mega only ever changes
+ * STATUS moves, and only the ones it turned off itself: moves you turned off stay off. Settings › Moves turns
+ * it off and gives back every move Mega took away.
+ * ------------------------------------------------------------------------------------------- */
+const MoveTune = (() => {
+  const E = Engine, KEY = 'mega-movetune', PKEY = 'mega-movetune-on';
+  const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k) ?? 'null') ?? d; } catch { return d; } };
+  let mine = load(KEY, {}); // uid -> status moves Mega turned off
+  let on = load(PKEY, true);
+  const done = {}; // signature -> result (per fight + team + levels + your own switches)
+  let busy = false;
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mine)); } catch (__e) { __h('69-movetune:22', __e); } };
+  const G = () => E.get('Game');
+  const live = (u) => { try { return G().getMon(u); } catch { return null; } };
+  const isStatus = (k, m) => { try { return G().movePower(k, m) <= 0 && !!E.get('STATUS')?.MOVES?.[k]; } catch { return false; } };
+  const attacks = (k, m) => { try { return G().movePower(k, m) > 0; } catch { return false; } };
+  // the status moves it has learned by now (turned off or not), in the order it learned them
+  const statusMoves = (m) => { try { return G().learnAllOf(m).filter(([lv, k]) => lv <= m.level && isStatus(k, m)).map(([, k]) => k).filter((k, i, a) => a.indexOf(k) === i); } catch { return []; } };
+  const yours = (m) => (m.ban || []).filter((k) => !(mine[m.uid] || []).includes(k)); // switches you made yourself
+  // the choices for one Pokémon: as it is (all its status moves on), none (always attack), or just one of them
+  function options(m) {
+    const S = statusMoves(m).filter((k) => !yours(m).includes(k));
+    if (!S.length) return [];
+    const out = [[], [...S]];
+    if (S.length > 1) for (const k of S) out.push(S.filter((x) => x !== k));
+    return out;
+  }
+  const withOff = (m, off) => ({ ...m, ban: [...new Set([...yours(m), ...off])] });
+  const sigOf = (foe, mons, zone) => `${foe}|${zone?.id ?? ''}|${zone?.elite ?? ''}|${Sim.isNight()}|` + mons.map((m) => `${m.uid}:${m.level}:${yours(m).join('.')}`).join(',');
+  const nm = (k) => { try { return E.get('Game').MOVES?.[k]?.name || Casing.title(k.replace(/-/g, ' ')); } catch { return k; } };
+
+  // what to turn off for this fight: [{ uid, off: [...] }] and the simulated gain
+  async function tune(foe, mons, zone) {
+    const ev = (t) => { try { return Sim.evaluate(t, +foe, 120, 7, null, zone).score; } catch { return -1; } };
+    const pause = () => new Promise((ok) => setTimeout(ok, 0));
+    let team = mons.map((m) => withOff(m, [])), base = ev(team), best = base;
+    const pick = Object.fromEntries(mons.map((m) => [m.uid, []]));
+    for (let i = 0; i < mons.length; i++) {
+      const opts = options(mons[i]); if (!opts.length) continue;
+      for (const off of opts.slice(1)) {
+        await pause();
+        const trial = team.slice(); trial[i] = withOff(mons[i], off);
+        const v = ev(trial);
+        if (v > best + 0.015) { best = v; team = trial; pick[mons[i].uid] = off; } // a clear gain only (about 1.5 KO points)
+      }
+    }
+    return { base, best, pick };
+  }
+  // the card tap, as the game does it
+  function setOff(uid, off) {
+    const m = live(uid); if (!m) return false;
+    const want = [...new Set([...yours(m), ...off])];
+    const left = G().learnAllOf(m).some(([lv, k]) => lv <= m.level && attacks(k, m) && !want.includes(k));
+    if (!left) return false; // the game refuses this too (it always keeps an attacking move)
+    const now = (m.ban || []).slice().sort().join(), next = want.slice().sort().join();
+    if (now === next) { if (off.length) mine[uid] = off; else delete mine[uid]; save(); return true; }
+    m.ban = want.length ? want : undefined;
+    if (off.length) mine[uid] = off; else delete mine[uid];
+    save();
+    try { E.call('Game.save'); } catch (__e) { __h('69-movetune:70', __e); }
+    try { E.ns().dispatchEvent(new CustomEvent('mon-moves', { detail: uid })); } catch (__e) { __h('69-movetune:71', __e); }
+    return true;
+  }
+  // before a boss fight: returns '' when the moves are set (or there's nothing to do), or a status while it works
+  async function ensure(foe, uids, zone, who) {
+    if (!on) return '';
+    const mons = (uids || []).map(live).filter(Boolean);
+    if (!mons.some((m) => options(m).length)) { for (const m of mons) if (mine[m.uid]) setOff(m.uid, []); return ''; }
+    const sig = sigOf(foe, mons, zone);
+    if (done[sig]) return '';
+    if (busy) return 'checking which status moves to use…';
+    busy = true;
+    try {
+      const r = await tune(foe, mons, zone);
+      const changed = [];
+      for (const m of mons) {
+        const off = r.pick[m.uid] || [], before = mine[m.uid] || [];
+        if (off.slice().sort().join() === before.slice().sort().join()) continue;
+        if (setOff(m.uid, off)) changed.push(off.length ? `${Casing.names(E.get('Game.DEX')[m.id].name)} stops using ${off.map(nm).join(' and ')}` : `${Casing.names(E.get('Game.DEX')[m.id].name)} gets ${before.map(nm).join(' and ')} back`);
+      }
+      done[sig] = { at: Date.now(), ...r };
+      if (changed.length) Log.add(`moves for ${who || 'the fight'}: ${changed.join('; ')} - simulated ${Math.round(r.base * 100)} → ${Math.round(r.best * 100)} points`);
+      return '';
+    } catch (e) { done[sig] = { at: Date.now(), error: String(e) }; return ''; } finally { busy = false; }
+  }
+  // Settings: turn it off / give every move back
+  function giveBack() { let n = 0; for (const u of Object.keys(mine)) if (setOff(u, [])) n++; else delete mine[u]; save(); return n; }
+  function set(v) { on = !!v; try { localStorage.setItem(PKEY, JSON.stringify(on)); } catch (__e) { __h('69-movetune:98', __e); } if (!on) giveBack(); }
+  const list = () => Object.entries(mine).map(([uid, off]) => ({ uid, id: live(uid)?.id, off: off.map(nm) })).filter((x) => x.id);
+  return { ensure, tune, options, statusMoves, setOff, giveBack, set, list, get on() { return on; }, get mine() { return mine; } };
+})();
+
+/* ---------------------------------------------------------------------------------------------
  * Risk: how likely a lap of a chapter is lost, for the money and XP spot rankings (the idea from
  * ZGRay00's helper: a League lap it might lose is worth less). Only chapters with a leader at the end
  * (gyms, the Elite Four, the Champion) can be lost in a way that costs the lap: Mega simulates your
@@ -5830,6 +5942,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           const same = zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u);
           if (!same) { const r = setTeam(id, sim.uids); if (!r.ok) return 'waiting: ' + r.why; }
         } else if (zt.length < 6) { autoTeam(id); return 'finding the best team…'; }
+        { const mt = await MoveTune.ensure(id, E.read('Game.zoneTeam', [], id) || sim?.uids || [], undefined, name(id)); if (mt) return mt; } // which status moves to use (v0.5.12)
         return (await ctx.enter(id)) ? `entered ${name(id)}'s zone` : `entering ${name(id)}'s zone…`;
       }
       const b = S().adv?.battle, form = g.forms ? g.formNow : null;
@@ -5840,7 +5953,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (sim && !vs && !(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) {
         const r = setTeam(id, sim.uids);
         if (!r.ok) return 'waiting: ' + r.why;
-        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:70', __e); }
+        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:71', __e); }
         await new Promise((x) => setTimeout(x, 600));
         await ctx.enter(id, true);
         return `switched to the planned team (${sim.uids.length} Pokémon) and re-entered`;
@@ -7533,17 +7646,18 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:50', __e); } return 'leaving the current zone…'; }
         if (sim?.uids?.length) { const zt = E.read('Game.zoneTeam', [], g.foe) || []; if (!(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) { const r = setTeam(g.foe, sim.uids); if (!r.ok) return 'waiting: ' + r.why; } }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'entering…';
+        { const mt = await MoveTune.ensure(g.foe, E.read('Game.zoneTeam', [], g.foe) || [], Sim.zoneOf(g.foe, next), `${name(g.foe)} elite tier ${next}`); if (mt) return mt; } // which status moves to use (v0.5.12)
         g.enterAt = Date.now();
         { const zt = E.read('Game.zoneTeam', [], g.foe) || []; const why = Guard.team(zt, { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`${name(g.foe)} elite tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startZone', g.foe, next) !== false; } catch (__e) { __h('70-plan-16-elite:55', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-16-elite:56', __e); }
+        let ok = false; try { ok = E.call('Adventure.startZone', g.foe, next) !== false; } catch (__e) { __h('70-plan-16-elite:56', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-16-elite:57', __e); }
         if (ok) Log.add(`${name(g.foe)}: started elite tier ${next}${sim ? ` (sim ${Math.round(sim.ko * 100)}%)` : ''}`);
         return ok ? `started elite tier ${next}` : `the game would not start tier ${next}`;
       }
       const tries = +(a.zone?.tries || 1);
       return `elite tier ${next} vs ${name(a.zone?.foe || g.foe)} · try ${tries}${sim ? ` · sim ${Math.round(sim.ko * 100)}%` : ''}`;
     },
-    finish(g) { const a = S().adv || {}; if (+(a.zone?.id) === +g.foe && a.zone?.elite) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:63', __e); } } },
+    finish(g) { const a = S().adv || {}; if (+(a.zone?.id) === +g.foe && a.zone?.elite) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:64', __e); } } },
   };
   Object.assign(GoalTypes, { elite });
 })();
@@ -9156,7 +9270,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, Engine, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
