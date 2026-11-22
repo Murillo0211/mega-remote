@@ -587,9 +587,9 @@ function vNow() {
   if (s.dc && (s.dc.u || s.dc.m.length)) {
     const since = Date.now() - s.at, hm = (ms) => { const m = Math.ceil(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`; };
     h += `<div class="card"><h3>🥚 Day Care</h3><div class="dim">Incubator ${s.dc.u} of ${s.dc.x || '?'}${s.dc.f ? ' · full - hatch one to make room' : s.dc.n != null ? ` · next egg in ${hm(Math.max(0, s.dc.n - since))}` : ''}</div>`
-      + s.dc.e.map(([id, left, ready, spar, dur, uid]) => { const l = Math.max(0, left - since), rd = ready || l <= 0; return `<div class="flex" style="margin:8px 0"><span style="${rd ? '' : 'filter:grayscale(1);opacity:.5'}">${img(id, 44)}</span><div class="grow"><b>${N(id)}</b>${spar ? ' ✨' : ''}<div class="${rd ? 'ok' : 'dim'}">${rd ? '● ready to hatch' : `${hm(l)} left · hatches ${new Date(Date.now() + l).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}</div>${rd ? '' : bar(1 - l / Math.max(1, dur || 21600000))}</div>${rd && uid ? `<button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-c="egg.hatch" data-a='{"uid":"${esc(uid)}"}' data-l="Hatch ${N(id)}">🐣 Hatch</button>` : ''}</div>`; }).join('')
+      + s.dc.e.map(([id, left, ready, spar, dur, uid, shy]) => { const l = Math.max(0, left - since), rd = ready || l <= 0; return `<div class="flex" style="margin:8px 0"><span style="${rd ? '' : 'filter:grayscale(1);opacity:.5'}">${img(id, 44)}</span><div class="grow"><b>${N(id)}</b>${shy ? ' <b class="gold">✨ hatches shiny!</b>' : spar ? ' <span class="dim">(shiny parent, not shiny)</span>' : ''}<div class="${rd ? 'ok' : 'dim'}">${rd ? '● ready to hatch' : `${hm(l)} left · hatches ${new Date(Date.now() + l).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}</div>${rd ? '' : bar(1 - l / Math.max(1, dur || 21600000))}</div>${rd && uid ? `<button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-c="egg.hatch" data-a='{"uid":"${esc(uid)}"}' data-l="Hatch ${N(id)}">🐣 Hatch</button>` : ''}</div>`; }).join('')
       + (s.dc.e.filter((e) => e[2] || e[1] - since <= 0).length > 1 ? `<button class="btn gold" data-c="egg.hatch" data-l="Hatch all ready eggs">🐣 Hatch All Ready (${s.dc.e.filter((e) => e[2] || e[1] - since <= 0).length})</button>` : '')
-      + (s.dc.m.length ? `<div class="dim" style="margin-top:6px">Staying there: ${s.dc.m.map(([id, lv, sh]) => `${N(id)}${sh ? ' ✨' : ''} Lv ${lv}`).join(', ')}</div>` : '') + `</div>`;
+      + (s.dc.m.length ? `<div class="dim" style="margin-top:6px">Staying there: ${s.dc.m.map(([id, lv, sh]) => `${N(id)}${sh ? ' ✨' : ''} Lv ${lv}`).join(', ')}</div>` : '') + eggFc(s.dc, since) + `</div>`;
   }
   const next = s.goals.filter((g) => g !== scr && !g.bg && !(g.s === 'wait' && /\b(locked|closed)\b/i.test(g.y)));
   if (next.length) h += `<div class="card"><h3>Up Next</h3>${next.slice(0, 5).map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${g.s === 'paused' ? '❚❚ paused' : g.s === 'queued' ? '○ after the one above' : '◐ ' + esc(g.y || g.s)}</div></div></div>`).join('')}</div>`;
@@ -597,6 +597,15 @@ function vNow() {
   if (s.dex.length) h += `<div class="card"><h3>Pokédex</h3>${s.dex.map(([n, a, b]) => `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between"><b>${esc(n)}</b><span>${a} / ${b}${a >= b ? ' <span class="ok">✔</span>' : ''}</span></div>${bar(a / Math.max(1, b))}</div>`).join('')}</div>`;
   if (s.team.length) h += `<div class="card"><h3>Team</h3><div style="display:grid;grid-template-columns:repeat(${Math.min(6, s.team.length)},minmax(0,1fr));text-align:center;gap:4px">${s.team.map(([id, lv, r, sh, b]) => `<div style="min-width:0">${img(id, 48)}<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${N(id)}</div><div class="dim" style="font-size:12px">Lv ${lv}${r ? ' ★' + r : ''}${sh ? ' ✨' : ''}${b ? ' 💛' : ''}</div></div>`).join('')}</div><button class="btn" data-x="teamEdit">✏️ Change Team</button></div>`;
   return h;
+}
+// shiny eggs coming (Mega's EggPredict, the game's own egg math)
+function eggFc(dc, since) {
+  const f = dc.fc; if (!f) return '';
+  let h = `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px"><b>✨ Shiny eggs coming</b> <span class="dim">· next egg is #${f.k}${f.b ? ' · Belue Berry active' : ''}</span>`;
+  if (f.none) return h + `<div class="dim">Nobody in the Day Care can lay an egg right now.</div></div>`;
+  const when = (a) => (dc.n != null ? new Date(Date.now() + Math.max(0, dc.n - since) + a * f.per).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '');
+  h += f.r.map(([k, a, par, ps, now]) => `<div style="margin:4px 0">Egg <b>#${k}</b> <span class="dim">(${a ? a + ' after the next' : 'the next one'}${when(a) ? ', about ' + when(a) : ''})</span>: ${now ? '<b class="gold">shiny</b> as things are' : `shiny <b>with a Belue Berry</b> used ${a ? `right after egg #${k - 1} is laid` : 'now'}`}${par ? ` (from ${N(par)}${ps ? ' ✨' : ''})` : ''}</div>`).join('') || '<div class="dim">None in the next 400 eggs with these parents.</div>';
+  return h + `<div class="dim" style="font-size:12px;margin-top:4px">Exact, from the game's egg numbers. Changing who's in the Day Care changes the parent; a full incubator moves the times.</div></div>`;
 }
 function vPlan() {
   const s = snap; let h = `<div class="card"><button class="btn ${s.run ? '' : 'gold'}" style="margin:0" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button><div class="dim" style="margin-top:8px">${esc(s.top)}</div></div>`;
@@ -612,12 +621,17 @@ function vPlan() {
         <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>Down</button>
         <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? 'Resume' : 'Pause'}</button>
         <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">Remove</button>
-      </div>${g.t === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
+      </div>${g.t === 'under' && g.ug ? ugSel(g.ug[0], g.ug[1], s.ugStarts || [1], g.id) + `<button class="btn sm" data-c="goal.ugpreview" data-a='{"id":"${g.id}"}' data-l="Preview the Underground pick">🔍 Preview the Pick</button>` + (g.ug[2] ? `<div class="dim" style="font-size:13px">${esc(g.ug[2])}</div>` : '') : ''}${g.t === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
   });
   if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
   if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
   h += `<div class="card"><h3>Log</h3>${s.log.slice().reverse().map(([t, x]) => `<div style="margin:4px 0"><span class="dim">${at(t)}</span> ${esc(x)}</div>`).join('')}</div>`;
   return h;
+}
+// Underground: start floor + aim (on the add form: id ''; on a goal: its id, sent to the PC on change)
+function ugSel(from, aim, starts, id) {
+  return `<select data-ug="from" data-id="${esc(id)}"><option value="auto" ${from === 'auto' ? 'selected' : ''}>Start floor: best (Mega tries each)</option>${starts.map((f) => `<option value="${f}" ${from !== 'auto' && +from === f ? 'selected' : ''}>Start at floor ${f}</option>`).join('')}</select>`
+    + `<select data-ug="aim" data-id="${esc(id)}"><option value="deep" ${aim !== 'loot' ? 'selected' : ''}>Aim: deepest floor (raises your record)</option><option value="loot" ${aim === 'loot' ? 'selected' : ''}>Aim: most loot this run</option></select>`;
 }
 function addCard(s) {
   const types = [['legend', 'Catch a legendary'], ['item', 'Find a rare item'], ['wboss', 'World Boss (every edition)'], ['train', 'Level Pokémon (like idle)'], ['bloc', 'Pokéblock Boss (every day)'], ['raid', 'Shiny Raid (every day)'], ['candy', 'Candy Factory (every day)'], ['tower', 'Battle Tower (every week)'], ['under', 'Underground (runs alongside)'], ['money', 'Farm money'], ['region', 'Complete a region\'s Pokédex'], ['story', 'Beat a region\'s League']];
@@ -640,6 +654,7 @@ function addCard(s) {
   } else if (ui.addType === 'money') h += `<select id="addVal">${[1e6, 2e6, 5e6, 1e7, 2e7, 5e7].filter((x) => x > s.money).map((x) => `<option value="${x}" ${+ui.addVal === x ? 'selected' : ''}>Up to ₽${x.toLocaleString()}</option>`).join('')}</select><div class="dim" style="margin-top:6px">You have ₽${s.money.toLocaleString()}.</div>`;
   else if (ui.addType === 'region') h += `<select id="addVal"><option value="">Choose a region…</option>${s.dex.filter((r) => r[1] < r[2]).map((r) => `<option value="${esc(r[3])}" ${ui.addVal === r[3] ? 'selected' : ''}>${esc(r[0])} · ${r[2] - r[1]} missing</option>`).join('')}</select>`;
   if (ui.addType === 'story') { const L = s.leagues || []; h += L.length ? `<select id="addVal"><option value="">Choose a region…</option>${L.map(([k, n, inp]) => `<option value="${esc(k)}" ${ui.addVal === k ? 'selected' : ''} ${inp ? 'disabled' : ''}>${esc(n)} League${inp ? ' (in your plan)' : ''}</option>`).join('')}</select><div class="dim" style="margin-top:8px">Plays that region's chapters in order with the Pokémon caught there, picks the best 6 for each gym, trains 30 min after 2 losses, and stays below your dailies.</div>` : `<div class="dim" style="margin-top:8px">${s.leagues ? 'Every League you\'ve unlocked is beaten.' : 'Update Mega on the PC to add this from your phone.'}</div>`; }
+  if (ui.addType === 'under') h += ugSel(ui.ugFrom || 'auto', ui.ugAim || 'deep', s.ugStarts || [1], '') + `<div class="dim" style="margin-top:8px">Runs next to your other goals: brings expeditions home, sends new ones while runs are left, and picks each team with the game's own expedition simulation, using the theme's types and the floor guards.</div>`;
   if (ui.addType === 'train') h += `<div class="dim" style="margin-top:8px">What the plan does when idle - levels your team first, then your strongest - but as a goal in your list: goals above it go first. It never finishes by itself.</div>`;
   if (ui.addType === 'bloc') h += `<div class="dim" style="margin-top:8px">Once a day, after the daily reset (3 PM): Mega tries hundreds of 10-Pokémon teams with the game's own forecast and attacks with the one that empties the most bars. Instant - nobody is sent away.</div>`;
   if (ui.addType === 'wboss') h += `<div class="dim" style="margin-top:8px">Each edition: uses your 3 daily attacks while the shield is up, then catches it during the 24-hour window.</div>`;
@@ -1135,7 +1150,7 @@ document.addEventListener('click', async (e) => {
   if (x === 'mvReload') { MV.at[t.dataset.t] = 0; mvLoad(t.dataset.t); toast('Refreshing…'); return; }
   if (x === 'addGoal') {
     const ty = ui.addType, v = ui.addVal;
-    const args = ty === 'legend' ? { type: ty, foe: +v } : ty === 'money' ? { type: ty, target: +v || 1e7 } : ty === 'region' ? { type: ty, reg: v } : ty === 'story' ? { type: ty, region: v } : { type: ty };
+    const args = ty === 'legend' ? { type: ty, foe: +v } : ty === 'money' ? { type: ty, target: +v || 1e7 } : ty === 'region' ? { type: ty, reg: v } : ty === 'story' ? { type: ty, region: v } : ty === 'under' ? { type: ty, from: ui.ugFrom || 'auto', aim: ui.ugAim || 'deep' } : { type: ty };
     if ((ty === 'legend' || ty === 'region' || ty === 'story') && !v) { toast('Choose one first'); return; }
     cmd('goal.add', args, 'Add goal', () => { ui.addVal = ''; if (ty === 'legend') loadSims(); });
   }
@@ -1150,6 +1165,11 @@ document.addEventListener('change', (e) => {
   if (t.id === 'simPick') { ui.simPick = +t.value || null; render(); }
   if (t.id === 'asMax') ui.asMax = t.checked;
   if (t.dataset.set) cmd(t.dataset.set, { on: t.checked }, t.checked ? 'Turn on' : 'Turn off');
+  if (t.dataset.ug) {
+    const k = t.dataset.ug, v = t.value;
+    if (!t.dataset.id) { if (k === 'from') ui.ugFrom = v; else ui.ugAim = v; return; }
+    cmd('goal.ug', { id: t.dataset.id, [k]: v }, 'Underground setting');
+  }
 });
 document.addEventListener('change', (e) => {
   if (e.target.id === 'bxSort') { bx.sort = e.target.value; store.set('mr-bxs', bx.sort); render(); }
