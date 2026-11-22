@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.10
+// @version      2.10.11
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.10';
+const VERSION = '2.10.11';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5327,18 +5327,24 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:183', __e); } return 'leaving the legendary zone…'; }
+    if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:183', __e); } return 'leaving the legendary zone…'; }
     if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:184', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (+a.chapter !== +ch && fighting()) return 'waiting for this fight to end before moving…';
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:186', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:187', __e); } }
     passTeam(g, ch);
     return null;
   }
   // rebuild a chapter from stop 0: the game's own Restart (Screens.adventure.restartChapter) when you're in it;
   // otherwise (or if that's missing) step out and back - re-opening the same chapter just continues (Jimmy)
+  // Chrome crashed / froze 3 times right after Mega changed or restarted the chapter while a fight was starting
+  // (black box 2026-11-21 18:14: setChapter, then a trainer fight at turn 0, then nothing). Until that is
+  // understood, chapter moves and restarts wait for the current fight to end.
+  const fighting = () => { const b = (S().adv || {}).battle; return !!b && !b.over && !b.done; };
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:194', __e); } }
+    if (fighting()) return false;
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:200', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -6266,7 +6272,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (idx >= 0) { const berry = Berries.keep('capture', `catching ${name(g.foe)}`); return `it's in this run at stop ${idx + 1} - now at stop ${at + 1}/${nodes.length}${g.rebuilds ? ` · took ${g.rebuilds} rebuild${g.rebuilds === 1 ? '' : 's'}` : ''}${berry}`; }
       if (Date.now() - (g.lastRebuild || 0) < 2500) return 'rebuilding the chapter…';
       g.lastRebuild = Date.now();
-      if (!rebuild(g.ch)) return 'waiting: could not rebuild the chapter';
+      if (!rebuild(g.ch)) return 'waiting for the fight to end to restart the chapter';
       g.rebuilds = (g.rebuilds || 0) + 1; Plan.save();
       const sp = DexInfo.special(g.foe).find((x) => x.ch === +g.ch);
       return `rebuilding the chapter until it shows up (${g.rebuilds} tries · ${sp ? DexInfo.pct(sp.chance) : '?'} each)`;
@@ -6411,7 +6417,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (idx >= 0) { return `item stop in this run at stop ${idx + 1} - now at ${at + 1}/${nodes.length} · ${g.visits || 0} stop${g.visits === 1 ? '' : 's'} checked so far (${DexInfo.pct((DexInfo.loot(g.item).find((x) => x.ch === +g.ch) || {}).chance || 0)} each)${g.need > 1 ? ` · have ${+E.read('Game.itemCount', 0, g.item) || 0}/${g.need}` : ''}`; }
       if (Date.now() - (g.lastRebuild || 0) < 2500) return 'rebuilding the chapter…';
       g.lastRebuild = Date.now();
-      if (!rebuild(g.ch)) return 'waiting: could not rebuild the chapter';
+      if (!rebuild(g.ch)) return 'waiting for the fight to end to restart the chapter';
       g.rebuilds = (g.rebuilds || 0) + 1; Plan.save();
       return `no item stop at ${g.place} in this run - rebuilding (${g.visits || 0} checked so far)`;
     },
