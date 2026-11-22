@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.19
+// @version      2.10.20
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.19';
+const VERSION = '2.10.20';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3252,7 +3252,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const gid = t.dataset.id;
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
-    if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
+    if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:267', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
@@ -4064,24 +4064,30 @@ const TopBar = (() => {
   function paint() {
     const bar = document.getElementById('topbar'), old = document.getElementById(ID);
     if (!on || !bar) { if (old) old.remove(); return; }
+    // it lives INSIDE the bar's empty spacer (.tb-sep), so it only ever uses space nobody else needs: the game's
+    // own items (your name, money, Pokédex count, buttons) never shrink for it (2.10.19 beta squeezed your name)
     const sep = bar.querySelector('.tb-sep');
+    if (!sep) { if (old) old.remove(); return; }
     let el = old;
-    if (!el || el.parentElement !== bar) {
+    if (!el || el.parentElement !== sep) {
       if (el) el.remove();
+      if (getComputedStyle(sep).minWidth !== '0px') sep.style.minWidth = '0';
+      sep.style.display = 'flex'; sep.style.alignItems = 'center'; sep.style.overflow = 'hidden';
       el = document.createElement('button');
       el.id = ID; el.type = 'button';
-      el.style.cssText = 'flex:0 1 auto;min-width:0;max-width:46%;margin:0 10px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.28);color:inherit;font:inherit;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left';
-      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { UI.openTab?.('plan'); } catch (__e) { __h('62-topbar:36', __e); } });
-      if (sep) bar.insertBefore(el, sep); else bar.appendChild(el);
+      el.style.cssText = 'display:block;min-width:0;max-width:100%;margin:0 10px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.28);color:inherit;font:inherit;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left';
+      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { UI.openTab?.('plan'); } catch (__e) { __h('62-topbar:41', __e); } });
+      sep.appendChild(el);
     }
     const t = text();
     const s = `🔮 ${t.short}`;
     if (el.textContent !== s) el.textContent = s;
-    if (el.title !== t.full) el.title = `Mega Alakazam: ${t.full}`;
+    const tip = `Mega Alakazam: ${t.full}`;
+    if (el.title !== tip) el.title = tip;
   }
   let timer = null;
-  function boot() { if (timer) return; timer = setInterval(() => { try { paint(); } catch (__e) { __h('62-topbar:45', __e); } }, 3000); try { paint(); } catch (__e) { __h('62-topbar:45', __e); } }
-  return { boot, paint, text, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('62-topbar:46', __e); } try { paint(); } catch (__e) { __h('62-topbar:46', __e); } } };
+  function boot() { if (timer) return; timer = setInterval(() => { try { paint(); } catch (__e) { __h('62-topbar:51', __e); } }, 3000); try { paint(); } catch (__e) { __h('62-topbar:51', __e); } }
+  return { boot, paint, text, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('62-topbar:52', __e); } try { paint(); } catch (__e) { __h('62-topbar:52', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4420,7 +4426,7 @@ const LeagueInfo = (() => {
   function nightNote(reg, esc) {
     try {
       const st = ST(), night = Sim.isNight(), nm = (id) => { try { return Casing.names(E.get('Game.DEX')[id].name); } catch { return '#' + id; } };
-      const rows = (st.chaptersOf(reg) || []).map((ch) => (st.CHAPTERS[ch].steps || []).find((x) => x.kind === 'gym' && x.atNight) && { ch, g: st.CHAPTERS[ch].steps.find((x) => x.kind === 'gym') }).filter(Boolean);
+      const rows = (st.chaptersOf(reg) || []).map((ch) => { const g = (st.CHAPTERS[ch].steps || []).find((x) => x.kind === 'gym' && x.atNight); return g ? { ch, g } : null; }).filter(Boolean);
       if (!rows.length) return '';
       const say = rows.map(({ g }) => {
         const n = g.atNight;
@@ -4575,7 +4581,7 @@ const EliteSim = (() => {
       const gym = Sim.gymNow(step, ch); // Unova: the night version when the League is entered at night
       let team = []; try { team = st.gymTeam(ch, gym); } catch (__e) { __h('65-elitesim:36', __e); }
       let field = 1; try { field = +E.call('Adventure.fieldSize', gym) || 1; } catch (__e) { __h('65-elitesim:37', __e); }
-      out.push({ ch, leader: gym.leader, champion: !!gym.champion, type: gym.type, power: gym.power || 1, field, team, swaps: !!step.atNight, night: gym !== step && !!step.atNight });
+      out.push({ ch, leader: gym.leader, champion: !!gym.champion, type: gym.type, power: gym.power || 1, field, team, swaps: !!step.atNight, night: !!step.atNight && (gym.leader !== step.leader || JSON.stringify(gym.team) !== JSON.stringify(step.team)) });
     }
     return out;
   }
@@ -4623,19 +4629,27 @@ const Berries = (() => {
   }
   const all = () => E.get('CONFIG')?.BUFF_BERRIES || {};
   const label = (k) => (all()[k]?.name ? `${k.replace(/-/g, ' ')}` : k.replace(/-/g, ' '));
+  // the family's berries, strongest first (or weakest first), and which of them Mega may use right now:
+  // in stock above the number you keep, switched on, and never weaker than one already running
+  const order = (fam, strongest = true) => Object.entries(all()).filter(([, v]) => v.family === fam).sort((x, y) => (strongest ? 1 : -1) * ((y[1].rank || 0) - (x[1].rank || 0)) || (strongest ? y[1].mult - x[1].mult : x[1].mult - y[1].mult));
+  function usable(fam, strongest = true, a = active(fam)) {
+    const aRank = a ? all()[a.key]?.rank || 0 : -1;
+    return order(fam, strongest).filter(([key, v]) => {
+      if (a && (v.rank || 0) < aRank) return false;
+      const have = +E.read('Game.itemCount', 0, key) || 0, p = pref(key);
+      return have > 0 && !p.off && have > p.keep;
+    }).map(([key]) => key);
+  }
   function active(fam) { return (E.read('Game.activeBuffs', []) || []).find((b) => b.family === fam) || null; }
   // returns a short status like " · Pinap 42 min", or '' when off / nothing to show
   function keep(fam, why, { strongest = true } = {}) {
     if (!on) return '';
     const a = active(fam);
     if (a && a.left > 120_000) return ` · ${Casing.title(label(a.key))} ${Math.ceil(a.left / 60_000)} min left`;
-    const ber = Object.entries(all()).filter(([, v]) => v.family === fam).sort((x, y) => (strongest ? 1 : -1) * ((y[1].rank || 0) - (x[1].rank || 0)) || (strongest ? y[1].mult - x[1].mult : x[1].mult - y[1].mult));
-    const aRank = a ? all()[a.key]?.rank || 0 : -1;
-    for (const [key, v] of ber) {
-      if (a && (v.rank || 0) < aRank) continue; // never replace a stronger one (the game would ask)
-      const have = +E.read('Game.itemCount', 0, key) || 0, p = pref(key);
-      if (!have || p.off || have <= p.keep) continue; // switched off, or down to the number you keep
-      try { E.call('Game.useBuffBerry', key); } catch (__e) { __h('66-berries:42', __e); }
+    const ber = order(fam, strongest);
+    for (const key of usable(fam, strongest, a)) {
+      const have = +E.read('Game.itemCount', 0, key) || 0;
+      try { E.call('Game.useBuffBerry', key); } catch (__e) { __h('66-berries:50', __e); }
       const now = active(fam);
       if (now && now.left > 120_000) { out.delete(fam); Log.add(`used ${/^[aeiou]/i.test(label(key)) ? 'an' : 'a'} ${Casing.title(label(key))} (${why}) - ${have - 1} left`); return ` · ${Casing.title(label(key)).replace(/ Berry$/, '')} ${Math.ceil(now.left / 60_000)} min`; }
     }
@@ -4646,7 +4660,7 @@ const Berries = (() => {
     }
     return '';
   }
-  return { keep, active, list, setPref, pref, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('66-berries:53', __e); } } };
+  return { keep, active, list, setPref, pref, usable, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('66-berries:61', __e); } } };
 })();
 
 /* ===================================================================================================
@@ -4690,8 +4704,9 @@ const GymPlan = (() => {
       return ps.map((p, i) => ({ uid: tag + i, id: +p.id, level: +(lv ?? p.lv ?? p.min) || 50 }));
     };
     const chain = [];
-    if (nodes?.length) {
-      const gn = nodes.findIndex((x) => x.type === 'gym'), hn = nodes.slice(0, gn).map((x) => x.type).lastIndexOf('heal');
+    const gnLive = nodes?.length ? nodes.findIndex((x) => x.type === 'gym') : -1;
+    if (gnLive > 0) {
+      const gn = gnLive, hn = nodes.slice(0, gn).map((x) => x.type).lastIndexOf('heal');
       nodes.slice(hn + 1, gn).forEach((x, k) => {
         if (x.type === 'berry') chain.push({ berry: true });
         else if (x.type === 'trainer') { const f = pick2(x.pool?.length ? x.pool : pool, x.lv?.[0], 'n' + k); if (f.length) chain.push({ foes: f, plain: x.gymTrainer ? +GT.damage || 0.8 : 1 }); }
@@ -4705,7 +4720,7 @@ const GymPlan = (() => {
       const ace = safe(() => +st.aceOf(ch), null), counts = GT.counts || [], below = GT.below || [];
       if (ace && counts.length && !gym.champion && !c.league) {
         const nth = safe(() => st.chaptersOf(st.regionOf(ch).key).filter((x) => x < ch && st.CHAPTERS[x].steps.some((y) => y.kind === 'gym' && y.badge)).length, 0);
-        const n = counts[Math.max(0, Math.min(nth, counts.length) - 1)] || 0;
+        const n = nth > 0 ? counts[Math.min(nth, counts.length) - 1] || 0 : 0; // the game: counts[min(n, len) - 1] - none before a region's first gym
         for (let k = 0; k < n; k++) { const lv = ace - (below[Math.min(k, below.length - 1)] || 0); chain.push({ foes: foes.slice(0, 2).map((f, i) => ({ uid: 'g' + k + i, id: f.id, level: lv })), plain: +GT.damage || 0.8 }); }
       }
     }
@@ -4742,15 +4757,22 @@ const GymPlan = (() => {
     const c = calib(), before = c.k;
     c.k = Math.max(0.2, Math.min(1.2, c.k + 0.15 * ((fight.p || 0) - (won ? 1 : 0))));
     c.n++; c.log = [...(c.log || []), { at: Date.now(), gym: fight.gym, p: Math.round((fight.p || 0) * 100), won: !!won, k: Math.round(c.k * 100) / 100 }].slice(-30);
-    try { localStorage.setItem(CAL, JSON.stringify(c)); } catch (__e) { __h('66-gymplan:94', __e); }
-    try { Log.add(`gym estimate: ${won ? 'won' : 'lost'} against ${fight.gym} (estimate was ${Math.round((fight.p || 0) * 100)}%) - power weighting ${before.toFixed(2)} → ${c.k.toFixed(2)}`); } catch (__e) { __h('66-gymplan:95', __e); }
+    try { localStorage.setItem(CAL, JSON.stringify(c)); } catch (__e) { __h('66-gymplan:95', __e); }
+    try { Log.add(`gym estimate: ${won ? 'won' : 'lost'} against ${fight.gym} (estimate was ${Math.round((fight.p || 0) * 100)}%) - power weighting ${before.toFixed(2)} → ${c.k.toFixed(2)}`); } catch (__e) { __h('66-gymplan:96', __e); }
     if (fight.ch != null && saved[fight.ch]) saved[fight.ch].at = 0; // re-plan that gym with the new weighting (not every saved plan)
   }
   // the estimate for a team you're sending in right now (used when a gym fight starts)
+  // (kept a minute per chapter + team + time of day: the League tab redraws every 2 s)
+  const estMemo = new Map();
   function estimate(ch, uids) {
+    const night = safe(() => Sim.isNight(), false), mons0 = (uids || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
+    const key = `${ch}|${night}|${mons0.map((m) => m.uid + ':' + m.level + ':' + m.id).join(',')}`, hit = estMemo.get(key);
+    if (hit && Date.now() - hit.at < 60_000) return hit.r;
     const G = gymOf(ch); if (!G || !G.foes.length) return null;
-    const mons = (uids || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean).map(fresh);
-    return { gym: G.name, p: simWin(mons, G) };
+    const r = { gym: G.name, p: simWin(mons0.map(fresh), G) };
+    if (estMemo.size > 50) estMemo.clear();
+    estMemo.set(key, { at: Date.now(), r });
+    return r;
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
@@ -4763,31 +4785,33 @@ const GymPlan = (() => {
   };
   // the leader fresh and after the run to him (HP worn down by the trainers since the last heal), counted half each:
   // the game doesn't heal on the way, but a lap can also stop at a berry tree or a lucky draw of trainers
-  const simWin = (team, G, runs = 300) => safe(() => {
-    const fresh = Sim.gymEval(team, G.foes, G.gym, runs).win;
+  const simWin = (team, G, runs = 300) => {
+    const fresh = safe(() => Sim.gymEval(team, G.foes, G.gym, runs).win, 0) || 0;
     if (!G.chain?.length) return fresh;
-    return 0.5 * fresh + 0.5 * Sim.gymChain(team, G.chain, G.foes, G.gym, Math.max(30, Math.round(runs / 3))).win;
-  }, 0) || 0;
+    const chain = safe(() => Sim.gymChain(team, G.chain, G.foes, G.gym, Math.max(20, Math.round(runs / 4))).win, null);
+    return chain == null || !isFinite(chain) ? fresh : 0.5 * fresh + 0.5 * chain; // a chain error falls back to the leader alone
+  };
   const simRun = (team, G) => safe(() => (G.chain?.length ? Sim.gymChain(team, G.chain, G.foes, G.gym, 100) : null), null);
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })());
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
-  const sig = () => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|') + '#' + JSON.stringify(bans);
+  const sig = (ch) => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|') + '#' + JSON.stringify(bans[ch] || []);
   // Teams that lost twice with everyone already at the level cap (the stdAri idea: when levels aren't the problem,
   // change the team, don't train it again). Kept per gym chapter; the plan picks the next-best team instead.
   const BKEY = 'mega-gym-bans';
-  let bans = {}; try { bans = JSON.parse(localStorage.getItem(BKEY) || '{}') || {}; } catch (__e) { __h('66-gymplan:128', __e); }
+  let bans = {}; try { bans = JSON.parse(localStorage.getItem(BKEY) || '{}') || {}; } catch (__e) { __h('66-gymplan:137', __e); }
   const teamKey = (uids) => [...uids].map(String).sort().join(',');
   function ban(ch, uids) {
     const k = teamKey(uids); if (!k) return false;
     const L = (bans[ch] ||= []); if (L.includes(k)) return false;
-    L.push(k); if (L.length > 8) L.shift();
-    try { localStorage.setItem(BKEY, JSON.stringify(bans)); } catch (__e) { __h('66-gymplan:134', __e); }
+    L.push(k); if (L.length > 12) L.shift();
+    try { localStorage.setItem(BKEY, JSON.stringify(bans)); } catch (__e) { __h('66-gymplan:143', __e); }
     if (saved[ch]) saved[ch].at = 0;
     return true;
   }
-  const banned = (ch, uids) => (bans[ch] || []).includes(teamKey(uids));
-  function clearBans(ch) { if (bans[ch]) { delete bans[ch]; try { localStorage.setItem(BKEY, JSON.stringify(bans)); } catch (__e) { __h('66-gymplan:139', __e); } } }
+  // a team sharing 5 or more Pokémon with one set aside counts as that team (swapping one filler isn't a new team)
+  const banned = (ch, uids) => { const mine = new Set([...uids].map(String)); return (bans[ch] || []).some((k) => { const b = k.split(','); return b.filter((u) => mine.has(u)).length >= Math.min(5, b.length); }); };
+  function clearBans(ch) { if (bans[ch]) { delete bans[ch]; try { localStorage.setItem(BKEY, JSON.stringify(bans)); } catch (__e) { __h('66-gymplan:149', __e); } } }
 
   function candidates(G) {
     const st = ST(), cap = G.cap || 100, out = [], seen = new Set();
@@ -4848,7 +4872,7 @@ const GymPlan = (() => {
     const kOf = (x) => { if (!covOf.has(x)) covOf.set(x, safe(() => Sim.coverage(x.mon, covFoes), covFoes.map(() => 0)) || covFoes.map(() => 0)); return covOf.get(x); };
     const covScore = (t) => { const c = covFoes.map(() => 0); for (const x of t) kOf(x).forEach((v, i) => (c[i] += v)); return c.reduce((s, v) => s + Math.log1p(v), 0) / Math.max(1, covFoes.length); };
     const COV_W = 3;
-    const isBanned = (t) => t.every((x) => x.uid) && banned(G.ch, t.map((x) => x.uid));
+    const isBanned = (t) => banned(G.ch, t.filter((x) => x.uid).map((x) => x.uid));
     const obj = async (t) => (isBanned(t) ? -1e6 : (await objWin(t)) + COV_W * covScore(t) - 0.12 * cost(t));
     const objWin = async (t) => (await W(t, foes)) * foes.length; // the 0%-for-everyone stretch run and the separate wild run are gone: coverage covers the chapter
     // the old helper's pick, exactly: greedy on coverage gain, ties to the one closest to ready today
@@ -4885,7 +4909,7 @@ const GymPlan = (() => {
   function get(ch, { force = false } = {}) {
     const p = saved[ch];
     // redone every 30 min: what's spawning changes with the time of day and the weather
-    if (p && !force && p.sig === sig() && Date.now() - p.at < 30 * 60_000 && p.v === PLAN_V) return p; // (plans made by an older scoring are redone)
+    if (p && !force && p.sig === sig(ch) && Date.now() - p.at < 30 * 60_000 && p.v === PLAN_V) return p; // (plans made by an older scoring are redone)
     if (!busy) run(ch);
     return p || null;
   }
@@ -4913,7 +4937,7 @@ const GymPlan = (() => {
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
       const r = {
-        v: PLAN_V, ch, at: Date.now(), sig: sig(), gym: G.name, chapter: G.chapter, cap: G.cap, foes: G.foes.map((f) => [f.id, f.level]),
+        v: PLAN_V, ch, at: Date.now(), sig: sig(ch), gym: G.name, chapter: G.chapter, cap: G.cap, foes: G.foes.map((f) => [f.id, f.level]),
         trainers: G.trainers || 0,
         // the suggested team as it is today (your Pokémon at their real levels, not evolved yet, catches missing)
         today: (() => { const ms = plan.team.filter((x) => x.kind === 'own').map((x) => E.read('Game.getMon', null, x.uid)).filter(Boolean).map(fresh); return ms.length ? simWin(ms, G) : 0; })(),
@@ -4922,8 +4946,8 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:274', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:275', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:284', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:285', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -4936,9 +4960,9 @@ const GymPlan = (() => {
       // never your only copy of a species: evolving it would take that entry out of your Pokédex ('lost')
       if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length <= 1) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:288', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:298', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:290', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:300', __e); } }
     }
     return out;
   }
@@ -4949,8 +4973,8 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:301', __e); } }, 5 * 60_000);
-  return { gymOf, get, run, ban, banned, clearBans, teamKey, simRun: (team, G) => simRun(team, G), evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:311', __e); } }, 5 * 60_000);
+  return { gymOf, get, run, ban, banned, clearBans, teamKey, sigOf: (ch) => sig(ch), simRun: (team, G) => simRun(team, G), evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5377,6 +5401,11 @@ const Buddy = (() => {
 const Risk = (() => {
   const E = Engine, TTL = 30 * 60_000, memo = {};
   const ST = () => E.get('STORY');
+  // never a long freeze: at most ~25 ms of new simulations per second; a chapter not worked out yet counts as
+  // no discount until its turn comes. Each answer is kept 30-40 min (spread out, so they don't all expire at once).
+  let slot = 0, spent = 0, team = null, teamAt = 0;
+  const budgetOk = () => { const now = performance.now(); if (now - slot > 1000) { slot = now; spent = 0; } return spent < 25; };
+  function strongestCached() { if (!team || Date.now() - teamAt > 5 * 60_000) { team = strongest(); teamAt = Date.now(); } return team; }
   function strongest() {
     const g = E.get('Game'), seen = new Set();
     const useful = (m) => { try { const s = g.statsOf(m); return s.hp + s.def + s.spd + s.spe + Math.max(s.atk, s.spa); } catch { return 0; } };
@@ -5387,7 +5416,9 @@ const Risk = (() => {
   // { win, who } for a chapter's leader, or null when the chapter has no leader to lose to
   function of(ch) {
     const night = Sim.isNight(), m = memo[ch];
-    if (m && Date.now() - m.at < TTL && m.night === night) return m.r;
+    if (m && Date.now() - m.at < m.ttl && m.night === night) return m.r;
+    if (!budgetOk()) return m ? m.r : null; // over this second's budget: the old answer (or none) for now
+    const t0 = performance.now();
     let r = null;
     try {
       const st = ST(), step = (st.CHAPTERS[ch]?.steps || []).find((x) => x.kind === 'gym' && Array.isArray(x.team) && x.team.length);
@@ -5395,11 +5426,12 @@ const Risk = (() => {
       const kept = step?.keep && (E.get('Game.S')?.adv?.kept?.[ch] || []).includes(step.leader);
       if (step && !kept) {
         const gym = Sim.gymNow(step, ch), foes = st.gymTeam(ch, gym).map(([id, lv], i) => ({ uid: 'r' + i, id: +id, level: +lv }));
-        const team = strongest();
+        const team = strongestCached();
         if (team.length && foes.length) r = { win: Sim.gymEval(team, foes, gym, 60).win, who: gym.leader || 'the leader' };
       }
     } catch { r = null; }
-    memo[ch] = { at: Date.now(), night, r };
+    memo[ch] = { at: Date.now(), ttl: TTL + Math.random() * 10 * 60_000, night, r };
+    spent += performance.now() - t0;
     return r;
   }
   const factor = (ch) => { const r = of(ch); return r ? 0.5 + 0.5 * r.win : 1; };
@@ -5895,7 +5927,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           if (won || lost || Date.now() - f.at > 15 * 60_000) { g.gymFight = null; Plan.save(); }
         }
       } catch (__e) { __h('70-plan-02-story:74', __e); }
-      if (g.front !== front) { g.swaps = 0; g.runNote = null; g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; g.goFight = null; g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
+      if (g.front !== front) { if (g.front != null && g.front < front) safe(() => GymPlan.clearBans(g.front)); g.swaps = 0; g.runNote = null; g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; g.goFight = null; g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
       const mons = (E.read('Game.sideMons', []) || []);
       const sp = (m) => Sim.species(m);
       // stuck: 2 losses in the frontier chapter since the last try -> level the planned team to the level cap,
@@ -5907,7 +5939,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const capOk = (u) => { const m = E.read('Game.getMon', null, u); return !!m && m.level >= (safe(() => +E.read('Game.capFor', 0, m), 0) || 100); };
       if (deaths - (g.deaths0 || 0) >= 2 && g.lossTeam?.length && g.lossTeam.every(capOk) && safe(() => GymPlan.ban(front, g.lossTeam), false)) {
         const who = g.lossTeam.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ');
-        g.deaths0 = deaths; g.levelFirst = false; g.goFight = null; g.trainTap = false; g.teamAt = 0; g.swaps = (g.swaps || 0) + 1; g.lossTeam = null; Plan.save();
+        g.deaths0 = deaths; g.levelFirst = false; g.goFight = null; g.trainTap = false; g.teamAt = 0; g.swaps = (g.swaps || 0) + 1; g.lossTeam = null; g.banAt = Date.now(); Plan.save();
         Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name} with everyone at the level cap (${who}) - levels aren't the problem, so that team is set aside and the plan picks the next best`);
         try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:89', __e); }
       }
@@ -5928,6 +5960,16 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan-02-story:105', __e); }
       const G = safe(() => GymPlan.gymOf(front));
       const plan = G && G.foes.length ? safe(() => GymPlan.get(front)) : null;
+      // a plan made before a team was set aside (or for different Pokémon) is being redone: don't act on it
+      // (only the set-aside case: a plan that's merely older keeps being used while the new one is worked out, as before)
+      if (plan && safe(() => GymPlan.banned(front, plan.now.uids) || (plan.plan.team.every((t) => t.uid) && GymPlan.banned(front, plan.plan.team.map((t) => t.uid))), false)) {
+        if (plan.at > (g.banAt || 0)) { // re-planned after the ban and still nothing else: there's no other team, so fight with it
+          safe(() => GymPlan.clearBans(front)); Log.add(`story: no other team for ${plan.gym} - trying it again`);
+        } else {
+          try { GymPlan.get(front); } catch (__e) { __h('70-plan-02-story:114', __e); }
+          return `re-planning ${plan.gym} without the team that lost twice at the level cap…`;
+        }
+      }
       g.planWin = plan ? plan.plan.win : null; g.nowWin = plan ? plan.now.win : null;
       if (plan && !training) {
         // fight the gym once your team wins 60% (Jimmy) - or when the best possible team
@@ -5936,8 +5978,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const lowPlan = plan.plan.team.map((t) => t.kind === 'own' ? E.read('Game.getMon', null, t.uid) : sideOf(t.base)).filter(Boolean).filter((m) => m.level < capOfM0(m));
         if (g.levelFirst && !lowPlan.length) { g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: the planned team is at the level cap (${G.cap}) - trying ${plan.gym} again`); }
         const ace = [...G.foes].sort((x, y) => y.level - x.level)[0]; if (ace) g.face = ace.id;
-        // the whole chapter has to work too (stdAri's check): the team must get through the trainers and wild
-        // Pokémon since the last Pokémon Center at least half the time in the simulation, HP carrying over
+        // the whole chapter has to work too (stdAri's check): the team Mega would send must get through the trainers
+        // and wild Pokémon since the last Pokémon Center at least half the time in the simulation (HP carrying over),
+        // or Mega levels the planned team first. At the level cap it fights anyway - and if that team then loses
+        // twice, it's set aside for the next best (above)
         const runOk = !plan.now.run || plan.now.run.survive >= 0.5;
         const good = !!g.goFight || !g.levelFirst && runOk && (plan.now.win >= 0.6 || (plan.plan.win - plan.now.win < 0.05 && (plan.plan.soft ?? 0) - (plan.now.soft ?? 0) < 0.05));
         g.runNote = plan.now.run && !runOk ? `your team reaches the leader only ${Math.round(plan.now.run.survive * 100)}% of the time in the simulation` : null;
@@ -5976,7 +6020,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             const tch = r[0]?.ch ?? done[done.length - 1] ?? front;
             if (fullTeam(uids).slice().sort().join() !== (S().team || []).slice(0, 6).slice().sort().join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
-            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:156', __e); } }
+            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:168', __e); } }
             return `${g.trainTap ? 'you pressed Train These - ' : g.levelFirst ? `lost twice${g.trainWhy ? ' ' + g.trainWhy : ''} - ` : g.runNote ? `${g.runNote} - ` : ''}leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
@@ -6003,9 +6047,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
       const looping = !!E.read('Adventure.isLooping', false, ch);
-      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:183', __e); } }
-      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:184', __e); } } // the frontier must not loop, or a win wouldn't move on
-      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:185', __e); } g.loopOn = null; Plan.save(); }
+      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:195', __e); } }
+      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:196', __e); } } // the frontier must not loop, or a win wouldn't move on
+      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:197', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length; g.chProg = { have: badges, need: chs.length };
       return `${g.goFight ? 'Go Fight: ' : ''}${g.swaps ? `trying team #${g.swaps + 1} (the last lost twice at the cap) · ` : ''}playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
@@ -6018,10 +6062,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     trainThese(g) {
       const a = S().adv || {}, front = +(g.front ?? a.unlocked ?? 0);
       g.goFight = null; g.levelFirst = true; g.trainTap = true; g.deaths0 = +(a.deaths?.[front] ?? 0); g.teamAt = 0; Plan.save();
-      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:198', __e); } // the newest plan: training follows it from the next step
+      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:210', __e); } // the newest plan: training follows it from the next step
       Log.add('story: you pressed Train These - leveling the planned team to the level cap, then trying again');
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:201', __e); } },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:213', __e); } },
   };
   Object.assign(GoalTypes, { story });
 })();
@@ -6263,7 +6307,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   }
   // what the goal is after: the deepest floor (raises your record, which opens higher start floors and better loot
   // bands) or the most loot this run
-  const scoreOf = (d, aim) => (aim === 'loot' ? d.value + d.deep : d.deep * 1000 + d.cleared);
+  // A run that clears nothing (a start above what the team can handle: it loses to that floor's guard) is never
+  // picked. "Deepest": floors past your record count most, then floors cleared (loot and XP on every one of them).
+  const record = () => { try { return +U().best() || 0; } catch { return 0; } };
+  const scoreOf = (d, aim) => (d.cleared < 1 ? -1e9 + d.cleared : aim === 'loot' ? d.value + d.deep : Math.max(0, d.deep - record()) * 1e6 + d.cleared * 1000 + d.value / 1e6);
   // the Pokémon worth trying for this bay: the strongest, plus the best against the theme's types and the guards of
   // the floors the run starts at (a guard every GUARD_EVERY floors, x GUARD_MULT strength - the start floor's
   // guard is the first wall: a plain Lv 100 team lost to it on floor 100)
@@ -6272,7 +6319,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const lv = (f) => { try { return +u.levelOf(f) || 50; } catch { return 50; } };
     const foes = [];
     for (let f = Math.ceil(Math.max(1, from) / every) * every, k = 0; k < 2; f += every, k++) {
-      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:55', __e); }
+      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:58', __e); }
       ids.slice(0, 5).forEach((id, i) => foes.push({ id: +id, level: lv(f), w: 2 }));
     }
     const TT = theme?.types || [], DEX = E.get('Game.DEX') || {};
@@ -6306,7 +6353,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   }
   // "Best (auto)": a team for each start floor the game offers, keep the one that does best for the aim
   async function ugPickAuto(bay, taken, aim) {
-    const starts = (() => { try { return U().starts() || [1]; } catch { return [1]; } })();
+    const starts = (() => { try { const s = U().starts(); return s?.length ? s : [1]; } catch { return [1]; } })();
     let win = null;
     for (const f of starts) {
       ugStatus = `trying a start at floor ${f} (${starts.length} start floors)…`;
@@ -6314,6 +6361,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const v = scoreOf({ deep: r.floors, cleared: r.cleared, value: r.value }, aim);
       if (!win || v > win.v) win = { ...r, v };
     }
+    if (win && win.cleared < 1) return { error: 'no start floor where a free team clears even one floor' };
     return win;
   }
 
@@ -6330,12 +6378,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:113', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:117', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:117', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:118', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:121', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:122', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -6360,7 +6408,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           const sig = [S().under?.day, bay, JSON.stringify(u.themeOf(bay)), g.from, aim, JSON.stringify(u.starts()), [...reserved()].sort().join(',')].join('|');
           let pl = ugPlans[bay];
           if (!pl || pl.sig !== sig || pl.uids.some((x) => taken.has(x))) {
-            const r = auto ? await ugPickAuto(bay, taken, aim) : await ugPick(bay, from, taken, aim);
+            const r = (auto ? await ugPickAuto(bay, taken, aim) : await ugPick(bay, from, taken, aim)) || { error: 'no team found' };
             if (r.error) { ugStatus = r.error; return; }
             pl = ugPlans[bay] = { sig, ...r };
           }
@@ -6374,8 +6422,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, pl.from || 1);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:157', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:158', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:161', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:162', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${pl.from} - about floor ${pl.floors} (${pl.cleared} floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
           g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, cleared: pl.cleared, theme: pl.theme };
           delete ugPlans[bay];
@@ -6386,14 +6434,22 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     },
   };
   // "Preview": what the goal would send to bay 1 right now (start floor, team, floors), without sending anything
-  async function ugPreview(g) {
-    if (ugBusy) return null;
-    ugBusy = true; g.preview = { busy: true, at: Date.now() }; 
+  // (its own busy flag and no touching the goal's status: a preview must not clear the 5-minute wait after an error)
+  let pvBusy = false;
+  function ugPreview(g) { // answers at once when busy (the phone says so), otherwise a promise of the preview
+    if (ugBusy || pvBusy) return { error: 'Mega is picking a real expedition team right now - try the preview again in a minute', at: Date.now() };
+    return ugPreviewRun(g);
+  }
+  async function ugPreviewRun(g) {
+    pvBusy = true; ugBusy = true; g.preview = { busy: true, at: Date.now() };
+    const keepStatus = ugStatus;
     try {
-      const aim = g.aim === 'loot' ? 'loot' : 'deep', from = g.from === 'auto' ? null : +g.from || 1;
+      const aim = g.aim === 'loot' ? 'loot' : 'deep';
+      const st = (() => { try { const s = U().starts(); return s?.length ? s : [1]; } catch { return [1]; } })();
+      const from = g.from === 'auto' ? null : st.includes(+g.from || 1) ? +g.from || 1 : 1; // the same fallback the real send uses
       const r = from ? await ugPick(0, from, new Set(), aim) : await ugPickAuto(0, new Set(), aim);
-      g.preview = r?.error ? { error: r.error, at: Date.now() } : { at: Date.now(), from: r.from, floors: r.floors, cleared: r.cleared, value: r.value, theme: r.theme, team: r.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)) };
-    } catch (e) { g.preview = { error: e?.message || String(e), at: Date.now() }; } finally { ugBusy = false; ugStatus = ''; Plan.save(); }
+      g.preview = !r || r.error ? { error: r?.error || 'no team found', at: Date.now() } : { at: Date.now(), from: r.from, floors: r.floors, cleared: r.cleared, value: r.value, theme: r.theme, team: r.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)) };
+    } catch (e) { g.preview = { error: e?.message || String(e), at: Date.now() }; } finally { pvBusy = false; ugBusy = false; ugStatus = keepStatus; Plan.save(); }
     return g.preview;
   }
   Object.assign(GoalTypes, { under, reserved, ugPreview });
@@ -8726,7 +8782,7 @@ const Remote = (() => {
     'goal.down': (a) => { Plan.move(a.id, 1); return 'ok'; },
     'goal.top': (a) => { Plan.toTop(a.id); return 'ok'; },
     'goal.retry': (a) => { Plan.retry(a.id); return 'ok'; },
-    'goal.ugpreview': (a) => { const g = Plan.goals.find((x) => x.id === a.id && x.type === 'under'); if (!g) throw new Error('no Underground goal'); const p = GoalTypes.ugPreview(g); Promise.resolve(p).finally(() => push(true)); return 'trying start floors - the pick shows on the goal in a minute or two'; },
+    'goal.ugpreview': (a) => { const g = Plan.goals.find((x) => x.id === a.id && x.type === 'under'); if (!g) throw new Error('no Underground goal'); const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) return p.error; Promise.resolve(p).finally(() => push(true)); return 'trying start floors - the pick shows on the goal in a minute or two'; },
     'goal.ug': (a) => {
       const g = Plan.goals.find((x) => x.id === a.id && x.type === 'under'); if (!g) throw new Error('no Underground goal');
       if (a.from != null) g.from = a.from === 'auto' ? 'auto' : Math.max(1, +a.from || 1);
