@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.14
+// @version      2.10.15
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.14';
+const VERSION = '2.10.15';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5102,7 +5102,12 @@ const XpChap = (() => {
     const C = E.get('CONFIG') || {}, B = E.get('BASE_EXP') || {}, ST = E.get('STORY');
     const ref = +C.XP_BASE_REF || 60, wins = +C.XP_WINS_PER_LEVEL || 15;
     let pool = []; try { pool = Sim.chapterPool(ch); } catch (__e) { __h('69-xpchap:27', __e); }
-    if (!pool.length) return 0;
+    if (!pool.length) {
+      // trainer-only chapters (Elite Four rooms, N's Castle, Ghetis): no wild pool - every fight is a trainer (x1.5)
+      let t = 0; for (const st of ST?.CHAPTERS?.[ch]?.steps || []) if (st.kind === 'route') t += +st.trainers || 0;
+      const band = (() => { try { return ST.bandOf(ch); } catch { return null; } })(), top = band && Math.max(...band.filter((x) => x != null));
+      return t && top && isFinite(top) ? (E.read('Game.levelXp', 0, top) || 0) / wins * 1.5 : 0;
+    }
     const xp = pool.reduce((t, p) => t + p.w * (E.read('Game.levelXp', 0, p.lv) || 0) / wins * Math.sqrt((+B[p.id] || ref) / ref), 0);
     // trainers pay x1.5: weight by the chapter's wild and trainer stops (route steps: wild: n, trainers: n)
     let w = 0, t = 0; for (const st of ST?.CHAPTERS?.[ch]?.steps || []) { if (st.kind === 'route') { w += +st.wild || 0; t += +st.trainers || 0; } }
@@ -5124,7 +5129,8 @@ const XpChap = (() => {
       // the band's top is the real level of the last stops (the game scales every chapter to its band)
       const wildTop = top;
       const { rate, learned } = rateOf(ch);
-      out.push({ ch, top: isFinite(wildTop) ? wildTop : top, name: ST.CHAPTERS[ch]?.name || 'chapter ' + ch, perWin: pw, rate, learned, min: Math.round((rates[ch]?.ms || 0) / 60_000), xpHr: pw * rate, score: pw * rate });
+      const rx = rates[ch], real = rx && rx.xms >= SCOUT && rx.x > 0 ? rx.x / rx.xms * 3.6e6 : null;
+      out.push({ ch, top: isFinite(wildTop) ? wildTop : top, name: ST.CHAPTERS[ch]?.name || 'chapter ' + ch, perWin: pw, rate, learned, min: Math.round((rates[ch]?.ms || 0) / 60_000), est: pw * rate, real: real != null, xpHr: real ?? pw * rate, score: real ?? pw * rate });
     }
     return out.sort((a, b) => b.xpHr - a.xpHr || b.ch - a.ch);
   }
@@ -5132,6 +5138,14 @@ const XpChap = (() => {
   function pick(g) {
     const r = rank(); if (!r.length) return null;
     if (!g) return r[0];
+    // g.xpTest: chapters to measure 10 min each first (real XP), then the best measured
+    if (g.xpTest?.length) {
+      const todo = g.xpTest.map((c) => r.find((x) => x.ch === +c)).find((x) => x && !x.real);
+      const choice = todo || r.filter((x) => x.real)[0] || r[0];
+      if (g.chPick !== choice.ch) { try { Log.add(todo ? `XP test: measuring ${choice.name} for 10 min (estimate ${fmt(choice.est)} XP/h)` : `XP test done: ${r.filter((x) => x.real && g.xpTest.includes(x.ch)).map((x) => `${x.name} ${fmt(x.xpHr)}/h`).join(' · ')}`); } catch (__e) { __h('69-xpchap:68', __e); } }
+      g.chPick = choice.ch; g.chPickAt = Date.now(); g.chScout = !!todo;
+      return { ...choice, scout: !!todo };
+    }
     const kept = r.find((x) => x.ch === g.chPick);
     if (kept && Date.now() - (g.chPickAt || 0) < SCOUT) return { ...kept, scout: !!g.chScout };
     const top = r[0], close = r.filter((x) => x.xpHr >= top.xpHr * CLOSE);
@@ -5139,19 +5153,41 @@ const XpChap = (() => {
     const choice = (rates[top.ch]?.ms || 0) < SCOUT ? top : (untested || top);
     const scout = choice.ch !== top.ch;
     if (g.chPick !== choice.ch) {
-      try { Log.add(scout ? `checking ${choice.name} for 10 min: predicted ${fmt(choice.xpHr)} XP/h, close to ${top.name} (${fmt(top.xpHr)})` : `best leveling chapter: ${choice.name} - ${fmt(choice.xpHr)} XP/h${choice.learned ? ' (measured)' : ' (predicted)'}`); } catch (__e) { __h('69-xpchap:65', __e); }
+      try { Log.add(scout ? `checking ${choice.name} for 10 min: predicted ${fmt(choice.xpHr)} XP/h, close to ${top.name} (${fmt(top.xpHr)})` : `best leveling chapter: ${choice.name} - ${fmt(choice.xpHr)} XP/h${choice.learned ? ' (measured)' : ' (predicted)'}`); } catch (__e) { __h('69-xpchap:79', __e); }
     }
     g.chPick = choice.ch; g.chPickAt = Date.now(); g.chScout = scout;
     return { ...choice, scout };
   }
   // count the game's battles while training in ch (gaps over 2 min - tab asleep, PC off - don't count)
+  // ---- real XP per hour (Jimmy 2026-11-21: "did we ever run an XP test?"): the XP the game really hands out.
+  // Every team member gets the same XP per knock-out, so Mega follows one team member below its cap (rank 0 if
+  // possible) and adds up its XP across level-ups (Game.xpForNext). Stored as x (XP) over xms (time watched).
+  let probe = null;
+  const need = (lv, m) => { try { return +E.get('Game').xpForNext(lv, m) || 0; } catch { return 0; } };
+  function xpGain(ch, t) {
+    const team = (() => { try { return E.get('Game').teamMons() || []; } catch { return []; } })();
+    const capOf = (m) => Math.min(100, E.read('Game.capFor', 100, m) || 100);
+    let m = probe && team.find((x) => x.uid === probe.uid && x.id === probe.id && x.level < capOf(x));
+    let got = null;
+    if (m && probe.ch === ch && t - probe.t < 120_000) {
+      if (m.level === probe.lv) got = m.xp - probe.xp;
+      else if (m.level > probe.lv) { got = need(probe.lv, m) - probe.xp + m.xp; for (let l = probe.lv + 1; l < m.level; l++) got += need(l, m); }
+      if (got != null && got < 0) got = null;
+    }
+    if (!m) m = [...team].filter((x) => x.level < capOf(x)).sort((a, b) => (a.rank || 0) - (b.rank || 0) || a.level - b.level)[0];
+    probe = m ? { uid: m.uid, id: m.id, lv: m.level, xp: m.xp, ch, t } : null;
+    return got;
+  }
   function tick(ch) {
+    { const t0 = Date.now(), g = xpGain(ch, t0), r = rates[ch] || (rates[ch] = { b: 0, ms: 0 });
+      if (g != null && last && last.ch === ch) { r.x = (r.x || 0) + g; r.xms = (r.xms || 0) + Math.min(t0 - last.t, 120_000); } }
     const b = +S().stats?.battles || 0, t = Date.now();
     if (last && last.ch === ch && b >= last.b && t - last.t < 120_000) {
       const r = rates[ch] || (rates[ch] = { b: 0, ms: 0 });
       r.b += b - last.b; r.ms += t - last.t;
       // keep it about the last 2 hours so speed or team changes show up
       if (r.ms > 2 * 3.6e6) { const k = 2 * 3.6e6 / r.ms; r.b *= k; r.ms *= k; }
+      if ((r.xms || 0) > 2 * 3.6e6) { const k = 2 * 3.6e6 / r.xms; r.x *= k; r.xms *= k; }
       keep();
     }
     last = { ch, b, t };
@@ -7576,9 +7612,10 @@ const Plan = (() => {
       const atCap = (j) => L().check(j)?.state === 'done' || j.uids.every((u) => (E.read('Game.getMon', null, u)?.level ?? 999) >= Math.min(100, E.read('Game.capFor', 100, E.read('Game.getMon', null, u)) || 100));
       if (!g.job) { g.job = { id: g.id + ':job', type: 'level', uids: pick, target: 100, idle: true, started: Date.now() }; Plan.save(); Log.add(`${train.label(g)}: leveling ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
       else if (atCap(g.job) && pick.join() !== g.job.uids.join()) { g.job.uids = pick; g.job.carriersFor = null; g.job.startLv = null; Plan.save(); Log.add(`${train.label(g)}: now ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
+      if (g.xpTest) g.job.xpTest = g.xpTest; // an XP test: measure these chapters first
       return 'leveling ' + (await L().step(g.job, ctx));
     },
-    finish(g) { if (g.job) { try { L().finish(g.job); } catch (__e) { __h('70-plan-22-train:27', __e); } } },
+    finish(g) { if (g.job) { try { L().finish(g.job); } catch (__e) { __h('70-plan-22-train:28', __e); } } },
   };
   Object.assign(GoalTypes, { train });
 })();
