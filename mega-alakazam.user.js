@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.12
+// @version      2.10.13
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.12';
+const VERSION = '2.10.13';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3046,9 +3046,10 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-item"]')) { planUi.addItem = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-story"]')) { planUi.addStory = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-reg"]')) { planUi.addReg = e.target.value || null; renderBody(true); return; }
+      if (e.target.matches('select[data-act="elite-pick"]')) { legUi.elitePick = +e.target.value || null; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
       if (e.target.matches('select.sel') || e.target.matches('select[data-act="pick"]')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
     root.addEventListener('input', inputH = (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
-    legUi.pick = prefs.leg || null;
+    legUi.pick = prefs.leg || null; legUi.elitePick = prefs.elitePick || null;
     legUi.asMax = !!prefs.asMax; legUi.hideLocked = !!prefs.legHideLocked; legUi.hideCaught = !!prefs.legHideCaught;
     legUi.mode = ['elite', 'league'].includes(prefs.simMode) ? prefs.simMode : 'legendary';
     if (legUi.pick) setTimeout(() => loadReal(legUi.pick), 1500);
@@ -3116,7 +3117,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:258', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:259', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3137,7 +3138,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:279', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:280', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3160,19 +3161,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:302', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:303', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:308', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:309', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:311', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:312', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:314', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:315', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3215,8 +3216,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:357', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:358', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:358', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:359', __e); }
     renderBody(true, w);
   }
 
@@ -3231,7 +3232,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:373', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:374', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3246,11 +3247,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:388', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:389', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:389', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:390', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:392', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:393', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4094,7 +4095,7 @@ const EliteInfo = (() => {
   return { elite, gems, gemLabel, TIER, openMon, canEvolve, msg: '' };
 })();
 
-Views.elite = (esc) => {
+Views.elite = (esc, ui = {}) => {
   const d = EliteInfo.elite(), nm = (id) => esc(Engine.get('Game.DEX')?.[id]?.name || '#' + id);
   if (!d.on) return `<div class="note">Elite fights aren't open in this game yet.</div>`;
   if (!d.rows.length) return `<div class="note">No elite fights yet: they open for each legendary once you've caught it (and the Underground is unlocked).</div>`;
@@ -4103,7 +4104,12 @@ Views.elite = (esc) => {
     <div>${d.rows.length} legendaries · <b>${beaten}</b> of ${total} tiers beaten</div>
     <div class="dim" style="margin-top:6px">You must knock it out - no catching. Tiers unlock one after another and get harder: more HP and power, your status moves land less often, and its poison / burn hits harder. Tiers 1, 2 and 4 give a Legendary gem of its type (to rank up your legendaries of that type), 3 and 5 a frame. A loss locks that legendary's elite fights for ${d.freezeMin} min.</div>
     <div class="note dim" style="margin-top:8px">Simulate a tier to see the best team, then "Add: Beat Its Tiers" - Mega fights tier after tier (the game retries a lost fight by itself), simulating each new tier first, and tells you on your phone when one falls.</div></div>`;
-  for (const r of d.rows) {
+  // one at a time, picked from a dropdown like the Legendary list (Jimmy 2026-11-21: no more scrolling).
+  // Default: the first one with a tier left that's open now, else the first unfinished, else the first.
+  const label = (r) => `${nm(r.foe)} · ${r.best}/${d.tiers.length} tiers${!r.next ? ' · done' : !(r.open && r.can) ? (r.open ? ' · locked for now' : ' · closed now') : Plan.goals.some((g) => !g.done && g.type === 'elite' && g.foe === r.id) ? ' · in your plan' : ''}`;
+  const pick = d.rows.find((r) => r.id === +ui.elitePick) || d.rows.find((r) => r.next && r.open && r.can) || d.rows.find((r) => r.next) || d.rows[0];
+  h += `<select class="sel" data-act="elite-pick" style="width:100%;margin:2px 0 10px">${d.rows.map((r) => `<option value="${r.id}" ${r === pick ? 'selected' : ''}>${label(r)}</option>`).join('')}</select>`;
+  for (const r of [pick]) {
     const pips = d.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? 'var(--ok)' : t === r.next ? 'var(--gold)' : 'var(--line)'}"></span>`).join('');
     h += `<div class="card"><div style="display:flex;gap:12px;align-items:center">
       <img src="${Engine.sprite(r.foe)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well);border-radius:12px;flex:none">
@@ -4168,7 +4174,7 @@ Views.gems = (esc) => {
     const MODES = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'Gyms & League']];
     const bar = `<div style="display:grid;grid-template-columns:repeat(${MODES.length},1fr);gap:6px;margin-bottom:10px">${MODES.map(([k, l]) => `<button class="btn sm${mode === k ? ' gold' : ''}" data-act="sim-mode" data-mode="${k}" style="margin:0">${l}</button>`).join('')}</div>`;
     if (!w.ok) return bar + '<div class="note">Waiting for the game engine.</div>';
-    return bar + (mode === 'elite' ? Views.elite(esc) : mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
+    return bar + (mode === 'elite' ? Views.elite(esc, ui) : mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
   };
 }
 
