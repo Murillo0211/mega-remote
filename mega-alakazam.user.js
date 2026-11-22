@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.13
+// @version      2.10.14
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.13';
+const VERSION = '2.10.14';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2363,7 +2363,7 @@ Views.plan = (w, ui, esc) => {
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
   h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
+    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option><option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -2393,6 +2393,9 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'tower') {
     h += `<button class="btn" data-act="plan-add-tower" ${Plan.hasType('tower') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Plays one Battle Tower run each week (the game picks the lineup from all your Pokémon) and lets it run to the end. Goes ahead of your other goals like the other dailies.</div></div>`;
+  } else if (ui.addType === 'train') {
+    h += `<button class="btn" data-act="plan-add-train" ${Plan.hasType('train') ? 'disabled' : ''}>Add to plan</button>
+    <div class="note dim">Exactly what the plan does when it has nothing to do - levels your team first, then your strongest in the PC, in the chapter with the best XP per hour - but as a goal in your list: goals above it go first, goals below wait. It never finishes by itself; remove or pause it when you're done.</div></div>`;
   } else if (ui.addType === 'bloc') {
     h += `<button class="btn" data-act="plan-add-bloc" ${Plan.hasType('bloc') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Once a day, after the daily reset: tries hundreds of 10-Pokémon teams with the game's own Pokéblock Boss forecast (the same team on the same day always ends the same way), then attacks with the one that empties the most bars. The attack is instant - nobody is sent away, so the 10 stay free for raids and the Underground.</div></div>`;
@@ -2402,7 +2405,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:82', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:85', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3100,6 +3103,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'elite-add') { Plan.add('elite', { foe: +t.dataset.id, upTo: 5 }); renderBody(true); }
     if (act === 'league-add') { Plan.add('league', { reg: t.dataset.reg, upTo: 5 }); renderBody(true); }
     if (act === 'plan-add-wboss') { Plan.add('wboss', {}); renderBody(true); }
+    if (act === 'plan-add-train') { Plan.add('train', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-bloc') { Plan.add('bloc', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'sim-mode') { legUi.mode = t.dataset.mode || 'legendary'; prefs.simMode = legUi.mode; savePrefs(); renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'tr-pick') { Trades.pick = { id: +t.dataset.id, shiny: !!t.dataset.shiny }; Trades.openMsg = ''; renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3117,7 +3121,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-run') { Plan.setRunning(!Plan.running); renderBody(true); }
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 1 }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:259', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:260', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3138,7 +3142,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:280', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:281', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3161,19 +3165,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:303', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:304', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:309', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:310', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:312', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:313', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:315', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:316', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3216,8 +3220,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:358', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:359', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:359', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:360', __e); }
     renderBody(true, w);
   }
 
@@ -3232,7 +3236,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:374', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:375', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3247,11 +3251,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:389', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:390', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:390', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:391', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:393', __e); } } };
+  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:394', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3702,7 +3706,7 @@ Views.now = (w, esc, fmtIn) => {
   const ago = (t) => { if (!t || !isFinite(+t)) return 'not yet'; const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min ' : ''}ago` : `${Math.round(m / 1440)} days ago`; };
   const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const bar = (p) => `<div class="bar" style="margin-top:8px"><i style="width:${Math.max(0, Math.min(100, p * 100)).toFixed(1)}%"></i></div>`;
-  const icon = (g) => ({ bloc: '🍡', under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
+  const icon = (g) => ({ train: '📈', bloc: '🍡', under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' }[g.type] || '🎯');
   const pic = (g, size = 52) => { const sp = GoalTypes[g.type]?.sprite?.(g); return sp ? `<img src="${E.sprite(sp)}" width="${size}" height="${size}" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : `<span style="width:${size}px;text-align:center;font-size:${Math.round(size * 0.55)}px;flex:none">${icon(g)}</span>`; };
   // progress: the goal's own numbers if it has them, else "x/y" read from its status line
   const prog = (g, L) => {
@@ -7226,7 +7230,7 @@ const Plan = (() => {
     if (dupCatch(t, data)) return false;
     if (['shinyWild', 'shinyBreed'].includes(t) && st.goals.some((g) => ['shinyWild', 'shinyBreed'].includes(g.type) && (g.target || g.foe) === +(data.target || data.foe) && !g.done)) return false;
     if (t === 'under' && st.goals.some((g) => g.type === 'under' && !g.done)) return false;
-    if (['candy', 'tower', 'raid', 'money', 'bloc', 'wboss'].includes(t) && st.goals.some((g) => g.type === t && !g.done)) return false;
+    if (['candy', 'tower', 'raid', 'money', 'bloc', 'wboss', 'train'].includes(t) && st.goals.some((g) => g.type === t && !g.done)) return false;
     if (t === 'region' && st.goals.some((g) => g.type === 'region' && g.reg === data.reg && !g.done)) return false;
     if (['wild', 'special', 'breed'].includes(t) && st.goals.some((g) => g.type === t && g.foe === +data.foe && !g.done)) return false;
     if (t === 'loot' && st.goals.some((g) => g.type === 'loot' && g.item === data.item && !g.done)) return false;
@@ -7546,6 +7550,37 @@ const Plan = (() => {
     },
   };
   Object.assign(GoalTypes, { bloc, blocSearch: search });
+})();
+
+// goal module: train (takes shared helpers from GoalKit, registers itself in GoalTypes)
+(() => {
+  const { E, name } = GoalKit;
+  // ---- Level Pokémon (Jimmy 2026-11-21): the idle leveling as a goal you can place in the plan -------------
+  // Exactly what the plan does when it has nothing else to do: GoalTypes.idlePick() chooses who levels (team
+  // members below their cap first, then your strongest in the PC), the level goal trains them in the chapter with
+  // the best XP per hour (XpChap) with fast carriers, and the next in line steps in when one reaches its cap.
+  // As a goal it runs in its place in the plan order: goals above it go first, goals below wait for it.
+  // It never finishes by itself - remove it (or pause it) when you're done.
+  const L = () => GoalTypes.level;
+  const train = {
+    uses: 'screen',
+    label: () => 'Level Pokémon (like idle)',
+    sprite: (g) => { const m = g.job?.uids?.[0] && E.read('Game.getMon', null, g.job.uids[0]); return m?.id || null; },
+    check() {
+      const uids = (() => { try { return GoalTypes.idlePick(); } catch { return []; } })();
+      return uids.length ? { state: 'ready', why: null } : { state: 'wait', why: 'every Pokémon is at its level cap' };
+    },
+    async step(g, ctx) {
+      const pick = GoalTypes.idlePick();
+      if (!pick.length) return 'every Pokémon is at its level cap';
+      const atCap = (j) => L().check(j)?.state === 'done' || j.uids.every((u) => (E.read('Game.getMon', null, u)?.level ?? 999) >= Math.min(100, E.read('Game.capFor', 100, E.read('Game.getMon', null, u)) || 100));
+      if (!g.job) { g.job = { id: g.id + ':job', type: 'level', uids: pick, target: 100, idle: true, started: Date.now() }; Plan.save(); Log.add(`${train.label(g)}: leveling ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
+      else if (atCap(g.job) && pick.join() !== g.job.uids.join()) { g.job.uids = pick; g.job.carriersFor = null; g.job.startLv = null; Plan.save(); Log.add(`${train.label(g)}: now ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
+      return 'leveling ' + (await L().step(g.job, ctx));
+    },
+    finish(g) { if (g.job) { try { L().finish(g.job); } catch (__e) { __h('70-plan-22-train:27', __e); } } },
+  };
+  Object.assign(GoalTypes, { train });
 })();
 
 /* ===================================================================================================
@@ -8234,7 +8269,7 @@ const Remote = (() => {
 
   // ---- what the phone may ask (the whole list) ----
   const D = () => E.get('Game.DEX') || {};
-  const ADD_OK = ['legend', 'under', 'bloc', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
+  const ADD_OK = ['legend', 'under', 'bloc', 'train', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
   // Leagues you can add "Beat a region's League" for: unlocked, not beaten (same list as Mega's Plan tab)
   function storyLeagues() {
     const ST = E.get('STORY'), un = +(E.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
