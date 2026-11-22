@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.21
+// @version      2.10.22
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.21';
+const VERSION = '2.10.22';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -945,7 +945,7 @@ const Sim = (() => {
     const selfHit = (u) => { const A = statsOf(u); return Math.max(1, Math.floor(((2 * u.level) / 5 + 2) * 40 * A.atk / Math.max(1, A.def) / 50 + 2)); };
     const F = foes.map((f, j) => ({ j, id: f.id, level: f.level, types: typesOf(f), spe: statsOf(f).spe, hp: Math.floor(maxHp(f) * hpMult), selfHit: selfHit(f) }));
     const A = team.map((m) => {
-      const key = `${m.uid}|${m.id}|${m.level}|${m.rank || 0}|${foes.map((f) => f.id + ':' + f.level).join(',')}|${P}|${hpMult}|${isNight()}`;
+      const key = `${m.uid}|${m.id}|${m.level}|${m.rank || 0}|${(m.ban || []).join('.')}|${foes.map((f) => f.id + ':' + f.level).join(',')}|${P}|${hpMult}|${isNight()}`;
       let per = gymCache.get(key);
       if (!per) {
         per = foes.map((f) => {
@@ -2647,7 +2647,7 @@ const TradePick = (() => {
     for (const [id, list] of Object.entries(by)) {
       const why = {}, spares = new Set();
       for (const m of list) {
-        why[m.uid] = m.shiny ? 'shiny' : care.has(m.uid) ? 'in the Day Care'
+        why[m.uid] = m.fav ? 'a favorite (the game won\'t trade favorites)' : m.shiny ? 'shiny' : care.has(m.uid) ? 'in the Day Care'
           : rsv.has(m.uid) ? ((s.team || []).includes(m.uid) ? 'in your team' : s.buddy?.uid === m.uid ? 'your buddy' : 'a Mega goal is using it') : '';
         if (!why[m.uid] && list.length >= 2) spares.add(m.uid);
       }
@@ -4766,7 +4766,7 @@ const GymPlan = (() => {
   const estMemo = new Map();
   function estimate(ch, uids) {
     const night = safe(() => Sim.isNight(), false), mons0 = (uids || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-    const key = `${ch}|${night}|${mons0.map((m) => m.uid + ':' + m.level + ':' + m.id).join(',')}`, hit = estMemo.get(key);
+    const key = `${ch}|${night}|${mons0.map((m) => m.uid + ':' + m.level + ':' + m.id + ':' + (m.ban || []).join('.')).join(',')}`, hit = estMemo.get(key);
     if (hit && Date.now() - hit.at < 60_000) return hit.r;
     const G = gymOf(ch); if (!G || !G.foes.length) return null;
     const r = { gym: G.name, p: simWin(mons0.map(fresh), G) };
@@ -4795,7 +4795,7 @@ const GymPlan = (() => {
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })());
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
-  const sig = (ch) => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|') + '#' + JSON.stringify(bans[ch] || []);
+  const sig = (ch) => sideMons().map((m) => m.uid + ':' + m.id + (m.ban?.length ? ':' + m.ban.join('.') : '')).sort().join('|') + '#' + JSON.stringify(bans[ch] || []);
   // Teams that lost twice with everyone already at the level cap (the stdAri idea: when levels aren't the problem,
   // change the team, don't train it again). Kept per gym chapter; the plan picks the next-best team instead.
   const BKEY = 'mega-gym-bans';
