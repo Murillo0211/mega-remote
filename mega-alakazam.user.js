@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.18
+// @version      2.10.19
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.18';
+const VERSION = '2.10.19';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -519,15 +519,21 @@ const Sim = (() => {
   }
 
   // multi-hit moves: a fixed count, a list of per-hit powers (Triple Kick), or "2-5"
+  // The share of the move's power each hit carries. The game's movePower for a multi-hit move is already the
+  // TOTAL (Dual Chop 80 = 2 x 40, Bullet Seed 77.5 = 25 x the average 3.1 hits; Game.movePower), and each hit
+  // really uses the move's own power (Game.hitPowers). Until 2.10.19 every hit counted at the total: two-hit
+  // moves did double, 2-5 hit moves about triple.
   function hitsOf(k, rnd) {
     const v = (C().MULTI_HIT || {})[k];
     if (v == null) return [1];
-    if (typeof v === 'number') return Array(v).fill(1);
-    if (Array.isArray(v)) { const p = power(k) || v[0] || 1; return v.map((x) => x / p); }
-    const odds = C().MULTI_HIT_ODDS || [0.35, 0.35, 0.15, 0.15];
+    const tot = power(k) || 1, raw = +move(k)?.power || 0;
+    if (typeof v === 'number') return Array(v).fill(raw ? raw / tot : 1 / v);
+    if (Array.isArray(v)) return v.map((x) => x / tot);
+    // "2-5": 2 below 35%, 3 below 70%, 4 below 85%, else 5 (the game's MULTI_HIT_ODDS walk)
+    const odds = C().MULTI_HIT_ODDS || [0.35, 0.35, 0.15, 0.15], avg = odds.reduce((a, o, i) => a + o * (i + 2), 0) || 3.1;
     let r = rnd(), n = 2;
-    for (let i = 0; i < odds.length; i++) { if (r < odds[i]) { n = 2 + i; break; } r -= odds[i]; n = 2 + i; }
-    return Array(n).fill(1);
+    for (let i = 0; i < odds.length && (r -= odds[i]) > 0; i++) n = i + 3;
+    return Array(n).fill(raw ? raw / tot : 1 / avg);
   }
 
   // everything about `att` hitting `def` with move k except the dice
@@ -577,23 +583,23 @@ const Sim = (() => {
   function roamZone(foeId) {
     const c = C(), R = c.ROAMING || {}, L = c.LEGEND_ZONE || {};
     if (!(R.GROUPS || []).some((g) => g.ids.includes(+foeId))) return null;
-    let lv = null; try { lv = +G().Roaming.level() || null; } catch (__e) { __h('35-sim:124', __e); }
+    let lv = null; try { lv = +G().Roaming.level() || null; } catch (__e) { __h('35-sim:130', __e); }
     return { id: +foeId, foe: +foeId, hp: L.ROAM_HP ?? 4, power: L.ROAM_POWER ?? 0.6, weather: (R.WEATHER || {})[foeId] || null, burst: null, counter: null, level: lv || R.MIN_LEVEL || 100, wild: true, roam: true };
   }
   function zoneOf(foeId, tier = 0) {
     const LZ = G().LegendZones, z = LZ.get(foeId);
     if (!z) return roamZone(foeId);
     // weekly forms (Deoxys): fight this week's form with its own stats and strength
-    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:131', __e); } }
+    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:137', __e); } }
     const fk = form && form !== foeId ? (z.formKnobs || {})[form] : null;
     const base = { id: foeId, foe: fk ? form : foeId, hp: fk?.hp ?? z.hp, power: fk?.power ?? z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true, wb: !!z.wb };
     // the strength the game really used the last time you fought it (Calib keeps it from the Recorder);
     // not for a new form - those fights were against a different form
-    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:136', __e); } }
+    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:142', __e); } }
     if (!tier) return obs ? { ...base, hp: obs.hp, power: obs.power, observed: true } : base;
     const EL = C().ELITE || {};
-    let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch (__e) { __h('35-sim:139', __e); }
-    let foe = foeId; try { foe = LZ.eliteFoe(z) || foeId; } catch (__e) { __h('35-sim:140', __e); }
+    let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch (__e) { __h('35-sim:145', __e); }
+    let foe = foeId; try { foe = LZ.eliteFoe(z) || foeId; } catch (__e) { __h('35-sim:146', __e); }
     return { ...base, foe, hp: obs?.hp ?? kn?.hp ?? base.hp, power: obs?.power ?? kn?.power ?? base.power, observed: !!obs, level: C().MAX_LEVEL || 100, elite: tier, hurt: EL.HURT?.[tier] ?? null, resist: EL.RESIST?.[tier] ?? 1 };
   }
 
@@ -602,10 +608,10 @@ const Sim = (() => {
     const boss = { uid: 'boss', id: +(zone?.foe ?? foeId), level: zone?.level || 100, shiny: false, foe: true };
     const wx = zone?.weather ? c.WEATHER?.TYPES?.[zone.weather]?.damage || null : null;
     let aura = 1;
-    try { aura = (LZ.AURA || 0) && !zone?.wild ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:149', __e); } // no aura for roamers
+    try { aura = (LZ.AURA || 0) && !zone?.wild ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:155', __e); } // no aura for roamers
     // tuning learned from your real fights (Calib): boss power / HP per kind of fight
     const ctx = zone?.raid ? 'raid' : zone?.elite ? 'elite' : zone?.wb ? 'wb' : 'zone';
-    let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:152', __e); } }
+    let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:158', __e); } }
     const pk = +(cal?.pk) || 1, hk = +(cal?.hk) || 1;
     const P = (zone?.power ?? 1) * aura * aura * (zone?.wild ? ED.wild ?? 0.85 : ED.static ?? 1) * pk; // roamers hit like wild Pokémon
     const PR = (zone?.power ?? 1) * aura * aura * (ED.static ?? 1) * pk; // rage hits always use 'static'
@@ -664,7 +670,7 @@ const Sim = (() => {
       return true;
     };
     const roll1 = (atk, burnMult, mult, scale = 1, u = null, first = true) => {
-      if (first ? !hitOk(atk, u) : rnd() * 100 > atk.acc) return 0;
+      if (first && !hitOk(atk, u)) return 0; // the game checks accuracy once per move, not per hit
       const cr = rnd() < crit ? critM : 1;
       const d = Math.max(1, Math.floor(atk.base * scale * (burnMult || 1) * cr * (0.85 + rnd() * 0.15)));
       return mult === 1 ? d : Math.max(1, Math.round(d * mult));
@@ -967,9 +973,14 @@ const Sim = (() => {
     const roll = (atk, burnMult, mult, u) => {
       if (!atk.base) return 0;
       if (u.sure) u.sure = false; else if (rnd() * 100 > atk.acc) { u.sure = true; return 0; }
-      const c = rnd() < crit ? critM : 1, burn = burnMult && atk.phys ? burnMult : 1;
-      const d = Math.max(1, Math.floor(atk.base * burn * c * (0.85 + rnd() * 0.15)));
-      return mult === 1 ? d : Math.max(1, Math.round(d * mult));
+      const burn = burnMult && atk.phys ? burnMult : 1;
+      let sum = 0; // multi-hit moves: each hit its own crit and roll, each rounded (the game's hitPowers / dn)
+      for (const sc of atk.multi ? hitsOf(atk.k, rnd) : [1]) {
+        const c = rnd() < crit ? critM : 1;
+        const d = Math.max(1, Math.floor(atk.base * sc * burn * c * (0.85 + rnd() * 0.15)));
+        sum += mult === 1 ? d : Math.max(1, Math.round(d * mult));
+      }
+      return sum;
     };
     const inflict = (u, st) => {
       if (st === 'tri') st = ['burn', 'paralysis', 'freeze'][Math.floor(rnd() * 3)];
@@ -1097,7 +1108,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:644', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:655', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -1106,7 +1117,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:653', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:664', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -1676,7 +1687,11 @@ const Views = (() => {
       <div class="note dim" style="margin-top:8px">After 2 minutes with nothing to run, Mega levels three at a time: Pokémon that took a gem first, then shinies, then the ones closest to Lv 100 (up to your level cap). It uses the best training chapter with carriers and a Pinap Berry, keeps that chapter looping so the story never moves on by itself, sends a phone alert, and puts your team, buddy and chapter back as soon as a real goal is ready.</div></div>`;
     h += `<div class="card"><h3>🍓 Berries</h3>
       <label class="chk"><input type="checkbox" data-act="berries" ${Berries.on ? 'checked' : ''}> Use berries while goals run</label>
-      <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Rowap while chasing a roamer. Shiny (Starf) berries are left for you.</div></div>`;
+      <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Starf + Nanab while hunting a shiny, Rowap while chasing a roaming legendary (it doubles how long it stays put).</div>
+      ${berryRows(esc)}</div>`;
+    h += `<div class="card"><h3>🔮 Top Bar</h3>
+      <label class="chk"><input type="checkbox" data-act="topbar" ${TopBar.on ? 'checked' : ''}> Show what Mega is doing in the game's top bar</label>
+      <div class="note dim" style="margin-top:8px">One short line next to your money: the goal running now (or what the idle plan is doing), and the next shiny egg when it's within a few eggs. Tap it to open Mega on the Plan tab.</div></div>`;
     h += `<div class="card"><h3>🃏 Popups that stop the game</h3>
       <label class="chk"><input type="checkbox" data-act="cards" ${Cards.on ? 'checked' : ''}> Close the new-Pokémon card and the end-of-run recap</label>
       <div class="note dim" style="margin-top:8px">The game stands still while these are open, so an unattended catch or Tower run would stall your plan. Mega taps Continue / the gold button after a few seconds - never while you're clicking in the game, and never any other popup (the "Two saves found" dialog, trades, shop and settings are never touched).</div></div>`;
@@ -1724,6 +1739,17 @@ const Views = (() => {
 
   return { now, dex, engine, fights, row };
 })();
+
+// Settings › Berries: each boost berry on/off and how many to keep (Mega stops using it at that number)
+function berryRows(esc) {
+  const FAM = { capture: 'catching', dex: 'missing Pokémon', rare: 'rare finds', xp: 'XP', money: 'money', shiny: 'shiny hunts', roam: 'roaming legendaries' };
+  let L = []; try { L = Berries.list(); } catch { return ''; }
+  const nm = (k) => { try { return DexInfo.itemName(k) || k; } catch { return k; } };
+  return `<div style="margin-top:10px">${L.map((b) => `<div class="row" style="align-items:center;gap:8px">
+    <label class="chk" style="flex:1;margin:0"><input type="checkbox" data-act="berry-on" data-k="${esc(b.key)}" ${b.off ? '' : 'checked'}> <b>${esc(nm(b.key))}</b> <span class="dim">· ${esc(FAM[b.family] || b.family)} ×${b.mult} · you have ${b.have}${b.active ? ' · <span class="ok">active</span>' : ''}</span></label>
+    <span class="dim" style="font-size:13px">keep</span><input type="number" min="0" max="9999" inputmode="numeric" data-act="berry-keep" data-k="${esc(b.key)}" value="${b.keep}" style="width:64px"></div>`).join('')}
+    <div class="dim" style="font-size:12px;margin-top:4px">Unchecked: Mega never uses that berry (it uses a weaker one of the same kind if it has one). Keep: Mega stops when you're down to that many.</div></div>`;
+}
 
 /* ---------------------------------------------------------------------------------------------
  * Icons: one consistent set instead of colour emoji. Mega's screens were written with emoji as
@@ -3142,7 +3168,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     document.documentElement.appendChild(host);
     layout();
     root.addEventListener('click', onClick);
-    root.addEventListener('change', changeH = (e) => { if (e.target.dataset.msel) { Mirror.ui.box[e.target.dataset.msel] = e.target.value; renderBody(true); return; } if (e.target.matches('select[data-act="add-foe"]')) { planUi.addFoe = +e.target.value || null; renderBody(true); return; }
+    root.addEventListener('change', changeH = (e) => { if (e.target.matches('input[data-act="berry-on"], input[data-act="berry-keep"]')) { const k = e.target.dataset.k; if (e.target.dataset.act === 'berry-on') Berries.setPref(k, { off: !e.target.checked }); else Berries.setPref(k, { keep: +e.target.value || 0 }); Log.add(`berries: ${k.replace(/-/g, ' ')} ${Berries.pref(k).off ? 'off' : 'on'}, keep ${Berries.pref(k).keep}`); renderBody(true); return; } if (e.target.dataset.msel) { Mirror.ui.box[e.target.dataset.msel] = e.target.value; renderBody(true); return; } if (e.target.matches('select[data-act="add-foe"]')) { planUi.addFoe = +e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
@@ -3157,7 +3183,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-reg"]')) { planUi.addReg = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="elite-pick"]')) { legUi.elitePick = +e.target.value || null; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
       if (e.target.matches('select.sel') || e.target.matches('select[data-act="pick"]')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
-    root.addEventListener('input', inputH = (e) => { if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
+    root.addEventListener('input', inputH = (e) => { if (phoneSwap && e.target.dataset?.act === 'berry-keep' && e.target.dataset.k) { Berries.setPref(e.target.dataset.k, { keep: +e.target.value || 0 }); Log.add(`phone: keep ${Berries.pref(e.target.dataset.k).keep} ${e.target.dataset.k.replace(/-/g, ' ')}`); renderBody(true); return; } if (e.target.dataset.mq) { const k = e.target.dataset.mq; Mirror.ui[k].q = e.target.value; renderBody(true); return; } if (e.target.matches('input.q')) { prefs.q = e.target.value; savePrefs(); renderBody(true); } });
     legUi.pick = prefs.leg || null; legUi.elitePick = prefs.elitePick || null;
     legUi.asMax = !!prefs.asMax; legUi.hideLocked = !!prefs.legHideLocked; legUi.hideCaught = !!prefs.legHideCaught;
     legUi.mode = ['elite', 'league'].includes(prefs.simMode) ? prefs.simMode : 'legendary';
@@ -3240,6 +3266,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'n-kind') { Notify.setKind(t.dataset.k, !!t.checked); }
     if (act === 'n-quiet') { Notify.set('quiet', !!t.checked); }
     if (act === 'berries') { Berries.set(!!t.checked); }
+    if (act === 'topbar') { TopBar.set(!!t.checked); }
+    if (act === 'berry-on' && t.dataset.k && phoneSwap) { Berries.setPref(t.dataset.k, { off: !t.checked }); Log.add(`phone: ${t.dataset.k.replace(/-/g, ' ')} ${t.checked ? 'on' : 'off'}`); renderBody(true); return; }
     if (act === 'idle-level') { Plan.setIdle(!!t.checked); }
     if (act === 'rm-on') { Remote.set(!!t.checked); setTimeout(() => renderBody(true), 50); }
     if (act === 'rm-pair') { Remote.sendPair().then((ok) => { Log.add(ok ? 'phone remote: setup link sent to your phone' : 'phone remote: could not send the setup link (check Phone Alerts)'); renderBody(true); }); }
@@ -3249,7 +3277,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:288', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:290', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3272,19 +3300,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:311', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:313', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:317', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:319', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:320', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:322', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:323', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:325', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3327,8 +3355,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:366', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:367', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:368', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:369', __e); }
     renderBody(true, w);
   }
 
@@ -3343,7 +3371,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:382', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:384', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3358,11 +3386,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:397', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:398', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:399', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:400', __e); } }
     return [...out];
   }
-  return { mount, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:401', __e); } } };
+  // the top-bar status line opens Mega on a tab
+  function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:405', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4007,6 +4037,54 @@ Views.now = (w, esc, fmtIn) => {
 };
 
 /* ---------------------------------------------------------------------------------------------
+ * TopBar: one short line in the game's own top bar (stdAri's idea), between your money and the
+ * game's buttons - what Mega is doing right now, and the next shiny egg when it's close. Tap it to open
+ * Mega on the Plan tab. It only adds one element to the bar's empty spacer area and puts it back if the
+ * game redraws the bar; nothing of the game's is moved or changed. Settings › Top Bar turns it off.
+ * ------------------------------------------------------------------------------------------- */
+const TopBar = (() => {
+  const KEY = 'mega-topbar', ID = 'mega-topline';
+  let on = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'true'); } catch { return true; } })();
+  const cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  function text() {
+    let main = '';
+    try {
+      if (!Plan.running) main = 'plan paused';
+      else {
+        const g = Plan.goals.find((x) => !x.done && GoalTypes[x.type]?.uses === 'screen' && Plan.live(x.id)?.state === 'running');
+        if (g) { const L = Plan.live(g.id); main = `${Plan.label(g)}${L?.line ? ': ' + L.line : ''}`; }
+        else if (Plan.idle?.line) main = `idle: ${Plan.idle.line}`;
+        else main = Plan.top || 'running';
+      }
+    } catch { main = ''; }
+    let egg = '';
+    try { const r = EggPredict.upcoming(30).rows.find((x) => x.now); if (r) egg = ` · ✨ shiny egg #${r.k}${r.ahead ? ` in ${r.ahead + 1} eggs` : ' next'}`; } catch (__e) { __h('62-topbar:23', __e); }
+    return { short: cut(main, 90) + egg, full: main + egg };
+  }
+  function paint() {
+    const bar = document.getElementById('topbar'), old = document.getElementById(ID);
+    if (!on || !bar) { if (old) old.remove(); return; }
+    const sep = bar.querySelector('.tb-sep');
+    let el = old;
+    if (!el || el.parentElement !== bar) {
+      if (el) el.remove();
+      el = document.createElement('button');
+      el.id = ID; el.type = 'button';
+      el.style.cssText = 'flex:0 1 auto;min-width:0;max-width:46%;margin:0 10px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.28);color:inherit;font:inherit;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left';
+      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { UI.openTab?.('plan'); } catch (__e) { __h('62-topbar:36', __e); } });
+      if (sep) bar.insertBefore(el, sep); else bar.appendChild(el);
+    }
+    const t = text();
+    const s = `🔮 ${t.short}`;
+    if (el.textContent !== s) el.textContent = s;
+    if (el.title !== t.full) el.title = `Mega Alakazam: ${t.full}`;
+  }
+  let timer = null;
+  function boot() { if (timer) return; timer = setInterval(() => { try { paint(); } catch (__e) { __h('62-topbar:45', __e); } }, 3000); try { paint(); } catch (__e) { __h('62-topbar:45', __e); } }
+  return { boot, paint, text, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('62-topbar:46', __e); } try { paint(); } catch (__e) { __h('62-topbar:46', __e); } } };
+})();
+
+/* ---------------------------------------------------------------------------------------------
  * Pokéblocks tab (Jimmy 2026-11-20): a cheat sheet like Gems - what you have, who to give a Rainbow
  * Pokéblock to, which colour to feed each one, and today's Pokéblock Boss.
  * Rules (the game's TASTES + CONFIG.TASTES): a Rainbow Pokéblock draws a disliked stat (-20%, for good) and a
@@ -4528,6 +4606,21 @@ const Berries = (() => {
   const KEY = 'mega-berries';
   let on = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'true'); } catch { return true; } })();
   const out = new Set(); // families we already said are out of stock
+  // per berry (stdAri's idea): on/off, and how many to keep - Mega never uses one below that number
+  const PKEY = 'mega-berry-prefs';
+  let prefs = (() => { try { return JSON.parse(localStorage.getItem(PKEY) || '{}') || {}; } catch { return {}; } })();
+  const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch (__e) { __h('66-berries:16', __e); } };
+  const pref = (k) => ({ off: !!prefs[k]?.off, keep: Math.max(0, +prefs[k]?.keep || 0) });
+  function setPref(k, { off, keep } = {}) {
+    if (!all()[k]) return false;
+    const p = { ...pref(k) }; if (off != null) p.off = !!off; if (keep != null) p.keep = Math.max(0, Math.min(9999, Math.round(+keep || 0)));
+    prefs[k] = p; savePrefs(); out.clear(); return true;
+  }
+  // for the Settings card / phone: every boost berry with its family, stock, setting and whether it's running now
+  function list() {
+    return Object.entries(all()).map(([k, v]) => ({ key: k, family: v.family, mult: v.mult, have: +E.read('Game.itemCount', 0, k) || 0, ...pref(k), active: active(v.family)?.key === k }))
+      .sort((a, b) => a.family.localeCompare(b.family) || (a.mult - b.mult));
+  }
   const all = () => E.get('CONFIG')?.BUFF_BERRIES || {};
   const label = (k) => (all()[k]?.name ? `${k.replace(/-/g, ' ')}` : k.replace(/-/g, ' '));
   function active(fam) { return (E.read('Game.activeBuffs', []) || []).find((b) => b.family === fam) || null; }
@@ -4540,16 +4633,20 @@ const Berries = (() => {
     const aRank = a ? all()[a.key]?.rank || 0 : -1;
     for (const [key, v] of ber) {
       if (a && (v.rank || 0) < aRank) continue; // never replace a stronger one (the game would ask)
-      const have = +E.read('Game.itemCount', 0, key) || 0;
-      if (!have) continue;
-      try { E.call('Game.useBuffBerry', key); } catch (__e) { __h('66-berries:27', __e); }
+      const have = +E.read('Game.itemCount', 0, key) || 0, p = pref(key);
+      if (!have || p.off || have <= p.keep) continue; // switched off, or down to the number you keep
+      try { E.call('Game.useBuffBerry', key); } catch (__e) { __h('66-berries:42', __e); }
       const now = active(fam);
       if (now && now.left > 120_000) { out.delete(fam); Log.add(`used ${/^[aeiou]/i.test(label(key)) ? 'an' : 'a'} ${Casing.title(label(key))} (${why}) - ${have - 1} left`); return ` · ${Casing.title(label(key)).replace(/ Berry$/, '')} ${Math.ceil(now.left / 60_000)} min`; }
     }
-    if (ber.length && !out.has(fam)) { out.add(fam); Log.add(`no ${fam === 'capture' ? 'Razz' : Casing.title(label(ber[0][0]))} berries left for ${why}`); }
+    if (ber.length && !out.has(fam)) {
+      out.add(fam);
+      const held = ber.filter(([k]) => { const p = pref(k); return p.off || (+E.read('Game.itemCount', 0, k) || 0) > 0; });
+      Log.add(held.length ? `not using ${fam === 'capture' ? 'Razz' : Casing.title(label(ber[0][0]))} berries for ${why}: switched off or down to the number you keep (Settings › Berries)` : `no ${fam === 'capture' ? 'Razz' : Casing.title(label(ber[0][0]))} berries left for ${why}`);
+    }
     return '';
   }
-  return { keep, active, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('66-berries:34', __e); } } };
+  return { keep, active, list, setPref, pref, get on() { return on; }, set(v) { on = !!v; try { localStorage.setItem(KEY, JSON.stringify(on)); } catch (__e) { __h('66-berries:53', __e); } } };
 })();
 
 /* ===================================================================================================
@@ -4598,6 +4695,10 @@ const GymPlan = (() => {
       nodes.slice(hn + 1, gn).forEach((x, k) => {
         if (x.type === 'berry') chain.push({ berry: true });
         else if (x.type === 'trainer') { const f = pick2(x.pool?.length ? x.pool : pool, x.lv?.[0], 'n' + k); if (f.length) chain.push({ foes: f, plain: x.gymTrainer ? +GT.damage || 0.8 : 1 }); }
+        else if (x.type === 'wild' && x.pool?.length) { // a wild Pokémon on the way: one foe, ENEMY_DAMAGE.wild
+          const p = x.pool.slice().sort((a, b) => (b.w || 0) - (a.w || 0))[0], ED = E.get('CONFIG')?.ENEMY_DAMAGE || {};
+          chain.push({ foes: [{ uid: 'w' + k, id: +p.id, level: Math.round(((+p.min || 50) + (+p.max || +p.min || 50)) / 2) }], plain: (+ED.wild || 0.85) / (+ED.trainer || 0.9) });
+        }
       });
     } else {
       for (let i = 0; i < trainers; i++) { const f = pick2(pool.slice(i % Math.max(1, pool.length)), null, 'w' + i); if (f.length) chain.push({ foes: f, plain: 1 }); }
@@ -4641,8 +4742,8 @@ const GymPlan = (() => {
     const c = calib(), before = c.k;
     c.k = Math.max(0.2, Math.min(1.2, c.k + 0.15 * ((fight.p || 0) - (won ? 1 : 0))));
     c.n++; c.log = [...(c.log || []), { at: Date.now(), gym: fight.gym, p: Math.round((fight.p || 0) * 100), won: !!won, k: Math.round(c.k * 100) / 100 }].slice(-30);
-    try { localStorage.setItem(CAL, JSON.stringify(c)); } catch (__e) { __h('66-gymplan:90', __e); }
-    try { Log.add(`gym estimate: ${won ? 'won' : 'lost'} against ${fight.gym} (estimate was ${Math.round((fight.p || 0) * 100)}%) - power weighting ${before.toFixed(2)} → ${c.k.toFixed(2)}`); } catch (__e) { __h('66-gymplan:91', __e); }
+    try { localStorage.setItem(CAL, JSON.stringify(c)); } catch (__e) { __h('66-gymplan:94', __e); }
+    try { Log.add(`gym estimate: ${won ? 'won' : 'lost'} against ${fight.gym} (estimate was ${Math.round((fight.p || 0) * 100)}%) - power weighting ${before.toFixed(2)} → ${c.k.toFixed(2)}`); } catch (__e) { __h('66-gymplan:95', __e); }
     if (fight.ch != null && saved[fight.ch]) saved[fight.ch].at = 0; // re-plan that gym with the new weighting (not every saved plan)
   }
   // the estimate for a team you're sending in right now (used when a gym fight starts)
@@ -4653,7 +4754,7 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 15; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 16; // bump when the scoring changes: saved plans from before are redone
   // fast: only the Auto Switch lineup (what really happens), used while searching
   const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
   const grade = (team, foes, P, wf = win) => {
@@ -4671,7 +4772,22 @@ const GymPlan = (() => {
   const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
   const sideMons = () => (E.read('Game.sideMons', []) || []).filter((m) => !(() => { try { return GoalKit.dexHold(m); } catch { return false; } })());
   // the plan is redone when your side's Pokémon change (caught, evolved), not on every level-up
-  const sig = () => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|');
+  const sig = () => sideMons().map((m) => m.uid + ':' + m.id).sort().join('|') + '#' + JSON.stringify(bans);
+  // Teams that lost twice with everyone already at the level cap (the stdAri idea: when levels aren't the problem,
+  // change the team, don't train it again). Kept per gym chapter; the plan picks the next-best team instead.
+  const BKEY = 'mega-gym-bans';
+  let bans = {}; try { bans = JSON.parse(localStorage.getItem(BKEY) || '{}') || {}; } catch (__e) { __h('66-gymplan:128', __e); }
+  const teamKey = (uids) => [...uids].map(String).sort().join(',');
+  function ban(ch, uids) {
+    const k = teamKey(uids); if (!k) return false;
+    const L = (bans[ch] ||= []); if (L.includes(k)) return false;
+    L.push(k); if (L.length > 8) L.shift();
+    try { localStorage.setItem(BKEY, JSON.stringify(bans)); } catch (__e) { __h('66-gymplan:134', __e); }
+    if (saved[ch]) saved[ch].at = 0;
+    return true;
+  }
+  const banned = (ch, uids) => (bans[ch] || []).includes(teamKey(uids));
+  function clearBans(ch) { if (bans[ch]) { delete bans[ch]; try { localStorage.setItem(BKEY, JSON.stringify(bans)); } catch (__e) { __h('66-gymplan:139', __e); } } }
 
   function candidates(G) {
     const st = ST(), cap = G.cap || 100, out = [], seen = new Set();
@@ -4732,7 +4848,8 @@ const GymPlan = (() => {
     const kOf = (x) => { if (!covOf.has(x)) covOf.set(x, safe(() => Sim.coverage(x.mon, covFoes), covFoes.map(() => 0)) || covFoes.map(() => 0)); return covOf.get(x); };
     const covScore = (t) => { const c = covFoes.map(() => 0); for (const x of t) kOf(x).forEach((v, i) => (c[i] += v)); return c.reduce((s, v) => s + Math.log1p(v), 0) / Math.max(1, covFoes.length); };
     const COV_W = 3;
-    const obj = async (t) => (await objWin(t)) + COV_W * covScore(t) - 0.12 * cost(t);
+    const isBanned = (t) => t.every((x) => x.uid) && banned(G.ch, t.map((x) => x.uid));
+    const obj = async (t) => (isBanned(t) ? -1e6 : (await objWin(t)) + COV_W * covScore(t) - 0.12 * cost(t));
     const objWin = async (t) => (await W(t, foes)) * foes.length; // the 0%-for-everyone stretch run and the separate wild run are gone: coverage covers the chapter
     // the old helper's pick, exactly: greedy on coverage gain, ties to the one closest to ready today
     const greedy = []; { const c = covFoes.map(() => 0);
@@ -4791,7 +4908,7 @@ const GymPlan = (() => {
       const now = await search(nowPool, G, 700, (n) => { b.done = n; });
       // your actual current team always competes too (the search samples, and could miss it)
       const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-      if (curMons.length) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = simWin(cur.map((x) => x.mon), G); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
+      if (curMons.length && !banned(ch, curMons.map((m) => m.uid))) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = simWin(cur.map((x) => x.mon), G); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
       let plan = await search(pool, G, 1600, (n) => { b.done = 700 + n; });
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
@@ -4800,12 +4917,13 @@ const GymPlan = (() => {
         trainers: G.trainers || 0,
         // the suggested team as it is today (your Pokémon at their real levels, not evolved yet, catches missing)
         today: (() => { const ms = plan.team.filter((x) => x.kind === 'own').map((x) => E.read('Game.getMon', null, x.uid)).filter(Boolean).map(fresh); return ms.length ? simWin(ms, G) : 0; })(),
-        now: { uids: now.team.map((x) => x.uid), win: now.win, soft: now.soft, run: now.run },
+        now: { uids: now.team.map((x) => x.uid), win: now.win, soft: now.soft, run: now.team.length ? simRun(now.team.map((x) => x.mon), G) : null },
+        bans: (bans[ch] || []).length,
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:253', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:254', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:274', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:275', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -4818,9 +4936,9 @@ const GymPlan = (() => {
       // never your only copy of a species: evolving it would take that entry out of your Pokédex ('lost')
       if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length <= 1) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:267', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:288', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:269', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:290', __e); } }
     }
     return out;
   }
@@ -4831,8 +4949,8 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:280', __e); } }, 5 * 60_000);
-  return { gymOf, get, run, evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:301', __e); } }, 5 * 60_000);
+  return { gymOf, get, run, ban, banned, clearBans, teamKey, simRun: (team, G) => simRun(team, G), evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5765,7 +5883,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const where = !f ? 'somewhere in the chapter' : f.kind === 'gym' ? `at ${f.who || 'the leader'} (stop ${f.node} of ${f.of})`
           : `on the way, stop ${f.node} of ${f.of}: ${[f.size, f.kind === 'trainer' ? `vs ${f.who || 'a trainer'}` : f.kind].filter(Boolean).join(' ')} (${f.foes.join(', ')})`;
         Log.add(`story: lost at ${ST.CHAPTERS[front]?.name} - ${where}`);
-        g.lossWhere = f ? (f.kind === 'gym' ? 'leader' : 'way') : null; g.seenDeaths = deaths; Plan.save();
+        g.lossWhere = f ? (f.kind === 'gym' ? 'leader' : 'way') : null; g.seenDeaths = deaths; g.lossTeam = (S().team || []).slice(0, 6); Plan.save();
       }
       // learn from real gym fights: note the estimate when one starts, then whether it ended in a badge or a loss
       try {
@@ -5777,17 +5895,26 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           if (won || lost || Date.now() - f.at > 15 * 60_000) { g.gymFight = null; Plan.save(); }
         }
       } catch (__e) { __h('70-plan-02-story:74', __e); }
-      if (g.front !== front) { g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; g.goFight = null; g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
+      if (g.front !== front) { g.swaps = 0; g.runNote = null; g.front = front; g.deaths0 = deaths; g.lossBase = deaths; g.trainUntil = 0; g.teamAt = 0; g.goFight = null; g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: next up ${ST.CHAPTERS[front]?.name || 'chapter ' + front}`); }
       const mons = (E.read('Game.sideMons', []) || []);
       const sp = (m) => Sim.species(m);
       // stuck: 2 losses in the frontier chapter since the last try -> level the planned team to the level cap,
       // then try again (Jimmy: train to the cap, not for a fixed time). Already all at the cap: re-plan and retry now.
       const now = Date.now();
       if (g.trainUntil) { g.trainUntil = 0; g.levelFirst = true; Plan.save(); } // (older versions trained for 30 min)
+      // levels aren't the problem (stdAri's rule): the team that lost twice was already all at the level cap - so
+      // training it again can't help. That exact team is set aside for this gym and the plan picks the next best.
+      const capOk = (u) => { const m = E.read('Game.getMon', null, u); return !!m && m.level >= (safe(() => +E.read('Game.capFor', 0, m), 0) || 100); };
+      if (deaths - (g.deaths0 || 0) >= 2 && g.lossTeam?.length && g.lossTeam.every(capOk) && safe(() => GymPlan.ban(front, g.lossTeam), false)) {
+        const who = g.lossTeam.map((u) => name(E.read('Game.getMon', null, u)?.id)).join(', ');
+        g.deaths0 = deaths; g.levelFirst = false; g.goFight = null; g.trainTap = false; g.teamAt = 0; g.swaps = (g.swaps || 0) + 1; g.lossTeam = null; Plan.save();
+        Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name} with everyone at the level cap (${who}) - levels aren't the problem, so that team is set aside and the plan picks the next best`);
+        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:89', __e); }
+      }
       if (deaths - (g.deaths0 || 0) >= 2) {
         g.deaths0 = deaths; g.levelFirst = true; g.goFight = null; g.trainTap = false; g.trainWhy = g.lossWhere === 'way' ? 'on the way, before the leader' : g.lossWhere === 'leader' ? 'against the leader' : '';
         Plan.save(); Log.add(`story: lost twice at ${ST.CHAPTERS[front]?.name}${g.trainWhy ? ' (' + g.trainWhy + ')' : ''} - leveling the planned team to the cap, then trying again`);
-        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:85', __e); }
+        try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:94', __e); }
       }
       const training = false; // (training is now "level the plan to the cap", done in the gym plan below)
       // where: the frontier chapter (loop off so a win moves on), or the best cleared chapter of the region to train
@@ -5798,7 +5925,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         ch = r[0]?.ch ?? done[done.length - 1] ?? front;
       }
       // ---- gym plan: the team that beats this gym (game's own estimate), and how to get it ----
-      try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan-02-story:96', __e); }
+      try { GymPlan.evolveStuck(); } catch (__e) { __h('70-plan-02-story:105', __e); }
       const G = safe(() => GymPlan.gymOf(front));
       const plan = G && G.foes.length ? safe(() => GymPlan.get(front)) : null;
       g.planWin = plan ? plan.plan.win : null; g.nowWin = plan ? plan.now.win : null;
@@ -5809,7 +5936,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const lowPlan = plan.plan.team.map((t) => t.kind === 'own' ? E.read('Game.getMon', null, t.uid) : sideOf(t.base)).filter(Boolean).filter((m) => m.level < capOfM0(m));
         if (g.levelFirst && !lowPlan.length) { g.levelFirst = false; g.trainTap = false; Plan.save(); Log.add(`story: the planned team is at the level cap (${G.cap}) - trying ${plan.gym} again`); }
         const ace = [...G.foes].sort((x, y) => y.level - x.level)[0]; if (ace) g.face = ace.id;
-        const good = !!g.goFight || !g.levelFirst && (plan.now.win >= 0.6 || (plan.plan.win - plan.now.win < 0.05 && (plan.plan.soft ?? 0) - (plan.now.soft ?? 0) < 0.05));
+        // the whole chapter has to work too (stdAri's check): the team must get through the trainers and wild
+        // Pokémon since the last Pokémon Center at least half the time in the simulation, HP carrying over
+        const runOk = !plan.now.run || plan.now.run.survive >= 0.5;
+        const good = !!g.goFight || !g.levelFirst && runOk && (plan.now.win >= 0.6 || (plan.plan.win - plan.now.win < 0.05 && (plan.plan.soft ?? 0) - (plan.now.soft ?? 0) < 0.05));
+        g.runNote = plan.now.run && !runOk ? `your team reaches the leader only ${Math.round(plan.now.run.survive * 100)}% of the time in the simulation` : null;
         if (good) g.lvProg = null;
         if (!good) {
           // 1) catch the members you don't have (a catch job each, done when it's on this side) - and,
@@ -5845,8 +5976,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             const tch = r[0]?.ch ?? done[done.length - 1] ?? front;
             if (fullTeam(uids).slice().sort().join() !== (S().team || []).slice(0, 6).slice().sort().join()) { setChapterTeam(uids); Log.add(`gym plan: leveling ${low.map((m) => `${name(m.id)} Lv ${m.level}`).join(', ')} to the cap (${G.cap})`); }
             if (+a.chapter !== tch) { if (E.call('Adventure.setChapter', tch) === false) return `waiting: the game would not open ${ST.CHAPTERS[tch]?.name}`; return `moving to ${ST.CHAPTERS[tch]?.name} to level the gym team…`; }
-            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:143', __e); } }
-            return `${g.trainTap ? 'you pressed Train These - ' : g.levelFirst ? `lost twice${g.trainWhy ? ' ' + g.trainWhy : ''} - ` : ''}leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
+            if (!E.read('Adventure.isLooping', false, tch)) { try { E.call('Adventure.toggleLoop', tch); g.loopOn = tch; Plan.save(); } catch (__e) { __h('70-plan-02-story:156', __e); } }
+            return `${g.trainTap ? 'you pressed Train These - ' : g.levelFirst ? `lost twice${g.trainWhy ? ' ' + g.trainWhy : ''} - ` : g.runNote ? `${g.runNote} - ` : ''}leveling the gym team in ${ST.CHAPTERS[tch]?.name} (${low.map((m) => `${name(m.id)} ${m.level}/${capOfM(m)}`).join(', ')}), then ${plan.gym}: your team wins ${Math.round(plan.now.win * 100)}% now, ${Math.round(plan.plan.win * 100)}% once they reach Lv ${G.cap} (it fights at 60%)${plan.plan.win < 0.05 && plan.plan.soft != null ? ` · a hard gym: on type matchups alone, ${Math.round((plan.now.soft || 0) * 100)}% now, ${Math.round(plan.plan.soft * 100)}% with the best team` : ''}`;
           }
           // 3) everyone's here and at the cap: fight with the planned team, in the planned order
           const uids = plan.plan.team.map((t) => (t.kind === 'own' ? t.uid : sideOf(t.base)?.uid)).filter(Boolean);
@@ -5872,11 +6003,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       if (+a.chapter !== ch) { if (E.call('Adventure.setChapter', ch) === false) return `waiting: the game would not open ${ST.CHAPTERS[ch]?.name}`; return `moving to ${ST.CHAPTERS[ch]?.name}…`; }
       const looping = !!E.read('Adventure.isLooping', false, ch);
-      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:170', __e); } }
-      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:171', __e); } } // the frontier must not loop, or a win wouldn't move on
-      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:172', __e); } g.loopOn = null; Plan.save(); }
+      if (training && !looping) { try { E.call('Adventure.toggleLoop', ch); g.loopOn = ch; Plan.save(); } catch (__e) { __h('70-plan-02-story:183', __e); } }
+      if (!training && looping) { try { E.call('Adventure.toggleLoop', ch); } catch (__e) { __h('70-plan-02-story:184', __e); } } // the frontier must not loop, or a win wouldn't move on
+      if (!training && g.loopOn != null && g.loopOn !== ch && E.read('Adventure.isLooping', false, g.loopOn)) { try { E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:185', __e); } g.loopOn = null; Plan.save(); }
       const badges = chs.filter((c) => c < front).length; g.chProg = { have: badges, need: chs.length };
-      return `${g.goFight ? 'Go Fight: ' : ''}playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
+      return `${g.goFight ? 'Go Fight: ' : ''}${g.swaps ? `trying team #${g.swaps + 1} (the last lost twice at the cap) · ` : ''}playing ${ST.CHAPTERS[ch]?.name} · stop ${(+a.node || 0) + 1} of ${a.nodes?.length || '?'} · ${badges}/${chs.length} chapters done · ${deaths - (g.lossBase ?? g.deaths0 ?? 0)} loss${deaths - (g.lossBase ?? g.deaths0 ?? 0) === 1 ? '' : 'es'} here`;
     },
     // the Gyms & League buttons (Jimmy's taps, like the old helper's Next boss box)
     goFight(g) {
@@ -5887,10 +6018,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     trainThese(g) {
       const a = S().adv || {}, front = +(g.front ?? a.unlocked ?? 0);
       g.goFight = null; g.levelFirst = true; g.trainTap = true; g.deaths0 = +(a.deaths?.[front] ?? 0); g.teamAt = 0; Plan.save();
-      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:185', __e); } // the newest plan: training follows it from the next step
+      try { GymPlan.get(front, { force: true }); } catch (__e) { __h('70-plan-02-story:198', __e); } // the newest plan: training follows it from the next step
       Log.add('story: you pressed Train These - leveling the planned team to the level cap, then trying again');
     },
-    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:188', __e); } },
+    finish(g) { try { if (g.loopOn != null && E.read('Adventure.isLooping', false, g.loopOn)) E.call('Adventure.toggleLoop', g.loopOn); } catch (__e) { __h('70-plan-02-story:201', __e); } },
   };
   Object.assign(GoalTypes, { story });
 })();
@@ -6547,17 +6678,20 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (g.restore.loopAdded != null && g.restore.loopAdded !== +s.ch) { try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-06-roam:57', __e); } g.restore.loopAdded = null; }
       }
       if (!E.read('Adventure.isLooping', false, +s.ch)) { try { E.call('Adventure.toggleLoop', +s.ch); g.restore.loopAdded = +s.ch; Plan.save(); } catch (__e) { __h('70-plan-06-roam:59', __e); } }
-      const mins = Math.max(0, Math.round((+s.until - Date.now()) / 60000));
+      // a Rowap Berry doubles how long it stays in this chapter (the game's Roaming.boost: each roamer's current
+      // stay, once per stay) - kept going while Mega hunts it here
+      const berry = +a.chapter === +s.ch ? Berries.keep('roam', `keeping ${name(g.foe)} in ${chName(s.ch)} longer`) : '';
+      const s2 = spot(g.foe) || s, mins = Math.max(0, Math.round((+s2.until - Date.now()) / 60000));
       const simKo = Legends.sims()[g.foe]?.ko;
-      return `hunting ${name(g.foe)} in ${chName(s.ch)} - it moves in ~${mins} min${simKo != null ? ` · team KOs it ${Math.round(simKo * 100)}% in the simulator` : ''}${g.tries ? ` · fought ${g.tries}x` : ''} · 4% catch per KO`;
+      return `hunting ${name(g.foe)} in ${chName(s.ch)}${berry} - it moves in ~${mins} min${simKo != null ? ` · team KOs it ${Math.round(simKo * 100)}% in the simulator` : ''}${g.tries ? ` · fought ${g.tries}x` : ''} · 4% catch per KO`;
     },
     // put back your team, the loop setting and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-06-roam:67', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-06-roam:70', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
-      if (back.length) try { setChapterTeam(back); } catch (__e) { __h('70-plan-06-roam:69', __e); }
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-06-roam:70', __e); } }
+      if (back.length) try { setChapterTeam(back); } catch (__e) { __h('70-plan-06-roam:72', __e); }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-06-roam:73', __e); } }
       g.restore = null; g.teamSet = false; Plan.save();
     },
   };
@@ -8960,13 +9094,13 @@ function start() {
   const wait = setInterval(() => {
     const domReady = document.readyState !== 'loading' && document.body;
     if (!domReady) return;
-    if (Engine.ready() || Date.now() - t0 > 30_000) { clearInterval(wait); try { UI.mount(); } catch (e) { console.error('[Mega Alakazam] UI failed to start', e); } }
+    if (Engine.ready() || Date.now() - t0 > 30_000) { clearInterval(wait); try { UI.mount(); } catch (e) { console.error('[Mega Alakazam] UI failed to start', e); } try { TopBar.boot(); } catch (e) { console.error('[Mega Alakazam] top bar failed to start', e); } }
   }, 300);
 }
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, Engine, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
