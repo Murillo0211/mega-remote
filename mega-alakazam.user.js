@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.20
+// @version      2.10.21
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.20';
+const VERSION = '2.10.21';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6437,7 +6437,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // (its own busy flag and no touching the goal's status: a preview must not clear the 5-minute wait after an error)
   let pvBusy = false;
   function ugPreview(g) { // answers at once when busy (the phone says so), otherwise a promise of the preview
-    if (ugBusy || pvBusy) return { error: 'Mega is picking a real expedition team right now - try the preview again in a minute', at: Date.now() };
+    if (ugBusy || pvBusy) return { error: 'Mega is already picking an Underground team - try the preview again in a minute', at: Date.now() };
     return ugPreviewRun(g);
   }
   async function ugPreviewRun(g) {
