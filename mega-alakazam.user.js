@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.25
+// @version      2.10.26
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.25';
+const VERSION = '2.10.26';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6417,7 +6417,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // runs = 2 while searching (fast); the finalists get FINAL_RUNS and are judged on a BAD run, not the average
   // (Jimmy 2026-11-22: estimates ran ~13 floors high - 5 of 10 teams stopped at 99, in front of floor 100's guard).
   // With: deep / cleared = the 25th percentile (one run in four does worse), med = the middle run.
-  const FINAL_RUNS = 8, FINALISTS = 4;
+  const FINAL_RUNS = 12, FINALISTS = 4;
   const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.min(b.length - 1, Math.floor(p * b.length))] : 0; };
   async function depth(team, theme, from, runs = 2) {
     const deeps = [], cls = []; let value = 0;
