@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.46
+// @version      2.10.47
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.46';
+const VERSION = '2.10.47';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2495,8 +2495,6 @@ Views.plan = (w, ui, esc) => {
         </div>
         ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))}${g.preview.guide ? ` (${g.preview.guide} from the Discord guide)` : ''} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
         ${g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? `<div style="margin:6px 0 0 30px"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
-        ${g.type === 'discord' && g.spot === 'xp' ? (() => { const R = GoalTypes.trainRows?.(g) || []; if (!R.length) return ''; const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-          return `<div style="margin:8px 0 0 30px">${R.map((r) => `<div style="display:flex;gap:8px;align-items:center;margin-top:6px"><img src="${Engine.sprite(r.id)}" width="32" height="32" style="image-rendering:pixelated;flex:none"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} · Lv ${r.level}</span><span class="dim">${GoalTypes.etaText(r.eta)}</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:3px"><div style="height:6px;border-radius:3px;width:${Math.round(r.pct * 100)}%;background:var(--ok)"></div></div></div></div>`).join('')}<div class="dim" style="font-size:12px;margin-top:4px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`; })() : ''}
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
@@ -2552,7 +2550,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:100', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:98', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3969,6 +3967,12 @@ Views.now = (w, esc, fmtIn) => {
       ${p ? `<div style="font-size:22px;font-weight:800;margin-top:2px">${p.money ? '₽' : ''}${(+p.have).toLocaleString()} <span class="dim" style="font-size:15px">of ${p.money ? '₽' : ''}${(+p.need).toLocaleString()}${p.unit ? ' ' + esc(p.unit) : ''}</span></div>` : ''}
       </div></div>${p ? bar(p.have / p.need) : ''}
       ${L.line ? `<div style="margin-top:8px">${esc(L.line)}</div>` : L.why ? `<div class="dim" style="margin-top:8px">${esc(L.why)}</div>` : ''}
+      ${(() => { // Battle XP goal (Jimmy 2026-11-23): each Pokémon it levels - level, a bar to Lv 100, time left
+        if (scrGoal.type !== 'discord' || scrGoal.spot !== 'xp') return '';
+        const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
+        const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
+        return `<div style="margin-top:10px">${R.map((r) => `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} · Lv ${r.level}</span><span class="dim">${GoalTypes.etaText(r.eta)}</span></div>${bar(r.pct)}</div></div>`).join('')}<div class="dim" style="font-size:12px;margin-top:6px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`;
+      })()}
       ${teamLine(L.team)}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
   } else if (Plan.running && Plan.idle) {
@@ -3993,8 +3997,8 @@ Views.now = (w, esc, fmtIn) => {
     // then why() says "day" - Mega fetches it (read-only, every 5 min at most) instead of saying "closed"
     const C = E.get('CandyRun'), now = Date.now();
     let why = d.candy.why, type = null;
-    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:109', __e); } }
-    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:110', __e); }
+    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:115', __e); } }
+    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:116', __e); }
     const tname = type ? type[0].toUpperCase() + type.slice(1) : '';
     const inPlan = Plan.hasType('candy');
     h += row('Candy Factory', d.candy.played || why === 'played' ? `<span class="ok">✔ done today</span>${tname ? ` <span class="dim">(${tname} day)</span>` : ''}`
@@ -4008,12 +4012,12 @@ Views.now = (w, esc, fmtIn) => {
     // the game only fetches the day's draw when its Raids screen opens: Mega fetches it (read-only),
     // at most every 5 min until it has today's, so this line is right without opening that screen
     const R = E.get('Raids'), now = Date.now();
-    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:124', __e); }
-    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:125', __e); } }
+    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:130', __e); }
+    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:131', __e); } }
     let nx = null, reg = null, boss = null, won = false, tries = 0;
-    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:127', __e); }
-    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:128', __e); } }
-    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:129', __e); } }
+    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:133', __e); }
+    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:134', __e); } }
+    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:135', __e); } }
     const inPlan = Plan.hasType('raid'), rname = reg ? esc((E.get('STORY.REGIONS') || []).find((x) => x.key === reg)?.name || reg) : '';
     h += row('Shiny Raid', !ready ? '<span class="dim">checking today\'s draw…</span>'
       : !reg ? `<span class="dim">no raid today${nx ? ` · next ${DexInfo.clock(nx)}` : ''}</span>`
@@ -4026,7 +4030,7 @@ Views.now = (w, esc, fmtIn) => {
     h += row('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
   h += `</div>`;
 
-  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:142', __e); }
+  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:148', __e); }
 
   // ---- 3. alongside (background goals) ----
   const bg = open.filter((g) => GoalTypes[g.type]?.uses === 'background' && !g.paused);
@@ -4053,7 +4057,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:169', __e); }
+  } catch (__e) { __h('62-nowview:175', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
