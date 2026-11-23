@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.31
+// @version      2.10.32
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.31';
+const VERSION = '2.10.32';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4558,7 +4558,7 @@ const GemFocus = (() => {
         }
         for (const x of s.keys) {
           const f = F.fuseFor(x.k);
-          if (f?.can) h += `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px"><b>Fuse</b> ${f.per} ${esc(f.lowerLabel)} → 1 ${esc(x.label)} · you have ${f.have} (makes up to ${f.makes})${f.makes ? `<div style="display:flex;gap:6px;margin-top:4px"><button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="1">Fuse 1</button>${f.makes > 1 ? `<button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="${Math.min(f.makes, Math.max(1, s.need - x.have))}">Fuse ${Math.min(f.makes, Math.max(1, s.need - x.have))} (enough for rank ${s.next})</button>` : ''}</div>` : ''}</div>`;
+          if (f?.can) h += `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px"><b>Fuse</b> ${f.per} ${esc(f.lowerLabel)} → 1 ${esc(x.label)} · you have ${f.have} (makes up to ${f.makes})${f.makes ? (() => { const short = s.rank < s.max ? Math.max(0, s.need - x.have) : 0, enough = Math.min(f.makes, short); return `<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="1" style="width:auto">Fuse 1</button>${enough > 1 && enough < f.makes ? `<button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="${enough}" style="width:auto">Fuse ${enough} (enough for rank ${s.next})</button>` : ''}${f.makes > 1 ? `<button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="${f.makes}" style="width:auto">Fuse All (${f.makes})</button>` : ''}</div>`; })() : ''}</div>`;
           else if (x.tier >= 2) h += `<div class="dim" style="margin-top:6px;font-size:13px">${esc(x.label)}s can't be made by fusing - they come from the Underground (deeper floors) or the gem shop (${F.price(x.k) ?? '?'} shards).</div>`;
           if ((o.ids || []).includes(x.k)) h += `<div style="margin-top:6px"><span class="ok">In the shop today:</span> ${esc(x.label)} for ${F.price(x.k)} shards (you have ${F.shards()}) <button class="btn sm" data-act="gem-buy" data-key="${x.k}" ${F.shards() >= (F.price(x.k) || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`;
         }
