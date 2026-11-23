@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.28
+// @version      2.10.29
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.28';
+const VERSION = '2.10.29';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6352,8 +6352,18 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (p && !want.includes(p.uid)) { want.push(p.uid); if (g.partnerLog !== p.uid) { g.partnerLog = p.uid; Plan.save(); Log.add(`${level.label(g)}: ${name(p.id)} (Lv ${p.level}) joins the team - ${name(g.fromId)} evolves only with it there${p.level < capOf(p.uid) ? `; note ${name(p.id)} may evolve too if it gains a level` : ''}`); } } }
       const byLevel = [...(g.carriers || []), ...(g.restore.team || []), ...here().sort((x, y) => y.level - x.level).map((m) => m.uid)].filter(((aw) => (u) => !aw.has(u))(awayNow()));
       for (const u of byLevel) { if (want.length >= 6) break; if (!want.includes(u) && (lvl(u) || 0) >= 90 && (lvl(u) || 0) >= capOf(u) && !g.uids.includes(u) && !(g.refused || []).includes(u) && E.read('Game.getMon', null, u) && !want.some((w) => Sim.species(E.read('Game.getMon', {}, w)) === Sim.species(E.read('Game.getMon', {}, u)))) want.push(u); }
+      // the one carrier of a fixed spot leads every fight (Jimmy 2026-11-23: "the carry always fights"). The game's
+      // auto-switch orders the team by TYPE matchup only - not level - so a Lv 30 trainee with a type edge went out
+      // before a Lv 100 carrier and fainted. While a 1-carrier spot runs: auto-switch off (your team order decides)
+      // and the carrier first. Your setting comes back when the goal stops.
+      const lead = g.force && g.nCarry === 1 ? (g.carriers || []).find((u) => want.includes(u)) : null;
+      if (lead) {
+        want.splice(want.indexOf(lead), 1); want.unshift(lead);
+        const S0 = S();
+        if (S0.autoSwitch !== false) { if (g.restore.autoSwitch === undefined) g.restore.autoSwitch = S0.autoSwitch ?? true; S0.autoSwitch = false; try { E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:166', __e); } Plan.save(); Log.add(`${name(E.read('Game.getMon', {}, lead)?.id)} leads every fight: the game's auto-switch is off while this runs (it picks by type matchup, not strength) - it comes back on after`); }
+      } else if (g.restore.autoSwitch !== undefined && S().autoSwitch === false) { S().autoSwitch = g.restore.autoSwitch; delete g.restore.autoSwitch; try { E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:167', __e); } Plan.save(); }
       const cur = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
-      if (!want.every((u) => cur.includes(u))) {
+      if (!want.every((u) => cur.includes(u)) || (lead && cur[0] !== lead)) {
         if (!setChapterTeam(want)) {
           // the game left someone out (not allowed in this chapter): skip them next time
           const took = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
@@ -6377,11 +6387,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
       if (!g.force && g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:183', __e); }
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:193', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
       if (!g.force && !E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:187', __e); }
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:197', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -6389,12 +6399,13 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:195', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:205', __e); }
       if (r.loops) GoalTypes.loopsBack(r.loops);
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:197', __e); }
+      if (r.autoSwitch !== undefined) { try { S().autoSwitch = r.autoSwitch; E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:207', __e); } }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:208', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:200', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:211', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
