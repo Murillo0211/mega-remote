@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.11.1
+// @version      2.11.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.11.1';
+const VERSION = '2.11.2';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2583,7 +2583,7 @@ Views.plan = (w, ui, esc) => {
   }
 
   h += goalsHtml;
-  if (done.length) h += `<div class="card"><h3>Done</h3>${done.map((g) => `<div class="row"><span class="k">✔ ${esc(Plan.label(g))}</span><span class="v dim">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('')}<button class="btn sm" style="margin-top:6px" data-act="plan-clear">Clear done</button></div>`;
+  if (done.length) h += `<div class="card"><h3>Done</h3>${done.length > 25 ? `<div class="dim" style="margin-bottom:4px">The latest 25 of ${done.length}</div>` : ''}${done.slice().sort((a, b) => (+b.done || 0) - (+a.done || 0)).slice(0, 25).map((g) => `<div class="row"><span class="k">✔ ${esc(Plan.label(g))}</span><span class="v dim">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('')}<button class="btn sm" style="margin-top:6px" data-act="plan-clear">Clear done</button></div>`;
 
   const lines = Log.lines.slice(ui.showLog ? -40 : -6).reverse();
   h += `<div class="card"><h3>What Mega did</h3>${lines.length ? lines.map((l) => `<div class="row" style="justify-content:flex-start"><span class="k" style="white-space:nowrap;flex:none;width:78px">${new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span style="text-align:left">${esc(l.text)}</span></div>`).join('') : '<div class="dim">Nothing yet.</div>'}<button class="btn" data-act="log-more">${ui.showLog ? 'Show less' : 'Show more'}</button></div>`;
@@ -2897,7 +2897,7 @@ const Sub = (() => {
     now: [['main', 'Overview', null], ['care', 'Day Care', /day care/], ['more', 'Pokédex & Team', /^(pokédex|team|trades)$/]],
     act: [['hist', 'History', /^history/], ['goals', 'Goals', null], ['stats', 'Stats', /^(money|pokédex|pokedex|total levels|shinies|lv 100)/], ['log', 'Log', /^log\b/]],
     plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['add', 'Add a Goal', /^add a goal/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
-    gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^(gems|strongest get stronger)$/], ['all', 'All Gems', null]],
+    gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^(gems|strongest get stronger)$/], ['all', 'Held', null], ['none', 'Not Held', /^\0$/]],
     blocs: [['blocks', 'Pokéblocks', /^pokéblocks/], ['boss', 'Boss', /boss/], ['rev', 'Revealed', /^revealed/], ['rain', 'Rainbow', /rainbow/]],
     engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar/], ['health', 'Health', null]],
     fights: [['leg', 'Legendaries', null], ['other', 'Trainers & Others', null]],
@@ -4044,7 +4044,7 @@ Views.now = (w, esc, fmtIn) => {
         if (scrGoal.type !== 'discord' || scrGoal.spot !== 'xp') return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-        return `<div style="margin-top:10px">${R.map((r) => `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} · Lv ${r.level}</span><span class="dim">${GoalTypes.etaText(r.eta)}</span></div>${bar(r.pct)}</div></div>`).join('')}<div class="dim" style="font-size:12px;margin-top:6px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`;
+        return `<div style="margin-top:8px" title="Time to Lv 100 at each one's XP rate over the last 20 min">${R.map((r) => `<div style="display:grid;grid-template-columns:26px minmax(0,9em) 1fr auto;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:13px;white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
       })()}
       ${teamLine(L.team)}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
@@ -4063,7 +4063,7 @@ Views.now = (w, esc, fmtIn) => {
 
   // ---- 6. today: dailies ----
   const d = w.dailies, ug = d.underground, wb = d.worldBoss;
-  h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:6px"></div>`;
+  h += `<div style="border-top:1px solid var(--line);margin-top:10px;padding-top:4px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));column-gap:16px">`;
   if (ug) h += row('Underground', `${ug.left} of ${ug.perDay} left · ${ug.running}/${ug.slotsMax} bays busy${ug.finished ? ` · <span class="warn">${ug.finished} ready to collect</span>` : ug.nextBack ? ` · back in ${fmtIn(ug.nextBack)}` : ''}`);
   if (d.candy) {
     // like the raid: the day's type is only fetched when the game's Candy Factory screen opens, and until
@@ -4103,7 +4103,7 @@ Views.now = (w, esc, fmtIn) => {
   h += row('World Boss', wb.caught ? '<span class="ok">✔ caught this edition</span>' : wb.catchable ? '<span class="warn">catchable now</span>' : wb.open ? 'shield up' : '<span class="dim">closed</span>');
   { const sm = (() => { try { return History.sideMoney(); } catch { return null; } })();
     h += row('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
-  h += `</div>`;
+  h += `</div></div>`; // the dailies grid, then the Today card
 
   try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:166', __e); }
 
@@ -4120,11 +4120,8 @@ Views.now = (w, esc, fmtIn) => {
 
   // ---- 3. alongside (background goals) ----
   const bg = open.filter((g) => GoalTypes[g.type]?.uses === 'background' && !g.paused);
-  if (bg.length) {
-    h += `<div class="card"><h3>Running Alongside</h3>`;
-    for (const g of bg) { const L = live(g), p = prog(g, L); h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0">${pic(g, 40)}<div style="flex:1;min-width:0"><b>${esc(Plan.label(g))}</b>${p ? ` <span class="dim">· ${(+p.have).toLocaleString()} of ${(+p.need).toLocaleString()}</span>` : ''}<div class="dim">${esc(L.line || L.why || L.state || '')}</div></div></div>`; }
-    h += `</div>`;
-  }
+  // running alongside: one short line each, at the foot of Up Next
+  const along = bg.map((g) => { const L = live(g), p = prog(g, L); return `<div style="margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(Plan.label(g))}</b>${p ? ` <span class="dim">· ${(+p.have).toLocaleString()} of ${(+p.need).toLocaleString()}${p.unit ? ' ' + esc(p.unit) : ''}</span>` : ''} <span class="dim">· ${esc(L.line || L.why || L.state || '')}</span></div>`; }).join('');
 
   // ---- 3b. Day Care: eggs in the incubator and how long each has left ----
   try {
@@ -4143,12 +4140,12 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:204', __e); }
+  } catch (__e) { __h('62-nowview:201', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
   const next = open.filter((g) => g !== scrGoal && !bg.includes(g) && !(live(g).state === 'wait' && /\b(locked|closed)\b/i.test(live(g).why || '')));
-  if (next.length) {
+  if (next.length || along) {
     h += `<div class="card"><h3>Up Next</h3>`;
     for (const g of next.slice(0, 3)) {
       const L = live(g), p = prog(g, L);
@@ -4156,6 +4153,7 @@ Views.now = (w, esc, fmtIn) => {
       h += `<div style="display:flex;gap:10px;align-items:center;margin:8px 0">${pic(g, 40)}<div style="flex:1;min-width:0"><b>${esc(Plan.label(g))}</b>${p ? ` <span class="dim">· ${(+p.have).toLocaleString()} of ${(+p.need).toLocaleString()}</span>` : ''}<div class="dim">${st}</div></div></div>`;
     }
     if (next.length > 3) h += `<div class="dim" data-act="tab" data-tab="plan" style="cursor:pointer">+ ${next.length - 3} more in the Plan tab ›</div>`;
+    if (along) h += `<div class="lbl" style="margin-top:8px">Running alongside</div>${along}`;
     h += `</div>`;
   }
 
@@ -4529,7 +4527,7 @@ Views.gems = (esc) => {
     h += `</div>`;
   }
   for (const r of g.rows) {
-    h += `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">${esc(r.label)}</b><span>×${r.have}</span></div>`;
+    h += `<div class="card" data-sec="${+r.have > 0 ? 'all' : 'none'}"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">${esc(r.label)}</b><span>×${r.have}</span></div>`;
     if (!r.top.length) h += `<div class="dim" style="margin-top:4px">None of your Pokémon can use it right now.</div>`;
     for (const c of r.top) {
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px">
