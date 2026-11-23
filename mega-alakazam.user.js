@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.32
+// @version      2.10.33
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.32';
+const VERSION = '2.10.33';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4461,6 +4461,9 @@ const GemFocus = (() => {
     ['Slaking', 'Rare #1'], ['Gyarados', 'Rare #2'], ['Walrein', 'Rare #3'], ['Mamoswine', 'Rare #4'], ['Feraligatr', 'Rare #5'], ['Lapras', 'Rare #6'], ['Emboar', 'Rare #7'], ['Chandelure', 'Rare #8'], ['Exeggutor', 'Rare #9'], ['Vaporeon', 'Rare #10'],
     ['Escavalier', 'Uncommon #1'], ['Scrafty', 'Uncommon #2'], ['Skuntank', 'Uncommon #3'], ['Froslass', 'Uncommon #4'], ['Breloom', 'Uncommon #5'],
   ];
+  // the Discord's top player (has cleared everything and every Elite tier) - his rank-5 picks, Jimmy 2026-11-23.
+  // Shown first; the uncommon ones (Skuntank, Venomoth, Magcargo) rank with the cheap uncommon gems.
+  const TOP = ['Skuntank', 'Venomoth', 'White Kyurem', 'Dialga', 'Metagross', 'Magcargo', 'Gardevoir'];
   const nameOf = (id) => { try { return Casing.names(E.get('Game.DEX')[id].name); } catch { return '#' + id; } };
   const gems = () => E.get('Game.S')?.under?.gems || {};
   const tierOf = (k) => +String(k).split(':')[1] || 0;
@@ -4480,7 +4483,7 @@ const GemFocus = (() => {
   function fuseFor(k) {
     const t = tierOf(k); if (t < 1) return null;
     const lower = `${typeOf(k)}:${t - 1}`;
-    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:46', __e); }
+    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:49', __e); }
     if (to !== k) return { can: false, lower };
     const per = +(E.get('CONFIG')?.UNDERGROUND?.GEM_FUSE ?? 3), have = gems()[lower] || 0;
     return { can: true, lower, lowerLabel: label(lower), per, have, makes: Math.floor(have / per) };
@@ -4491,7 +4494,10 @@ const GemFocus = (() => {
   // your best copy of each Discord pick (highest rank, then level)
   function watchRows() {
     const all = owned(), out = [];
-    for (const [n, tag] of WATCH) {
+    const tags = new Map(WATCH.map(([n, t]) => [n, t]));
+    const order = [...TOP, ...WATCH.map((x) => x[0]).filter((n) => !TOP.includes(n))];
+    for (const n of order) {
+      const tag = TOP.includes(n) ? `top player's rank-5 pick${tags.has(n) ? ' · ' + tags.get(n) : ''}` : tags.get(n);
       const ms = all.filter((m) => nameOf(m.id) === n).sort((a, b) => (b.rank || 0) - (a.rank || 0) || b.level - a.level);
       if (ms.length) out.push({ ...status(ms[0]), tag, name: n });
     }
@@ -4509,7 +4515,7 @@ const GemFocus = (() => {
   function watchShop() {
     try {
       const o = shop(); if (!o) return;
-      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:75', __e); }
+      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:81', __e); }
       if (told.ends !== o.ends) told = { ends: o.ends, keys: [] };
       const fresh = shopHits().filter((h) => h.ok && !told.keys.includes(h.k));
       if (!fresh.length) return;
@@ -4518,7 +4524,7 @@ const GemFocus = (() => {
       const ends = new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
       Notify.send('daily', `Gem shop: ${fresh.map((h) => h.label).join(', ')}`, `${fresh.map((h) => `${h.label} (${h.price} shards) - for ${h.mons.slice(0, 3).join(', ')}`).join(' · ')} · you have ${shards()} shards · offer ends ${ends}. Buy it on the Gems tab.`);
       Log.add(`gem shop: ${fresh.map((h) => `${h.label} for ${h.mons.join(', ')}`).join('; ')} - you can afford it (phone told)`);
-    } catch (__e) { __h('63-gemfocus:84', __e); }
+    } catch (__e) { __h('63-gemfocus:90', __e); }
   }
   let timer = null;
   function boot() { if (timer) return; timer = setInterval(watchShop, 5 * 60_000); setTimeout(watchShop, 30_000); }
@@ -4528,7 +4534,7 @@ const GemFocus = (() => {
   function reroll() { try { return U().reroll(); } catch { return { error: 'the game refused' }; } }
   // the menu: Discord picks first, then everyone by name
   function choices() {
-    const picks = new Set(WATCH.map((x) => x[0]));
+    const picks = new Set([...TOP, ...WATCH.map((x) => x[0])]);
     return owned().map((m) => ({ uid: m.uid, name: nameOf(m.id), lv: m.level, rank: m.rank || 0, shiny: !!m.shiny, pick: picks.has(nameOf(m.id)) }))
       .sort((a, b) => (b.pick - a.pick) || a.name.localeCompare(b.name) || b.rank - a.rank || b.lv - a.lv);
   }
