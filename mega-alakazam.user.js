@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.11.3
+// @version      2.11.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.11.3';
+const VERSION = '2.11.4';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2914,7 +2914,8 @@ const Sub = (() => {
     const catchAll = (S.find((x) => !x[2]) || S[0])[0];
     let seenCard = false, cur = null;
     for (const n of [...t.content.childNodes]) {
-      const isCard = n.nodeType === 1 && n.classList.contains('card');
+      const isCard = n.nodeType === 1 && n.classList.contains('card') && n.getAttribute('data-sec') !== 'lead';
+      if (n.nodeType === 1 && n.getAttribute('data-sec') === 'lead') { lead.push(n); continue; }
       if (!isCard) { if (!seenCard || !cur) lead.push(n); else groups[cur].push(n); continue; }
       seenCard = true;
       const ds = n.getAttribute('data-sec');
@@ -3108,8 +3109,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .hd img.ver:hover + .vtip{opacity:1}
     .dot{width:12px;height:12px;border-radius:50%;flex:none;box-sizing:border-box;border:2px solid #ffffffb0;background:#5ad68a;box-shadow:0 0 8px #5ad68a}
     .dot.warn{background:#ffb547;box-shadow:0 0 8px #ffb547} .dot.err{background:#ff6b6b;box-shadow:0 0 8px #ff6b6b}
-    .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px 10px;background:var(--shell-lo);border-bottom:3px solid var(--seam)}
-    .tabs button{all:unset;cursor:pointer;touch-action:none;text-align:center;padding:5px 2px;border-radius:8px;font-weight:700;font-size:13px;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
+    .tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:8px 10px;background:var(--shell-lo);border-bottom:3px solid var(--seam)}
+    .tabs button{all:unset;cursor:pointer;touch-action:none;text-align:center;padding:5px 2px;border-radius:8px;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
     .tabs button:hover{background:#ffffff1f;color:#fff}
     .tabs button.on{background:linear-gradient(90deg,var(--gold),#ffd978);color:var(--on-gold);border-color:var(--gold);box-shadow:none}
     .tabs button.drag{opacity:.4} .tabs button.dropto{outline:2px dashed #fff;outline-offset:1px}
@@ -4044,7 +4045,7 @@ Views.now = (w, esc, fmtIn) => {
         if (scrGoal.type !== 'discord' || scrGoal.spot !== 'xp') return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-        return `<div style="margin-top:8px" title="Time to Lv 100 at each one's XP rate over the last 20 min">${R.map((r) => `<div style="display:grid;grid-template-columns:26px minmax(0,9em) 1fr auto;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:13px;white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
+        return `<div style="margin-top:8px" title="Time to Lv 100 at each one's XP rate over the last 20 min">${R.map((r) => `<div style="display:grid;grid-template-columns:26px auto minmax(40px,1fr) auto;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:13px;white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
       })()}
       ${teamLine(L.team)}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
