@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.29
+// @version      2.10.30
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.29';
+const VERSION = '2.10.30';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2494,6 +2494,7 @@ Views.plan = (w, ui, esc) => {
           <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
         ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
+        ${g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? `<div style="margin:6px 0 0 30px"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
@@ -2549,7 +2550,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:97', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:98', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3190,6 +3191,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
+      if (e.target.matches('select[data-act="disc-carrier"]')) {
+        const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
+        if (g) { g.carrier = e.target.value || null; if (g.job) g.job.carriersFor = null; Plan.save(); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
+        renderBody(true); return;
+      }
       if (e.target.matches('select[data-act="ug-from"], select[data-act="ug-aim"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { if (e.target.dataset.act === 'ug-from') g.from = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; else g.aim = e.target.value === 'loot' ? 'loot' : 'deep'; Plan.save(); Log.add(`Underground: ${Plan.label(g)}`); }
@@ -3273,7 +3279,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:268', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:273', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3298,7 +3304,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:293', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:298', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3321,19 +3327,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:316', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:321', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:322', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:327', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:325', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:330', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:328', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:333', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3376,8 +3382,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:371', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:372', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:376', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:377', __e); }
     renderBody(true, w);
   }
 
@@ -3392,7 +3398,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:387', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:392', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3407,13 +3413,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:402', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:403', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:407', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:408', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:408', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:413', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -6316,9 +6322,13 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       }
       // carriers: the fully-leveled Pokémon that clear this chapter fastest (simulated against its wild
       // Pokémon and boss); re-picked when the chapter changes or the picker itself improved (CARRIER_V)
-      if (g.carriersFor !== best.ch || g.carriersV !== Sim.CARRIER_V) {
+      if (g.carriersFor !== best.ch || g.carriersV !== Sim.CARRIER_V || (g.force?.carrier || null) !== (g.carrierWas || null)) {
+        g.carrierWas = g.force?.carrier || null;
         let picks = [];
         try { picks = Sim.carriers(best.ch, { exclude: [...g.uids, ...list, ...(g.refused || [])], n: 10 }).picks.filter((p) => p.m.level >= capOf(p.m.uid)); } catch (e) { Log.add('could not rate carriers: ' + (e?.message || e)); }
+        // your chosen carrier (a Discord spot's "Carrier" setting): always first, when it's here and fully leveled
+        const mine = g.force?.carrier ? E.read('Game.getMon', null, g.force.carrier) : null;
+        if (mine && mine.level >= capOf(mine.uid) && !awayNow().has(mine.uid)) picks = [{ m: mine }, ...picks.filter((p) => p.m.uid !== mine.uid)];
         g.carriers = picks.map((p) => p.m.uid); g.carriersFor = best.ch; g.carriersV = Sim.CARRIER_V;
         // 2 or 3 carriers: whichever gives more total XP per hour
         g.nCarry = 2; let why = '';
@@ -6334,12 +6344,13 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           }
           // a fixed spot (the Discord's way): ONE carrier that sweeps it and 5 leveling, when the simulator says one
           // alone still gives more XP per hour (every team member gets the full XP of each win)
-          if (g.force?.carry1 && mons.length >= 2) {
+          if (g.force?.carrier && picks[0]?.m.uid === g.force.carrier) { g.nCarry = 1; why = ' - your chosen carrier, alone'; }
+          else if (g.force?.carry1 && mons.length >= 2) {
             const c1 = cost(mons.slice(0, 1)), c2 = cost(mons.slice(0, 2)), x1 = 5 / c1, x2 = 4 / c2;
             if (x1 > x2 * 1.02) { g.nCarry = 1; why = ` - 1 carrier ${Math.round(x1 / x2 * 100)}% of 2 carriers' XP/h (it sweeps alone)`; }
             else why = ` - 2 carriers (1 alone would be ${Math.round(x1 / x2 * 100)}% as fast)`;
           }
-        } catch (__e) { __h('70-plan-03-level:145', __e); }
+        } catch (__e) { __h('70-plan-03-level:150', __e); }
         Plan.save();
         if (picks.length) Log.add(`carriers for ${best.name}: ${picks.slice(0, g.nCarry).map((p) => name(p.m.id)).join(', ')}${why}`);
       }
@@ -6360,8 +6371,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (lead) {
         want.splice(want.indexOf(lead), 1); want.unshift(lead);
         const S0 = S();
-        if (S0.autoSwitch !== false) { if (g.restore.autoSwitch === undefined) g.restore.autoSwitch = S0.autoSwitch ?? true; S0.autoSwitch = false; try { E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:166', __e); } Plan.save(); Log.add(`${name(E.read('Game.getMon', {}, lead)?.id)} leads every fight: the game's auto-switch is off while this runs (it picks by type matchup, not strength) - it comes back on after`); }
-      } else if (g.restore.autoSwitch !== undefined && S().autoSwitch === false) { S().autoSwitch = g.restore.autoSwitch; delete g.restore.autoSwitch; try { E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:167', __e); } Plan.save(); }
+        if (S0.autoSwitch !== false) { if (g.restore.autoSwitch === undefined) g.restore.autoSwitch = S0.autoSwitch ?? true; S0.autoSwitch = false; try { E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:171', __e); } Plan.save(); Log.add(`${name(E.read('Game.getMon', {}, lead)?.id)} leads every fight: the game's auto-switch is off while this runs (it picks by type matchup, not strength) - it comes back on after`); }
+      } else if (g.restore.autoSwitch !== undefined && S().autoSwitch === false) { S().autoSwitch = g.restore.autoSwitch; delete g.restore.autoSwitch; try { E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:172', __e); } Plan.save(); }
       const cur = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
       if (!want.every((u) => cur.includes(u)) || (lead && cur[0] !== lead)) {
         if (!setChapterTeam(want)) {
@@ -6387,11 +6398,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
       if (!g.force && g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:193', __e); }
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:198', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
       if (!g.force && !E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:197', __e); }
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:202', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -6399,13 +6410,13 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:205', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:210', __e); }
       if (r.loops) GoalTypes.loopsBack(r.loops);
-      if (r.autoSwitch !== undefined) { try { S().autoSwitch = r.autoSwitch; E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:207', __e); } }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:208', __e); }
+      if (r.autoSwitch !== undefined) { try { S().autoSwitch = r.autoSwitch; E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:212', __e); } }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:213', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:211', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:216', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
@@ -8312,7 +8323,7 @@ const Plan = (() => {
       if (sp.kind === 'level') {
         const pick = GoalTypes.idlePick();
         if (!pick.length) return 'every Pokémon is at its level cap';
-        const force = { ch: sp.ch, chs: sp.chs, key: sp.key, name: sp.where, carry1: true };
+        const force = { ch: sp.ch, chs: sp.chs, key: sp.key, name: sp.where, carry1: true, carrier: g.carrier || null };
         const atCap = (j) => j.uids.every((u) => (E.read('Game.getMon', null, u)?.level ?? 999) >= Math.min(100, E.read('Game.capFor', 100, E.read('Game.getMon', null, u)) || 100));
         if (!g.job) { g.job = { id: g.id + ':job', type: 'level', uids: pick, target: 100, idle: true, started: Date.now(), force }; Plan.save(); Log.add(`${discord.label(g)}: leveling ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
         else if (atCap(g.job) && pick.join() !== g.job.uids.join()) { g.job.uids = pick; g.job.carriersFor = null; g.job.startLv = null; Plan.save(); Log.add(`${discord.label(g)}: now ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
@@ -8354,9 +8365,14 @@ const Plan = (() => {
       Log.add(`${discord.label(g)}: stopped - your team, chapter and loops are back`);
     },
   };
+  // who can be the carrier (the goal's "Carrier" menu): your fully-leveled Pokémon, strongest first
+  function carrierChoices(n = 40) {
+    const G = E.get('Game'), st = (m) => { try { const s = G.statsOf(m); return s.hp + s.def + s.spd + s.spe + Math.max(s.atk, s.spa); } catch { return 0; } };
+    return (E.read('Game.ownedMons', []) || []).filter((m) => m.level >= 100).sort((a, b) => st(b) - st(a)).slice(0, n).map((m) => ({ uid: m.uid, id: m.id, rank: m.rank || 0, name: `${name(m.id)}${m.shiny ? ' ✨' : ''}${m.rank ? ` (rank ${m.rank})` : ''}` }));
+  }
   // every Exp. Candy you hold (the candy spot counts what it brings in)
   function candyNow() { let n = 0; for (const k of ['exp-candy-s', 'exp-candy-m', 'exp-candy-big', 'exp-candy-xl', 'rare-candy']) n += +E.read('Game.itemCount', 0, k) || 0; return n; }
-  Object.assign(GoalTypes, { discord, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
+  Object.assign(GoalTypes, { discord, carrierChoices, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
 /* ===================================================================================================
@@ -9004,7 +9020,7 @@ const Remote = (() => {
   function snapshot() {
     const S = E.get('Game.S') || {}, D = E.get('Game.DEX') || {}, w = World.build();
     const prog = (g) => { try { const p = GoalTypes[g.type]?.progress?.(g); return p ? [p.have, p.need, p.unit || '', p.money ? 1 : 0] : null; } catch { return null; } };
-    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
+    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, cr: g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? (g.carrier || '') : undefined, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
     const done = Plan.goals.filter((g) => g.done && Date.now() - g.done < 86_400_000).map((g) => [Casing.names(Plan.label(g)), g.done]);
     const a = S.adv || {}, ST = E.get('STORY');
     const where = w.screen?.kind === 'zone' ? `${D[w.screen.id]?.name}'s Legendary Zone` : a.tower ? (a.tower.kind === 'candy' ? 'Candy Factory run' : 'Battle Tower run') : a.chapter != null ? `${ST?.CHAPTERS?.[a.chapter]?.name || 'Chapter ' + a.chapter} · stop ${(+a.node || 0) + 1} of ${(a.nodes || []).length || '?'}` : '';
@@ -9030,7 +9046,7 @@ const Remote = (() => {
     const nm = Object.fromEntries([...ids].map((id) => [id, D[id]?.name || '#' + id]));
     return {
       v: 1, at: Date.now(), ver: VERSION, run: Plan.running, top: Casing.names(Plan.top || ''), old: Plan.oldOn() ? 1 : 0,
-      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: History.homeMoney(), side: History.sideMoney(), dex, trades, gems, ugStarts: (() => { try { return E.get('Underground').starts() || [1]; } catch { return [1]; } })(),
+      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: History.homeMoney(), side: History.sideMoney(), dex, trades, gems, carriers: (Plan.goals.some((g) => g.type === 'discord' && !g.done) ? (() => { try { return GoalTypes.carrierChoices(30).map((c) => [c.uid, c.name]); } catch { return []; } })() : undefined), ugStarts: (() => { try { return E.get('Underground').starts() || [1]; } catch { return [1]; } })(),
       log: (Log.lines || []).slice(-15).map((l) => [l.at, Casing.names(l.text)]),
       set: { berries: Berries.on, idle: Plan.idleOn, alerts: !!Notify.cfg.on },
       gemPick: (() => { try { return (E.get('LegendZones')?.leaguePending?.() || []).map((p) => [p.reg, p.tier]); } catch { return []; } })(),
@@ -9064,6 +9080,10 @@ const Remote = (() => {
     'goal.top': (a) => { Plan.toTop(a.id); return 'ok'; },
     'goal.retry': (a) => { Plan.retry(a.id); return 'ok'; },
     'goal.ugpreview': (a) => { const g = Plan.goals.find((x) => x.id === a.id && x.type === 'under'); if (!g) throw new Error('no Underground goal'); const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) return p.error; Promise.resolve(p).finally(() => push(true)); return 'trying start floors - the pick shows on the goal in a minute or two'; },
+    'goal.carrier': (a) => {
+      const g = Plan.goals.find((x) => x.id === a.id && x.type === 'discord'); if (!g) throw new Error('no Discord goal');
+      g.carrier = a.uid || null; if (g.job) g.job.carriersFor = null; Plan.save(); Log.add(`${Plan.label(g)} (phone): carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); return 'saved';
+    },
     'goal.ug': (a) => {
       const g = Plan.goals.find((x) => x.id === a.id && x.type === 'under'); if (!g) throw new Error('no Underground goal');
       if (a.from != null) g.from = a.from === 'auto' ? 'auto' : Math.max(1, +a.from || 1);
@@ -9130,7 +9150,7 @@ const Remote = (() => {
       const h = DexInfo.howTo(id), ways = DexInfo.routes(id).map((r) => [r.kind, Casing.names(r.text)]);
       const inPlan = Plan.goals.find((g) => !g.done && (g.foe === id || g.forDex === id || g.item === 'egg:' + id));
       const wild = DexInfo.wild(id).map((c) => [c.ch, Casing.names(c.chapter), c.best, c.open ? 1 : 0, c.now ? 1 : 0, Casing.names(c.spots.map((x) => `${x.place} (${DexInfo.pct(x.pct)}${x.when?.length ? `, ${DexInfo.whenText(x.when)} only` : ''}${x.fights ? `, ${x.fights} fights per run` : ''})`).join(' · '))]);
-      let sw = { owned: false, ways: [] }; try { sw = GoalTypes.shinyWays(id); } catch (__e) { __h('80-remote:206', __e); }
+      let sw = { owned: false, ways: [] }; try { sw = GoalTypes.shinyWays(id); } catch (__e) { __h('80-remote:210', __e); }
       const hunt = Plan.goals.find((g) => !g.done && ['shinyWild', 'shinyBreed'].includes(g.type) && +(g.target || g.foe) === id);
       replies[rid] = { at: Date.now(), data: { id, name: h.name, types: h.types, reg: h.registered ? 1 : 0, owned: h.owned || 0, now: Casing.names(DexInfo.availableNow(id) || ''), ways, wild, plan: inPlan ? Casing.names(Plan.label(inPlan)) : null,
         shiny: { owned: sw.owned ? 1 : 0, hunt: hunt ? Casing.names(Plan.label(hunt)) : null, ways: sw.ways.map((w) => [w.way, Casing.names(w.text), Math.round(w.hours * 10) / 10]) } } };
@@ -9196,11 +9216,11 @@ const Remote = (() => {
       const ro = U.rankOf(m, String(a.key)); if (!ro || ro.key !== String(a.key)) throw new Error('that gem doesn\'t fit it'); if (ro.why) throw new Error(ro.why);
       if (+a.rank !== (+m.rank || 0)) throw new Error('its rank changed - refresh and try again');
       const r = U.rankUp(m.uid, String(a.key)); if (!r) throw new Error('the game said no');
-      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch (__e) { __h('80-remote:272', __e); }
+      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch (__e) { __h('80-remote:276', __e); }
       return `${D()[m.id]?.name} is rank ${r.rank} now (back to Lv 5)`;
     },
     'update.check': async () => {
-      await Updater.check(); try { push(true); } catch (__e) { __h('80-remote:276', __e); }
+      await Updater.check(); try { push(true); } catch (__e) { __h('80-remote:280', __e); }
       const v = Updater.available, I = Updater.info;
       if (I.err && !I.latest) return 'could not reach GitHub: ' + I.err;
       return v ? `New Update ${v} is ready${Updater.downloaded === v ? ' - downloaded, tap Reload Game to run it' : ''}` : `you're up to date (${VERSION})`;
@@ -9269,16 +9289,16 @@ const Remote = (() => {
   let lastPair = 0;
   let es = null, seen = new Set(), parts = new Map(), lastSig = '', lastSent = 0, pushing = false, lastErr = null, watchedAt = 0;
   function listen() {
-    try { es?.close(); } catch (__e) { __h('80-remote:345', __e); }
+    try { es?.close(); } catch (__e) { __h('80-remote:349', __e); }
     es = null;
     if (!cfg.on || !cfg.cmd) return;
     if (relay()) {
       es = new EventSource(`${RELAY}/sub/${encodeURIComponent(cfg.cmd)}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:350', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:354', __e); } };
       pairRelay();
     } else {
       es = new EventSource(`https://ntfy.sh/${cfg.cmd}/sse?since=${cfg.lastCmd || '10m'}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:354', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:358', __e); } };
     }
     es.onerror = () => { lastErr = 'phone link reconnecting…'; };
     es.onopen = () => { lastErr = null; };
@@ -9345,13 +9365,13 @@ const Remote = (() => {
     if (ev?.raid) { kind = 'raid'; foe = +ev.id; reg = ev.reg; }
     else if (a.zone) { foe = +(a.zone.foe ?? a.zone.id); kind = a.zone.wb ? 'wboss' : a.zone.tier ? 'elite' : 'legend'; }
     if (!kind || !foe) return null;
-    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:421', __e); }
+    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:425', __e); }
     const day = Date.now() - 86_400_000;
     // boss fights today against this foe (raid: the raid's static boss; zone: zone fights)
     // (a Legendary like Cresselia is also a 'static' encounter, so 'static' can't mean raid - only the raid flag does)
     const boss = fights.filter((f) => f.at > day && (kind === 'raid' ? !!f.raid : !f.raid));
     let kos, wipes;
-    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:427', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
+    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:431', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
     else { kos = boss.filter((f) => f.outcome === 'ko').length; wipes = boss.filter((f) => f.outcome === 'wipe').length; }
     // time per fight: the median gap between boss fights (travel + fight), else the raid loop time
     const st = boss.map((f) => f.at).sort((x, y) => x - y), gaps = [];
@@ -9360,11 +9380,11 @@ const Remote = (() => {
     const per = gaps.length ? gaps[Math.floor(gaps.length / 2)] : kind === 'raid' ? +ev.loopMs || null : boss[0]?.ms || null;
     let chance = null;
     if (kind === 'raid') chance = +(C.RAID?.CATCH) || 0.01;
-    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:436', __e); } }
+    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:440', __e); } }
     if (!(chance > 0)) chance = fightCache?.foe === foe ? fightCache.chance : null;
     let tries = 0, pity = null;
-    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:439', __e); } pity = +(C.RAID?.PITY) || null; }
-    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:440', __e); } }
+    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:443', __e); } pity = +(C.RAID?.PITY) || null; }
+    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:444', __e); } }
     else tries = +(S.legTries?.[foe] ?? 0);
     const koRate = kos + wipes ? kos / (kos + wipes) : null;
     // expected: KOs for a 50% / 90% chance, and the time that takes at today's KO rate
@@ -9382,7 +9402,7 @@ const Remote = (() => {
     const S = E.get('Game.S') || {}, Dx = E.get('Game.DEX') || {}, a = S.adv || {}, g = E.get('Game');
     const hp = (m) => { try { return [Math.max(0, Math.round(g.curHp(m))), Math.round(g.maxHp(m))]; } catch { return [0, 0]; } };
     const goals = Plan.goals.filter((x) => !x.done && ['running', 'ready'].includes(Plan.live(x.id)?.state)).map((x) => {
-      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:458', __e); }
+      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:462', __e); }
       return [x.id, Casing.names(Plan.live(x.id)?.line || ''), p];
     });
     const foes = (a.battle?.enemies || []).filter((e) => e && e.id != null).map((e) => [e.id, e.level || 0, ...hp(e)]);
