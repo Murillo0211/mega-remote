@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.44
+// @version      2.10.45
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.44';
+const VERSION = '2.10.45';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -8178,11 +8178,22 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         // be an older team (2026-11-23: Sinnoh got Heatran + Sableye instead of the simulated six and lost 8 times).
         // Set it to the simulated six, in order, right before starting.
         if (sim?.uids?.length && (S().road || []).join() !== sim.uids.join()) { S().road = sim.uids.slice(); try { E.call('Game.save'); } catch (__e) { __h('70-plan-17-league:52', __e); } }
+        // ...and the game's own saved team for this League (its League team picker: eventTeams["league:<region>"]) wins
+        // over both when it has anyone in it - that's what Sinnoh used. Put the simulated six there; yours comes back
+        // when the goal ends.
+        if (sim?.uids?.length) {
+          const s0 = S(), k = 'league:' + g.reg; s0.eventTeams = s0.eventTeams || {};
+          const cur = s0.eventTeams[k] || [];
+          if (cur.join() !== sim.uids.join()) {
+            if (g.restore.leagueTeam === undefined) { g.restore.leagueTeam = cur.slice(); Plan.save(); if (cur.length) Log.add(`Elite League ${regName(g.reg)}: your saved League team (${cur.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}) is set aside for the simulated one - it comes back when the goal ends`); }
+            s0.eventTeams[k] = sim.uids.slice(); try { E.call('Game.save'); } catch (__e) { __h('70-plan-17-league:61', __e); }
+          }
+        }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'starting…';
         g.enterAt = Date.now();
         { const why = Guard.team(S().team || [], { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`Elite League ${g.reg} tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan-17-league:56', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-17-league:57', __e); }
+        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan-17-league:67', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-17-league:68', __e); }
         if (ok) {
           Log.add(`Elite League ${regName(g.reg)}: started tier ${next} with ${sim.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}${sim.ko != null ? ` (sim ${pct(sim.ko)})` : ''}`);
           // the game locks the team in at the start (adv.league.team); with a Link Cable it can be the other region's team
@@ -8196,7 +8207,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (want.length && lt.length && want.some((u) => !lt.includes(u)) && !a.battle && (g.relock || 0) < 2) {
           g.relock = (g.relock || 0) + 1; Plan.save();
           Log.add(`Elite League ${regName(g.reg)}: this run has a different team than the simulated one (${lt.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}) - starting it again with ${want.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`);
-          try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:71', __e); }
+          try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:82', __e); }
           return 'restarting the run with the simulated team…';
         }
         if (want.length && lt.length && !want.some((u) => !lt.includes(u)) && g.relock) { g.relock = 0; Plan.save(); } }
@@ -8204,10 +8215,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const sm = simOf(g.reg, next);
       return `Elite League ${regName(g.reg)} tier ${next} · stop ${at + 1} of ${n || '?'} · try ${+(a.league?.tries || 1)}${sm ? ` · sim ${pct(sm.ko)}` : ''}`;
     },
-    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:79', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
+    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:90', __e); } } const r = g.restore;
+      if (r && r.leagueTeam !== undefined) { const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams['league:' + g.reg] = r.leagueTeam.filter((u) => E.read('Game.getMon', null, u)); try { E.call('Game.save'); } catch (__e) { __h('70-plan-17-league:91', __e); } } if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
   };
     // for the add menu: every region with an Elite League, its progress and the gem types it gives
-  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:82', __e); } const s = best < 5 ? EliteSim.leagueFresh(r.key, best + 1) : null; return { key: r.key, name: regName(r.key), open, best, types, odds: s ? s.ko : null, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
+  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:94', __e); } const s = best < 5 ? EliteSim.leagueFresh(r.key, best + 1) : null; return { key: r.key, name: regName(r.key), open, best, types, odds: s ? s.ko : null, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
   Object.assign(GoalTypes, { league, eliteLeagues });
 })();
 
