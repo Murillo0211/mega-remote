@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Kinesis">
 <meta name="theme-color" content="#120f24">
 <title>Kinesis</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jersey+15&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237a5cff'/%3E%3Ctext x='32' y='43' font-size='32' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EK%3C/text%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -97,6 +98,9 @@ label.chk input{flex:none;margin:2px 0 0;width:17px;height:17px;accent-color:var
 
 /* ---- chips (filters) ---- */
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:var(--s2) 0}
+/* rank badge, as the game draws it: Roman numeral, pixel font, gold with a 1px dark outline */
+.rkn{font-family:'Jersey 15',system-ui,sans-serif;font-weight:500;font-size:1.12em;line-height:1;letter-spacing:.04em;margin-left:4px;color:#ffe066;
+  text-shadow:1px 0 #5a3a06,-1px 0 #5a3a06,0 1px #5a3a06,0 -1px #5a3a06,1px 1px #5a3a06}
 .chip{all:unset;cursor:pointer;padding:5px 11px;border-radius:999px;font-size:var(--t-s);font-weight:600;color:var(--ink);background:var(--well);border:1px solid var(--line)}
 .chip.on{color:var(--acc-ink);background:var(--acc);border-color:var(--acc)}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:var(--t-xs);font-weight:800;color:var(--on-shell);background:var(--shell)}
@@ -437,11 +441,13 @@ const bar = (p) => `<div class="bar"><i style="width:${Math.max(0, Math.min(100,
 const img = (id, n = 52) => `<img class="sp" src="${SPRITE(id)}" width="${n}" height="${n}" loading="lazy">`;
 const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' };
 const N = (id) => esc(snap?.nm?.[id] || '#' + id);
+// rank badge like the game's: a Roman numeral in its pixel font (Jersey 15), gold with a dark outline (style: .rkn)
+const RK = (n) => (+n > 0 ? `<span class="rkn" title="Rank ${+n}">${['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][+n] || +n}</span>` : '');
 // Battle XP goal: each Pokémon it levels - level, a bar to Lv 100, time left (minutes from the PC; null = still measuring)
 function trRows(g) {
   if (!g?.tr?.length) return '';
   const t = (m) => (m == null ? 'measuring…' : m <= 0 ? 'Lv 100 ✔' : m < 60 ? `~${m} min` : m < 2880 ? `~${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `~${Math.round(m / 1440)} days`);
-  return `<div style="margin-top:10px">${g.tr.map(([id, lv, p, eta, sh, rk]) => `<div class="flex" style="margin:8px 0;align-items:center">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${N(id)}</b>${sh ? ' ✨' : ''}${rk ? ' ★' + rk : ''} · Lv ${lv}</span><span class="dim">${t(eta)}</span></div>${bar(p)}</div></div>`).join('')}<div class="dim" style="font-size:13px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`;
+  return `<div style="margin-top:10px">${g.tr.map(([id, lv, p, eta, sh, rk]) => `<div class="flex" style="margin:8px 0;align-items:center">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${N(id)}</b>${sh ? ' ✨' : ''}${RK(rk)} · Lv ${lv}</span><span class="dim">${t(eta)}</span></div>${bar(p)}</div></div>`).join('')}<div class="dim" style="font-size:13px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`;
 }
 const pic = (g, n = 48) => (g.sp ? img(g.sp, n) : `<span style="width:${n}px;text-align:center;font-size:${Math.round(n * .55)}px;flex:none">${ICON[g.t] || '🎯'}</span>`);
 const progTxt = (p) => (p ? `${p[3] ? '₽' : ''}${(+p[0]).toLocaleString()} of ${p[3] ? '₽' : ''}${(+p[1]).toLocaleString()}${p[2] ? ' ' + esc(p[2]) : ''}` : '');
@@ -494,7 +500,7 @@ function vBox() {
     <div class="flex" style="gap:8px"><select id="bxSort">${[['level', 'Sort: Level'], ['newest', 'Sort: Newest'], ['rank', 'Sort: Rank'], ['name', 'Sort: Name'], ['dex', 'Sort: Pokédex No.']].map(([k, l]) => `<option value="${k}" ${bx.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <select id="bxType"><option value="">All types</option>${TYPES.map((t) => `<option value="${t}" ${bx.type === t ? 'selected' : ''}>${cap1(t)}</option>`).join('')}</select></div>
     <div class="dim" style="margin-top:8px">${list.length === tot ? '' : `${list.length} match · `}tap one for details</div>
-    <div class="boxgrid">${list.slice(0, bx.show).map((m) => { const w = WHERE[m[5].replace('b', '')]; return `<div class="bx ${bx.sel === m[0] ? 'sel' : ''}" data-x="bxOpen" data-v="${esc(m[0])}">${w ? `<span class="tag">${w[1]}</span>` : ''}<img src="${SPRITE(m[1])}" loading="lazy" alt=""><div>${esc(D.nm[m[1]] || '#' + m[1])}</div><div class="dim">Lv ${m[2]}${m[3] ? ' ★' + m[3] : ''}${m[4] ? ' ✨' : ''}${/b/.test(m[5]) ? ' 💛' : ''}</div></div>`; }).join('')}</div>
+    <div class="boxgrid">${list.slice(0, bx.show).map((m) => { const w = WHERE[m[5].replace('b', '')]; return `<div class="bx ${bx.sel === m[0] ? 'sel' : ''}" data-x="bxOpen" data-v="${esc(m[0])}">${w ? `<span class="tag">${w[1]}</span>` : ''}<img src="${SPRITE(m[1])}" loading="lazy" alt=""><div>${esc(D.nm[m[1]] || '#' + m[1])}</div><div class="dim">Lv ${m[2]}${RK(m[3])}${m[4] ? ' ✨' : ''}${/b/.test(m[5]) ? ' 💛' : ''}</div></div>`; }).join('')}</div>
     ${list.length > bx.show ? `<button class="btn" data-x="bxMore">Show More (${list.length - bx.show})</button>` : ''}
     <button class="btn" data-x="bxReload">⟳ Refresh</button></div>`;
   // outside screen: the details open above the box; unfolded: beside it
@@ -507,7 +513,7 @@ function boxDetail() {
   const names = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'], mx = Math.max(...I.stats, 1);
   return `<div class="card" id="bxDetail"><div class="flex">${img(I.id, 72)}<div class="grow"><b style="font-size:19px">${esc(I.name)}${I.shiny ? ' ✨' : ''}${I.buddy ? ' 💛' : ''}</b><div class="dim">${esc(I.genus || '')}</div><div>${I.types.map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="bxClose">✕</button></div>
     ${row('Level', `${I.level}${I.cap > I.level ? ` <span class="dim">(cap ${I.cap})</span>` : ''}`)}
-    ${I.rank ? row('Rank', '★' + I.rank) : ''}
+    ${I.rank ? row('Rank', RK(I.rank)) : ''}
     ${row('Where', esc(I.where))}
     ${I.caught ? row('Caught', `${esc(I.caught)}${I.caughtAt ? ` <span class="dim">· ${new Date(I.caughtAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}`) : ''}
     ${I.ot ? row('From', esc(I.ot)) : ''}
@@ -528,7 +534,7 @@ function loadTeam() { tm.loading = true; cmd('team.get', {}, 'Load your Pokémon
 function vTeam() {
   if (!tm.data) { if (!tm.loading) loadTeam(); return `<div class="card"><h3>Change Team</h3><div class="dim">Loading your Pokémon from your PC…</div><button class="btn" data-tab="now">← Back</button></div>`; }
   const by = new Map(tm.data.opts.map((x) => [x[0], x])); for (const x of tm.data.team) by.set(x[0], x);
-  const card = (x, big) => `${img(x[1], big ? 48 : 40)}<div style="font-size:12px;line-height:1.2">${N(x[1])}</div><div class="dim" style="font-size:11px">Lv ${x[2]}${x[3] ? ' ★' + x[3] : ''}${x[4] ? ' ✨' : ''}</div>`;
+  const card = (x, big) => `${img(x[1], big ? 48 : 40)}<div style="font-size:12px;line-height:1.2">${N(x[1])}</div><div class="dim" style="font-size:11px">Lv ${x[2]}${RK(x[3])}${x[4] ? ' ✨' : ''}</div>`;
   let h = `<div class="tmwrap"><div class="card"><h3>Change Team</h3><div class="dim" style="font-size:13px">Tap a slot, then tap a Pokémon below to put it there. Pokémon in the Underground aren't listed.</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const x = by.get(tm.draft[i]); return `<div data-x="tmSlot" data-v="${i}" style="padding:6px;border-radius:12px;border:2px solid ${tm.slot === i ? 'var(--acc)' : 'var(--line)'};min-height:86px">${x ? card(x, true) + `<div data-x="tmDrop" data-v="${i}" class="dim" style="font-size:12px;margin-top:2px">✕ remove</div>` : '<div class="dim" style="padding-top:26px">empty</div>'}</div>`; }).join('')}</div>
     ${tm.data.busy?.length ? `<div class="warn" style="margin-top:8px">Mega is running ${esc(tm.data.busy.join(', '))} - it may use its own team for that and put yours back after.</div>` : ''}
@@ -603,7 +609,7 @@ function vNow() {
   const scr = s.goals.find((g) => !g.bg && g.s === 'running');
   h += `<div class="card"><h3>Today</h3><div class="lbl">WORKING ON NOW${!scr && s.idle ? ' · IDLE' : ''}</div>`;
   if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}${trRows(scr)}`;
-  else if (s.idle) h += `<div class="flex" style="margin-top:6px">${s.idle.u[0] ? img(s.idle.u[0][0], 60) : '<span style="font-size:34px">💤</span>'}<div class="grow"><b style="font-size:17px">${s.idle.u.length ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</b><div>${s.idle.u.map((m) => `${N(m[0])}${m[3] ? ' ✨' : ''}${m[2] ? ' ★' + m[2] : ''} <b>Lv ${m[1]}</b>`).join(' · ')}</div></div></div><div class="dim" style="margin-top:6px">${esc(s.idle.l)}</div>`;
+  else if (s.idle) h += `<div class="flex" style="margin-top:6px">${s.idle.u[0] ? img(s.idle.u[0][0], 60) : '<span style="font-size:34px">💤</span>'}<div class="grow"><b style="font-size:17px">${s.idle.u.length ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</b><div>${s.idle.u.map((m) => `${N(m[0])}${m[3] ? ' ✨' : ''}${RK(m[2])} <b>Lv ${m[1]}</b>`).join(' · ')}</div></div></div><div class="dim" style="margin-top:6px">${esc(s.idle.l)}</div>`;
   else h += `<div style="margin-top:6px">${s.run ? 'Nothing can run right this minute.' : 'Nothing - the plan is paused.'}</div>`;
   if (scr?.tm && scr.tm[0]?.length) { const [ms, w, how] = scr.tm; h += `<div class="dim" style="margin-top:6px;font-size:14px">🛡️ Team: ${ms.map(([id, lv]) => `${N(id)} ${lv}`).join(', ')}${w != null ? ` · <b class="${w >= 0.6 ? 'ok' : w >= 0.3 ? 'warn' : 'bad'}">${Math.round(w * 100)}%</b>` : ''}${how ? ` (${esc(how)})` : ''}</div>`; }
   const L = s.live && Date.now() - s.live.at < 15000 ? s.live : null;
@@ -616,7 +622,7 @@ function vNow() {
   if (s.rw) {
     const pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%', col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
     let r = s.rw.t.length ? `<div class="lbl">Easiest tiers</div>${s.rw.t.slice(0, 3).map(([w, p, rw]) => row(`${esc(w)} <span class="faint" style="font-size:12px">→ ${esc(rw)}</span>`, `<b class="${col(p)}">${pc(p)}</b>`)).join('')}` : `<div class="dim">No tiers rated yet - open Simulate › Elite or › League.</div>`;
-    if (s.rw.r.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${s.rw.r.map(([n, nx, l]) => `<b>${esc(n)}</b> <span class="dim">→ ★${nx} (${esc(l)})</span>`).join(' · ')}</div>`;
+    if (s.rw.r.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${s.rw.r.map(([n, nx, l]) => `<b>${esc(n)}</b> <span class="dim">→ ${RK(nx)} (${esc(l)})</span>`).join(' · ')}</div>`;
     if (s.rw.s.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${s.rw.s.map(([l, p, ok, ms]) => `${esc(l)} <span class="${ok ? 'ok' : 'dim'}">${p ? p.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(ms.join(', '))}</span>`).join(' · ')}</div>`;
     h += `<div class="card"><h3>Best Next Rewards</h3>${r}</div>`;
   }
@@ -634,7 +640,7 @@ function vNow() {
   if (next.length) h += `<div class="card"><h3>Up Next</h3>${next.slice(0, 3).map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${g.s === 'paused' ? '❚❚ paused' : g.s === 'queued' ? '○ after the one above' : '◐ ' + esc(g.y || g.s)}</div></div></div>`).join('')}</div>`;
   if (s.trades) { const sp = s.trades.t.filter((t) => t[6] === 'spare'); h += `<div class="card"><h3>Trades</h3>${s.trades.t.length ? `${s.trades.t.length} Pokémon you're missing are on the board${sp.length ? ` · <span class="ok">${sp.length} for a spare</span>` : ' · none for a spare right now'}` : 'Nothing you\'re missing on the board.'}</div>`; }
   if (s.dex.length) h += `<div class="card"><h3>Pokédex</h3>${s.dex.map(([n, a, b]) => `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between"><b>${esc(n)}</b><span>${a} / ${b}${a >= b ? ' <span class="ok">✔</span>' : ''}</span></div>${bar(a / Math.max(1, b))}</div>`).join('')}</div>`;
-  if (s.team.length) h += `<div class="card"><h3>Team</h3><div style="display:grid;grid-template-columns:repeat(${Math.min(6, s.team.length)},minmax(0,1fr));text-align:center;gap:4px">${s.team.map(([id, lv, r, sh, b]) => `<div style="min-width:0">${img(id, 48)}<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${N(id)}</div><div class="dim" style="font-size:12px">Lv ${lv}${r ? ' ★' + r : ''}${sh ? ' ✨' : ''}${b ? ' 💛' : ''}</div></div>`).join('')}</div><button class="btn" data-x="teamEdit">✏️ Change Team</button></div>`;
+  if (s.team.length) h += `<div class="card"><h3>Team</h3><div style="display:grid;grid-template-columns:repeat(${Math.min(6, s.team.length)},minmax(0,1fr));text-align:center;gap:4px">${s.team.map(([id, lv, r, sh, b]) => `<div style="min-width:0">${img(id, 48)}<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${N(id)}</div><div class="dim" style="font-size:12px">Lv ${lv}${RK(r)}${sh ? ' ✨' : ''}${b ? ' 💛' : ''}</div></div>`).join('')}</div><button class="btn" data-x="teamEdit">✏️ Change Team</button></div>`;
   return h;
 }
 // shiny eggs coming (Mega's EggPredict, the game's own egg math)
@@ -824,7 +830,7 @@ function offerList() {
   for (const x of o.list) {
     const opts = x.give, pick = tr.give[x.tid] ?? 0, g = opts[pick];
     h += `<div class="card"><div class="flex"><div class="grow"><b>${esc(x.who)}</b><div class="dim">gives ${sh ? 'a shiny ' : ''}${N(id)}${x.lv ? ` Lv ${x.lv}` : ''}${x.egg ? ' (egg)' : ''} · ⏳ ${until1(x.until)}</div></div><div style="text-align:center">${img(x.want, 44)}<div class="dim" style="font-size:12px">wants ${N(x.want)}</div></div></div>
-      ${opts.length ? `<div class="lbl" style="margin-top:8px">YOU'D GIVE</div><div class="chips">${opts.slice(0, 8).map((m, i) => `<button class="chip ${i === pick ? 'on' : ''}" data-x="trGive" data-v="${esc(x.tid)}" data-i="${i}">${N(m.id)} Lv ${m.lv}${m.shiny ? ' ✨' : ''}${m.rank ? ' ★' + m.rank : ''}${m.team ? ' ⚔️' : ''}</button>`).join('')}</div>
+      ${opts.length ? `<div class="lbl" style="margin-top:8px">YOU'D GIVE</div><div class="chips">${opts.slice(0, 8).map((m, i) => `<button class="chip ${i === pick ? 'on' : ''}" data-x="trGive" data-v="${esc(x.tid)}" data-i="${i}">${N(m.id)} Lv ${m.lv}${m.shiny ? ' ✨' : ''}${RK(m.rank)}${m.team ? ' ⚔️' : ''}</button>`).join('')}</div>
         ${row('Fee', x.fee ? `₽${x.fee.toLocaleString()}` : 'none')}${x.kind === 'last' ? `<div class="warn" style="font-size:14px">This is your only ${N(x.want)}.</div>` : ''}
         <button class="btn gold" data-x="trAccept" data-v="${esc(x.tid)}">⇄ Trade</button>`
       : `<div class="dim" style="margin-top:6px">You have no ${N(x.want)} free to give${x.kind === 'busy' ? ' (yours are in use)' : ''}.</div>`}</div>`;
@@ -843,7 +849,7 @@ function postView() {
   if (!tr.opts) return h + `<div class="dim">Loading your Pokémon of the same rarity…</div></div>`;
   if (!tr.opts.length) return h + `<div class="warn" style="margin-top:8px">You have nothing of the same rarity free to offer for ${N(tr.want)}.</div></div>`;
   h += `<div class="dim" style="margin-top:8px">Step 2: the Pokémon you offer (same rarity). It leaves your PC while the offer is live (3 days).</div>
-    <div class="boxgrid">${tr.opts.slice(0, 120).map((m) => `<div class="bx" data-x="trOffer" data-v="${esc(m.uid)}"><img src="${SPRITE(m.id)}" loading="lazy" alt=""><div>${N(m.id)}</div><div class="dim">Lv ${m.lv}${m.rank ? ' ★' + m.rank : ''}${m.team ? ' ⚔️' : ''}</div></div>`).join('')}</div>
+    <div class="boxgrid">${tr.opts.slice(0, 120).map((m) => `<div class="bx" data-x="trOffer" data-v="${esc(m.uid)}"><img src="${SPRITE(m.id)}" loading="lazy" alt=""><div>${N(m.id)}</div><div class="dim">Lv ${m.lv}${RK(m.rank)}${m.team ? ' ⚔️' : ''}</div></div>`).join('')}</div>
     <label class="chk" style="margin-top:8px"><input type="checkbox" id="trFriends" ${tr.friends ? 'checked' : ''}> Friends only</label></div>`;
   return h;
 }
@@ -885,7 +891,7 @@ async function tradeAccept(tid) {
   const html = `<h3>Trade with ${esc(x.who)}?</h3>
     <div class="flex" style="justify-content:space-around;text-align:center;margin:8px 0"><div>${img(g.id, 64)}<div class="lbl">YOU GIVE</div><b>${N(g.id)} Lv ${g.lv}${g.shiny ? ' ✨' : ''}</b></div><div style="font-size:26px">⇄</div><div>${img(o.id, 64)}<div class="lbl">YOU GET</div><b>${o.shiny ? '✨ ' : ''}${N(o.id)}${x.lv ? ' Lv ' + x.lv : ''}</b></div></div>
     ${row('Fee', x.fee ? `₽${x.fee.toLocaleString()}` : 'none')}${row('Your money after', `₽${after.toLocaleString()}`)}
-    ${g.rank ? `<div class="warn">Your ${N(g.id)} is rank ★${g.rank}: the rank does not go with it.</div>` : ''}${g.team ? `<div class="warn">It's on your team.</div>` : ''}${x.kind === 'last' ? `<div class="warn">It's your only ${N(g.id)}.</div>` : ''}${after < 0 ? `<div class="bad">Not enough money for the fee.</div>` : ''}
+    ${g.rank ? `<div class="warn">Your ${N(g.id)} is rank ${RK(g.rank)}: the rank does not go with it.</div>` : ''}${g.team ? `<div class="warn">It's on your team.</div>` : ''}${x.kind === 'last' ? `<div class="warn">It's your only ${N(g.id)}.</div>` : ''}${after < 0 ? `<div class="bad">Not enough money for the fee.</div>` : ''}
     <div class="dim" style="font-size:13px;margin-top:8px">Mega makes the trade in the game on your PC and checks the game's own confirmation matches this before the last tap. A trade can't be undone.</div>`;
   if (after < 0 || !await confirmSheet(html, '⇄ Trade')) return;
   cmd('trade.accept', { ok: true, id: o.id, shiny: o.shiny, tid: x.tid, who: x.who, want: x.want, give: g.uid, fee: x.fee || 0 }, `Trade with ${x.who}`, () => { loadOffers(); });
@@ -895,7 +901,7 @@ async function tradePost(uid) {
   const html = `<h3>Post this trade?</h3>
     <div class="flex" style="justify-content:space-around;text-align:center;margin:8px 0"><div>${img(m.id, 64)}<div class="lbl">YOU OFFER</div><b>${N(m.id)} Lv ${m.lv}</b></div><div style="font-size:26px">⇄</div><div>${img(tr.want, 64)}<div class="lbl">YOU WANT</div><b>${N(tr.want)}</b></div></div>
     ${row('While it\'s live', `your ${N(m.id)} leaves your PC (3 days)`)}${row('Who sees it', tr.friends ? 'friends only' : 'everyone')}
-    ${m.rank ? `<div class="warn">Your ${N(m.id)} is rank ★${m.rank}: the rank does not go with it if it's traded.</div>` : ''}${m.team ? `<div class="warn">It's on your team.</div>` : ''}
+    ${m.rank ? `<div class="warn">Your ${N(m.id)} is rank ${RK(m.rank)}: the rank does not go with it if it's traded.</div>` : ''}${m.team ? `<div class="warn">It's on your team.</div>` : ''}
     <div class="dim" style="font-size:13px;margin-top:8px">Mega posts it in the game on your PC and checks the game's confirmation names this Pokémon before the last tap.</div>`;
   if (!await confirmSheet(html, '＋ Post Trade')) return;
   cmd('trade.post', { ok: true, want: tr.want, give: m.uid, friends: tr.friends }, 'Post trade', (res) => { if (/^posted/.test(res)) { tr.mode = null; tr.want = null; tr.opts = null; render(); } });
