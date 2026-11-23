@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.41
+// @version      2.10.42
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.41';
+const VERSION = '2.10.42';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3128,7 +3128,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // ---- the phone has its own screen state: the open Pokémon, searches, filters and picks it changes
   // don't move Mega's panel on the PC (and the other way round). Swapped in only around a phone draw
   // or tap; the PC panel doesn't redraw while it's swapped. Shared on purpose: running simulations.
-  const PREF_KEYS = ['tab', 'q', 'foe', 'leg', 'simMode', 'asMax'], LEG_KEYS = ['pick', 'asMax', 'mode'];
+  const PREF_KEYS = ['tab', 'q', 'foe', 'leg', 'simMode', 'asMax'], LEG_KEYS = ['pick', 'asMax', 'mode', 'eliteAll'];
   let phoneSwap = false, PHONE = null;
   const pickKeys = (o, ks) => Object.fromEntries(ks.map((k) => [k, o[k]]));
   function asPhone(fn) {
