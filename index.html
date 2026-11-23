@@ -626,6 +626,8 @@ function vNow() {
     if (s.rw.s.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${s.rw.s.map(([l, p, ok, ms]) => `${esc(l)} <span class="${ok ? 'ok' : 'dim'}">${p ? p.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(ms.join(', '))}</span>`).join(' · ')}</div>`;
     h += `<div class="card"><h3>Best Next Rewards</h3>${r}</div>`;
   }
+  // ready for candy (Battle XP: past ~5.5 M XP per level, Exp. Candies beat battling)
+  if (s.rc?.l?.length) h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${s.rc.l.length}</span></h3><div class="dim" style="font-size:13px;margin-bottom:4px">Past ${(s.rc.at / 1e6).toFixed(1)} M XP per level: feed these Exp. Candies. Discord tier-list picks first.</div>${s.rc.l.map(([id, lv, rk, sh, left, tier]) => `<div class="flex" style="margin:6px 0;align-items:center">${img(id, 32)}<div class="grow"><b>${N(id)}</b>${sh ? ' ✨' : ''}${RK(rk)} <span class="dim">Lv</span> ${lv}${tier ? ' <span class="ok" style="font-size:12px">Discord pick</span>' : ''}</div><span class="dim" style="font-size:13px">${left} M XP to 100</span></div>`).join('')}</div>`;
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
   if (bg.length) h += `<div class="card"><h3>Running Alongside</h3>${bg.map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${esc(g.n || g.y)}</div></div></div>`).join('')}</div>`;
   // Day Care: eggs in the incubator, counting down on this phone between updates
