@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.36
+// @version      2.10.37
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.36';
+const VERSION = '2.10.37';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -6996,15 +6996,17 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const a = S().adv || {};
       if (a.capture && !a.capture.shiny) { a.capture.shiny = true; try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:97', __e); } Log.add('turned on "always catch shinies" for the shiny hunt'); }
       // count each new encounter with the target (and the battles, for the real pace)
-      const b = a.battle, foes = (b?.enemies || []).filter((e) => +e.id === +g.foe);
-      for (const e of foes) if (e.uid && e.uid !== g.lastUid) { g.lastUid = e.uid; g.seen = (g.seen || 0) + 1; if (e.shiny) Log.add(`✨ a shiny ${name(g.foe)} appeared - catching!`); Plan.save(); }
+      // both the species hunted and the target itself (Stunky and Skuntank): a shiny of either is caught
+      const ids = [+g.foe, +(g.target || g.foe)];
+      const b = a.battle, foes = (b?.enemies || []).filter((e) => ids.includes(+e.id));
+      for (const e of foes) if (e.uid && e.uid !== g.lastUid) { g.lastUid = e.uid; g.seen = (g.seen || 0) + 1; if (+e.id !== +g.foe) g.seenTgt = (g.seenTgt || 0) + 1; if (e.shiny) Log.add(`✨ a shiny ${name(e.id)} appeared - catching!`); Plan.save(); }
       const bt = +(S().stats?.battles ?? 0); if (!g.b0) { g.b0 = bt; g.t0 = Date.now(); Plan.save(); }
       const line = await wild.step(g);
       // Starf: shiny x2. Nanab: rare-rarity Pokémon appear x2 as often (the game's spawn weight), so a rare target is met twice as often
-      let rare = false; try { rare = E.get('Game').tierOf(+g.foe)?.key === 'rare'; } catch (__e) { __h('70-plan-05-wild-shiny:104', __e); }
+      let rare = false; try { rare = E.get('Game').tierOf(+g.foe)?.key === 'rare'; } catch (__e) { __h('70-plan-05-wild-shiny:106', __e); }
       const berry = Berries.keep('shiny', `hunting a shiny ${name(g.foe)}`) + (rare ? Berries.keep('rare', `finding ${name(g.foe)} (rare) more often`) : '');
       const hrs = (Date.now() - g.t0) / 3.6e6, perH = hrs > 0.2 ? (bt - g.b0) / hrs : null;
-      return `${foes.length ? (foes.some((e) => e.shiny) ? `✨ SHINY ${name(g.foe)} - catching!` : `${name(g.foe)} found - not shiny`) : line.replace(/^[^·]*· /, '')} · ${g.seen || 0} seen (1 in ${Math.round(1 / (g.rate || 1 / 512))} each)${perH ? ` · ${Math.round(perH)} fights/h` : ''}${berry}`;
+      return `${foes.length ? (foes.some((e) => e.shiny) ? `✨ SHINY ${name(foes.find((e) => e.shiny).id)} - catching!` : `${name(foes[0].id)} found - not shiny`) : line.replace(/^[^·]*· /, '')} · ${g.seen || 0} seen${g.seenTgt ? ` (${g.seenTgt} ${name(g.target)})` : ''} (1 in ${Math.round(1 / (g.rate || 1 / 512))} each)${perH ? ` · ${Math.round(perH)} fights/h` : ''}${berry}`;
     },
     finish(g) { wild.finish(g); },
   };
@@ -7027,9 +7029,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       for (const e of [...(P.eggs || [])]) {
         if (+e.id !== +g.egg || !e.sp || !E.read('Game.eggReady', false, e)) continue;
         const before = new Set((E.read('Game.ownedMons', []) || []).map((m) => m.uid));
-        let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-05-wild-shiny:130', __e); }
+        let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-05-wild-shiny:132', __e); }
         if (!r) continue;
-        try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:132', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-05-wild-shiny:132', __e); }
+        try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:134', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-05-wild-shiny:134', __e); }
         g.hatched = (g.hatched || 0) + 1; Plan.save();
         const baby = (E.read('Game.ownedMons', []) || []).find((m) => !before.has(m.uid) && +m.id === +g.egg);
         if (baby?.shiny) {
@@ -7044,14 +7046,14 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         const ditto = here().filter((m) => +m.id === 132).sort((a, b) => b.level - a.level)[0];
         if (!ditto) return 'waiting: you need a Ditto for the Day Care';
         if (!free()) return 'waiting: the Day Care is full - make room for Ditto';
-        try { E.call('Game.toPension', ditto.uid); E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:147', __e); }
+        try { E.call('Game.toPension', ditto.uid); E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:149', __e); }
         if (E.read('Game.pensionHasDitto', false)) { g.placedDitto = ditto.uid; Plan.save(); Log.add('shiny hunt: put Ditto in the Day Care'); }
         return 'putting Ditto in the Day Care…';
       }
       if (!inCare(g.parent)) {
         if (!free()) return `waiting: the Day Care is full - make room for your shiny ${name(g.parentId)}`;
         const why = Guard.team([g.parent], { need: 1, minLevel: 1 }); if (why) return 'waiting: ' + why;
-        try { E.call('Game.toPension', g.parent); E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:154', __e); }
+        try { E.call('Game.toPension', g.parent); E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:156', __e); }
         if ((S().pension?.mons || []).some((x) => (x.mon || x)?.uid === g.parent)) { g.placed = g.parent; Plan.save(); Log.add(`shiny hunt: put your shiny ${name(g.parentId)} in the Day Care`); }
         return `putting your shiny ${name(g.parentId)} in the Day Care…`;
       }
@@ -7059,8 +7061,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       return `${g.hatched || 0} eggs hatched · ${mine.length} on the way${mine.length ? ` (next hatches ${DexInfo.clock(mine[0].hatchAt)})` : ''} · 1 in ${Math.round(1 / (g.rate || 0.0625))} each${sl.used >= sl.max ? ' · incubator full - hatch other eggs to make room' : ''}`;
     },
     finish(g) {
-      for (const k of ['placed', 'placedDitto']) if (g[k]) { try { E.call('Game.fromPension', g[k]); } catch (__e) { __h('70-plan-05-wild-shiny:162', __e); } g[k] = null; }
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:163', __e); } Plan.save();
+      for (const k of ['placed', 'placedDitto']) if (g[k]) { try { E.call('Game.fromPension', g[k]); } catch (__e) { __h('70-plan-05-wild-shiny:164', __e); } g[k] = null; }
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:165', __e); } Plan.save();
     },
   };
   const wild = {
@@ -7078,11 +7080,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     async step(g) {
       const s = S(), a = s.adv || {};
       if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null, capture: a.capture ? { ...a.capture } : null }; Plan.save(); Log.add(`${wild.label(g)}: going there. Your chapter comes back when it's done.`); }
-      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-05-wild-shiny:181', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-05-wild-shiny:183', __e); } return 'leaving the legendary zone…'; }
       // auto-catch must be on and catching new species
-      if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:183', __e); } Log.add('turned auto-catch on ("new") so the target gets caught'); }
+      if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-05-wild-shiny:185', __e); } Log.add('turned auto-catch on ("new") so the target gets caught'); }
       if (+a.chapter !== +g.ch) { if (E.call('Adventure.setChapter', +g.ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-      if (!E.read('Adventure.isLooping', false, +g.ch)) { try { E.call('Adventure.toggleLoop', +g.ch); g.restore.loopAdded = +g.ch; Plan.save(); } catch (__e) { __h('70-plan-05-wild-shiny:185', __e); } }
+      if (!E.read('Adventure.isLooping', false, +g.ch)) { try { E.call('Adventure.toggleLoop', +g.ch); g.restore.loopAdded = +g.ch; Plan.save(); } catch (__e) { __h('70-plan-05-wild-shiny:187', __e); } }
       if (!g.parent) passTeam(g, g.ch); // a gym-plan catch keeps the gym team leveling instead
       // restart trick: no stop ahead can hold the target -> back to stop 0
       const nodes = a.nodes || [], at = +a.node || 0;
@@ -7093,7 +7095,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         // the game's own Restart button (Map: "Restart" on the chapter you're in) - Screens.adventure.restartChapter;
         // going to the same chapter again just carries on, so Mega used to hop out and back (Jimmy, 2026-11-17)
         const scr = E.get('Screens')?.adventure;
-        if (typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+g.ch); } catch (__e) { __h('70-plan-05-wild-shiny:196', __e); } }
+        if (typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+g.ch); } catch (__e) { __h('70-plan-05-wild-shiny:198', __e); } }
         else {
           const unlocked = +(a.unlocked ?? 0), other = +g.ch > 0 ? +g.ch - 1 : Math.min(unlocked, +g.ch + 1);
           if (other === +g.ch || E.call('Adventure.setChapter', other) === false) return 'waiting: could not step out of the chapter to restart it';
@@ -7104,14 +7106,15 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         if (back !== 0) Log.add(`${wild.label(g)}: restart did not go back to stop 1 (now at stop ${back + 1})`);
         return `restarted the chapter - no ${name(g.foe)} past stop ${lastStop + 1} (${g.restarts} restart${g.restarts === 1 ? '' : 's'})`;
       }
-      const berry = Berries.keep('dex', `catching ${name(g.foe)}`) + Berries.keep('capture', `catching ${name(g.foe)}`, { strongest: false });
+      let dexHelps = true; try { dexHelps = !E.get('Game').caughtHere(+g.foe); } catch (__e) { __h('70-plan-05-wild-shiny:209', __e); } // Enigma: x3 only for Pokémon not caught in this region (the game's spawn weight)
+      const berry = (dexHelps ? Berries.keep('dex', `catching ${name(g.foe)}`) : '') + Berries.keep('capture', `catching ${name(g.foe)}`, { strongest: false });
       const pct = Math.max(0, ...wildSpots(g.foe, g.ch).filter((x) => x.on).map((x) => x.pct));
       return `${vs ? `${name(g.foe)} found - catching!` : `Stop ${at + 1} of ${nodes.length}`} · shows up at ${can.length} stop${can.length === 1 ? '' : 's'} (${Math.round(pct * 1000) / 10}% each)${g.restarts ? ` · chapter restarted ${g.restarts} time${g.restarts === 1 ? '' : 's'}` : ''}${berry}`;
     },
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-05-wild-shiny:213', __e); }
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-05-wild-shiny:214', __e); } }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-05-wild-shiny:216', __e); }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-05-wild-shiny:217', __e); } }
       g.restore = null; Plan.save();
     },
   };
