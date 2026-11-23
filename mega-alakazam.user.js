@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.33
+// @version      2.10.34
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.33';
+const VERSION = '2.10.34';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -949,7 +949,7 @@ const Sim = (() => {
     const selfHit = (u) => { const A = statsOf(u); return Math.max(1, Math.floor(((2 * u.level) / 5 + 2) * 40 * A.atk / Math.max(1, A.def) / 50 + 2)); };
     const F = foes.map((f, j) => ({ j, id: f.id, level: f.level, types: typesOf(f), spe: statsOf(f).spe, hp: Math.floor(maxHp(f) * hpMult), selfHit: selfHit(f) }));
     const A = team.map((m) => {
-      const key = `${m.uid}|${m.id}|${m.level}|${m.rank || 0}|${(m.ban || []).join('.')}|${foes.map((f) => f.id + ':' + f.level).join(',')}|${P}|${hpMult}|${isNight()}`;
+      const key = `${m.uid}|${m.id}|${m.level}|${m.rank || 0}|${(m.ban || []).join('.')}|${foes.map((f) => f.id + ':' + f.level + ':' + (f.rank || 0)).join(',')}|${P}|${hpMult}|${isNight()}`;
       let per = gymCache.get(key);
       if (!per) {
         per = foes.map((f) => {
@@ -2503,7 +2503,7 @@ Views.plan = (w, ui, esc) => {
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
   h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option>${Object.entries(GoalTypes.discordSpots || {}).map(([k, v]) => `<option value="discord-${k}" ${ui.addType === 'discord-' + k ? 'selected' : ''}>Discord Recommended: ${v.title} (${v.where})</option>`).join('')}<option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
+    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="league" ${ui.addType === 'league' ? 'selected' : ''}>Elite League: win its tiers (Legendary gems)</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option>${Object.entries(GoalTypes.discordSpots || {}).map(([k, v]) => `<option value="discord-${k}" ${ui.addType === 'discord-' + k ? 'selected' : ''}>Discord Recommended: ${v.title} (${v.where})</option>`).join('')}<option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -2555,6 +2555,12 @@ Views.plan = (w, ui, esc) => {
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
     h += `<div class="note dim">Plays that region's chapters in order with the Pokémon caught there: the simulator picks the 6 best for each chapter and its gym, and after 2 losses in a row it trains for 30 minutes in the best cleared chapter, then tries again. It stays in that region's chapters (an older chapter would swap your money, bag and team) and sits below your dailies, which take the screen when they're due.</div></div>`;
+  } else if (ui.addType === 'league') {
+    const L = GoalTypes.eliteLeagues?.() || [];
+    const lbl = (r) => `${esc(r.name)} · ${r.best} of 5 won${r.best < 5 ? ` · gems: ${r.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')}` : ''}${r.inPlan ? ' (in your plan)' : !r.open ? ' (win its League first)' : r.best >= 5 ? ' (all won)' : ''}`;
+    h += `<select class="sel" data-act="add-league"><option value="">Choose a region…</option>${L.map((r) => `<option value="${r.key}" ${ui.addLeague === r.key ? 'selected' : ''} ${r.inPlan || !r.open || r.best >= 5 ? 'disabled' : ''}>${lbl(r)}</option>`).join('')}</select>
+    <button class="btn" data-act="plan-add-league" ${ui.addLeague ? '' : 'disabled'}>Add to plan</button>
+    <div class="note dim">That region's Elite Four + Champion again, at Lv 100 and ranked to the tier (tier 1 = rank 1 … tier 5 = rank 5), with a Pokémon Center before each one. Win all five in a row to win the tier. <b>Every tier pays once: 1 Legendary gem</b> of one of that League's types (you pick it in the game), and tiers 3 and 5 also give a frame. Mega simulates each tier to pick your best 6 (any region's Pokémon can join), shows the odds, and steps back after 10 losses at one tier.</div></div>`;
   } else if (ui.addType === 'region') {
     const regs = (Engine.get('STORY.REGIONS') || []).filter((r) => r && r.key).map((r) => ({ ...r, miss: GoalTypes.regionMissing(r.key).length })).filter((r) => r.miss);
     h += `<select class="sel" data-act="add-reg"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addReg === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'region' && g.reg === r.key) ? 'disabled' : ''}>${esc(r.name || r.key)} · ${r.miss} missing</option>`).join('')}</select>
@@ -3205,6 +3211,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-money"]')) { planUi.addMoney = +e.target.value; return; }
       if (e.target.matches('select[data-act="add-item"]')) { planUi.addItem = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-story"]')) { planUi.addStory = e.target.value || null; renderBody(true); return; }
+      if (e.target.matches('select[data-act="add-league"]')) { planUi.addLeague = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-reg"]')) { planUi.addReg = e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="elite-pick"]')) { legUi.elitePick = +e.target.value || null; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
       if (e.target.matches('select.sel') || e.target.matches('select[data-act="pick"]')) { legUi.pick = +e.target.value || null; prefs.leg = legUi.pick; savePrefs(); legUi.real = null; renderBody(true); if (legUi.pick) loadReal(legUi.pick); } });
@@ -3280,7 +3287,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:274', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:275', __e); } renderBody(true); return; }
+    if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3305,7 +3313,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:299', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:301', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3319,7 +3327,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:313', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:315', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3333,7 +3341,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:327', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:329', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3344,19 +3352,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:338', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:340', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:344', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:346', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:347', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:349', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:350', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:352', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3399,8 +3407,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:393', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:394', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:395', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:396', __e); }
     renderBody(true, w);
   }
 
@@ -3415,7 +3423,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:409', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:411', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3430,13 +3438,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:424', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:425', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:426', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:427', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:430', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:432', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4800,7 +4808,59 @@ const EliteSim = (() => {
       .filter((m) => { const sp = Sim.species(m); if (seen.has(sp)) return false; seen.add(sp); return true; }).slice(0, 6);
     return put(`G${reg}:${tier}`, { uids: team.map((m) => m.uid) });
   }
-  return { get, put, drop, legend, members, leagueTeam };
+  // ---- Elite League with the gym simulator (2026-11-23) ----
+  // The game (Adventure: league run): a Pokémon Center before every leader (full heal), then the leader's
+  // League team at MAX_LEVEL, each Pokémon rank = elite = the tier, gym power x ELITE.LEAGUE.POWER[tier].
+  // A tier is won only by beating all five in a row, so its chance = the product of the five fights.
+  // Team: greedy (best sum, then best product) from your 18 strongest (one per species), then swaps.
+  function leagueFights(reg, tier) {
+    const st = ST(), C = E.get('CONFIG') || {}, MAX = +C.MAX_LEVEL || 100, PW = +(C.ELITE?.LEAGUE?.POWER?.[tier]) || 1, out = [];
+    for (const ch of st.chaptersOf(reg) || []) {
+      const c = st.CHAPTERS[ch]; if (!c?.league) continue;
+      const step = (c.steps || []).find((x) => x.kind === 'gym'); if (!step) continue;
+      const gym = Sim.gymNow(step, ch) || step;
+      const foes = (gym.team || []).map(([id], i) => ({ uid: `lg${ch}_${i}`, id: +id, level: MAX, rank: tier, elite: tier }));
+      if (foes.length) out.push({ ch, leader: gym.leader || gym.name || 'Leader', champion: !!gym.champion, gym: { ...gym, power: (+gym.power || 1) * PW }, foes });
+    }
+    return out;
+  }
+  async function leagueSim(reg, tier, opts = {}) {
+    const g = G(), fights = leagueFights(reg, tier); if (!fights.length) throw new Error('no League found for ' + reg);
+    const useful = (m) => { try { const s = g.statsOf(m); return s.hp + s.def + s.spd + s.spe + Math.max(s.atk, s.spa); } catch { return 0; } };
+    const away = new Set((E.read('Game.underMons', []) || []).map((m) => m.uid)), seen = new Set();
+    const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
+    const pool = (g.S.mons || []).filter((m) => !away.has(m.uid) && m.level >= 30).sort((a, b) => useful(b) - useful(a))
+      .filter((m) => { const sp = Sim.species(m); if (seen.has(sp)) return false; seen.add(sp); return true; }).slice(0, opts.pool || 18).map(fresh);
+    if (!pool.length) throw new Error('no Pokémon to send');
+    const each = (team, runs) => fights.map((f) => Sim.gymEval(team, f.foes, f.gym, runs).win);
+    const rate = (w) => ({ prod: w.reduce((a, b) => a * b, 1), sum: w.reduce((a, b) => a + b, 0) });
+    const better = (a, b) => a.prod > b.prod + 1e-9 || (Math.abs(a.prod - b.prod) <= 1e-9 && a.sum > b.sum + 1e-9);
+    let team = [], best = null, done = 0;
+    const total = 6 * pool.length + 2 * 6 * pool.length;
+    const tick = async () => { done++; if (done % 3 === 0) { opts.onProgress?.(Math.min(0.99, done / total)); await yieldNow(); } };
+    // greedy: add the Pokémon that helps most, slot by slot
+    while (team.length < Math.min(6, pool.length)) {
+      let pick = null, pr = null;
+      for (const m of pool) { if (team.includes(m)) continue; const r = rate(each([...team, m], 24)); if (!pr || better(r, pr)) { pick = m; pr = r; } await tick(); }
+      team.push(pick); best = pr;
+    }
+    // swaps: try every outside Pokémon in every slot, keep any that raises the odds (2 passes)
+    for (let pass = 0; pass < 2; pass++) {
+      let moved = false;
+      for (let i = 0; i < team.length; i++) for (const m of pool) {
+        if (team.includes(m)) continue;
+        const t2 = team.slice(); t2[i] = m; const r = rate(each(t2, 24));
+        if (better(r, best)) { team = t2; best = r; moved = true; }
+        await tick();
+      }
+      if (!moved) break;
+    }
+    // the final odds with more runs
+    const wins = each(team, 160), fin = rate(wins);
+    opts.onProgress?.(1);
+    return put(`G${reg}:${tier}`, { uids: team.map((m) => m.uid), ko: fin.prod, per: fights.map((f, i) => ({ leader: f.leader, champion: f.champion, win: wins[i] })), sim: 2 });
+  }
+  return { get, put, drop, legend, members, leagueTeam, leagueSim, leagueFights };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -7909,9 +7969,21 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
 (() => {
   const { E, S, name, setChapterTeam, want, LZ } = GoalKit;
   // ---- Elite League: a region's Elite Four + Champion, tiers 1-5 ---------------------------------
+  // the simulator (EliteSim.leagueSim) picks the team; redone when older than 3 h (levels/ranks change)
+  const busy = new Set(), STALE = 3 * 3600e3;
+  const simOf = (reg, tier) => { const r = EliteSim.get(`G${reg}:${tier}`); return r && r.sim === 2 && Date.now() - (r.at || 0) < STALE ? r : null; };
+  const pct = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
+  function simulate(reg, tier) {
+    const k = `${reg}:${tier}`; if (busy.has(k)) return;
+    busy.add(k);
+    setTimeout(() => EliteSim.leagueSim(reg, tier)
+      .then((r) => Log.add(`Elite League ${regName(reg)} tier ${tier}: best team ${pct(r.ko)} to win all 5 (${r.per.map((p) => `${p.leader} ${pct(p.win)}`).join(', ')})`))
+      .catch((e) => Log.add(`Elite League sim failed: ${e?.message || e}`)).finally(() => busy.delete(k)), 0);
+  }
+  const regName = (reg) => (E.get('STORY.REGIONS') || []).find((r) => r.key === reg)?.name || reg;
   const league = {
     uses: 'screen',
-    label: (g) => `Elite League ${(E.get('STORY.REGIONS') || []).find((r) => r.key === g.reg)?.name || g.reg} up to tier ${g.upTo || 5}`,
+    label: (g) => `Elite League ${regName(g.reg)} up to tier ${g.upTo || 5} (Legendary gems)`,
     sprite: () => null,
     progress: (g) => ({ have: Math.min(g.upTo || 5, +(LZ()?.leagueBest(g.reg)) || 0), need: g.upTo || 5, unit: 'tiers' }),
     check(g) {
@@ -7923,6 +7995,11 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (!inIt && !lz.leagueCan(g.reg, next)) return { state: 'wait', why: `tier ${next} can't be started right now` };
       // learn from real fights: after 10 tries at one tier, step back and say so (▶ = try again)
       if (!inIt && (g.lost?.[next] || 0) >= 10 && !g.force) return { state: 'wait', why: `tier ${next} lost ${g.lost[next]} times - level / rank up your team, or press ▶ to try anyway` };
+      if (!inIt) {
+        const sim = simOf(g.reg, next);
+        if (!sim) { simulate(g.reg, next); return { state: 'wait', why: `simulating tier ${next} (Lv ${+(E.get('CONFIG')?.MAX_LEVEL) || 100} rank-${next} Elite Four + Champion)…` }; }
+        if (sim.ko < 0.01 && !g.force) return { state: 'wait', why: `tier ${next} looks too strong for now (best team ${pct(sim.ko)} - weakest: ${[...sim.per].sort((a, b) => a.win - b.win)[0]?.leader}) - level / rank up, or press ▶ to try anyway` };
+      }
       return { state: 'ready', why: null };
     },
     async step(g) {
@@ -7935,28 +8012,36 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       g.lastBest = best; Plan.save();
       const inIt = a.league?.reg === g.reg && +a.league?.tier === next;
       if (inIt) { const tries = +(a.league?.tries || 1); g.lost = { ...(g.lost || {}), [next]: Math.max(g.lost?.[next] || 0, tries - 1) }; Plan.save(); }
-      if (inIt && (g.lost?.[next] || 0) >= 10 && !g.force) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:31', __e); } Log.add(`Elite League ${g.reg}: tier ${next} lost 10 times - stepping back`); Notify.send('problem', `Elite League tier ${next} is too strong for now`, 'Lost 10 times in a row - level or rank up your team, then press ▶ on the goal'); return 'stepped back after 10 losses'; }
+      if (inIt && (g.lost?.[next] || 0) >= 10 && !g.force) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:48', __e); } Log.add(`Elite League ${g.reg}: tier ${next} lost 10 times - stepping back`); Notify.send('problem', `Elite League tier ${next} is too strong for now`, 'Lost 10 times in a row - level or rank up your team, then press ▶ on the goal'); return 'stepped back after 10 losses'; }
       if (g.force && best > (g.forceAt ?? -1)) { g.force = false; g.forceAt = best; }
-      const sim = EliteSim.get(`G${g.reg}:${next}`) || EliteSim.leagueTeam(g.reg, next);
+      const sim = simOf(g.reg, next) || EliteSim.get(`G${g.reg}:${next}`) || EliteSim.leagueTeam(g.reg, next);
       if (!inIt) {
-        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-17-league:35', __e); } return 'leaving the current zone…'; }
-        if (a.league) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:36', __e); } return 'leaving the other League run…'; }
+        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-17-league:52', __e); } return 'leaving the current zone…'; }
+        if (a.league) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:53', __e); } return 'leaving the other League run…'; }
         if (!g.restore) { g.restore = { team: [...(S().team || [])], chapter: a.chapter }; Plan.save(); }
         if (sim?.uids?.length) { const cur = S().team || []; if (!(cur.length === sim.uids.length && sim.uids.every((u) => cur.includes(u)))) setChapterTeam(sim.uids); }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'starting…';
         g.enterAt = Date.now();
         { const why = Guard.team(S().team || [], { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`Elite League ${g.reg} tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan-17-league:42', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-17-league:43', __e); }
-        if (ok) Log.add(`Elite League ${g.reg}: started tier ${next} with ${sim.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`);
+        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan-17-league:59', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-17-league:60', __e); }
+        if (ok) {
+          Log.add(`Elite League ${regName(g.reg)}: started tier ${next} with ${sim.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}${sim.ko != null ? ` (sim ${pct(sim.ko)})` : ''}`);
+          // the game locks the team in at the start (adv.league.team); with a Link Cable it can be the other region's team
+          const lt = S().adv?.league?.team || [];
+          if (sim.uids.some((u) => !lt.includes(u))) Log.add(`Elite League ${regName(g.reg)}: heads up - the game locked in a different team (${lt.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')})`);
+        }
         return ok ? `started tier ${next}` : `the game would not start tier ${next}`;
       }
       const at = +a.node || 0, n = (a.nodes || []).length;
-      return `Elite League tier ${next} · stop ${at + 1} of ${n || '?'} · try ${+(a.league?.tries || 1)}`;
+      const sm = simOf(g.reg, next);
+      return `Elite League ${regName(g.reg)} tier ${next} · stop ${at + 1} of ${n || '?'} · try ${+(a.league?.tries || 1)}${sm ? ` · sim ${pct(sm.ko)}` : ''}`;
     },
-    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:50', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
+    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:73', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
   };
-  Object.assign(GoalTypes, { league });
+    // for the add menu: every region with an Elite League, its progress and the gem types it gives
+  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:76', __e); } return { key: r.key, name: r.name || r.key, open, best, types, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
+  Object.assign(GoalTypes, { league, eliteLeagues });
 })();
 
 // goal module: wboss (takes shared helpers from GoalKit, registers itself in GoalTypes)
@@ -9228,7 +9313,8 @@ const Remote = (() => {
       gemPick: (() => { try { return (E.get('LegendZones')?.leaguePending?.() || []).map((p) => [p.reg, p.tier]); } catch { return []; } })(),
       wb: Plan.hasType('wboss') ? 1 : 0,
       myTrade: (() => { try { return Trades.myOffer(); } catch { return null; } })(),
-      leagues: (() => { try { return storyLeagues().map((r) => [r.key, r.name, r.inPlan ? 1 : 0]); } catch { return []; } })(), upd: (() => { try { return Updater.available; } catch { return null; } })(),
+      leagues: (() => { try { return storyLeagues().map((r) => [r.key, r.name, r.inPlan ? 1 : 0]); } catch { return []; } })(),
+      eliteLg: (() => { try { return (GoalTypes.eliteLeagues?.() || []).map((r) => [r.key, r.name, r.best, r.open ? 1 : 0, r.inPlan ? 1 : 0, r.types]); } catch { return []; } })(), upd: (() => { try { return Updater.available; } catch { return null; } })(),
       guard: (() => { try { return Guard.failures().map((f) => `${f.label}: ${f.why}`); } catch { return []; } })(),
       dc: (() => { try { const d = DayCare.info(); const sh = (() => { try { return Object.fromEntries(EggPredict.eggs().map((x) => [x.uid, x.shiny ? 1 : 0])); } catch { return {}; } })();
             const fc = (() => { try { const U = EggPredict.upcoming(400); return { k: U.next, b: U.berryOn ? 1 : 0, r: U.rows.filter((r) => r.now || r.berry).slice(0, 5).map((r) => [r.k, r.ahead, r.parent, r.parentShiny ? 1 : 0, r.now ? 1 : 0]), per: (+E.get('CONFIG')?.PENSION?.EGG_MIN || 240) * 60_000, none: (E.read('Game.pensionLayers', []) || []).length ? 0 : 1 }; } catch { return null; } })();
@@ -9243,7 +9329,7 @@ const Remote = (() => {
   // Leagues you can add "Beat a region's League" for: unlocked, not beaten (same list as Mega's Plan tab)
   function storyLeagues() {
     const ST = E.get('STORY'), un = +(E.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    return (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('80-remote:127', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    return (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('80-remote:128', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !E.read('Game.regionCleared', false, r.key))
       .map((r) => ({ key: r.key, name: r.name, inPlan: Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) }));
   }
@@ -9270,6 +9356,7 @@ const Remote = (() => {
       if (!ADD_OK.includes(a.type)) throw new Error('that goal type can only be added on the PC');
       if (a.type === 'elite' && !(E.get('LegendZones')?.ZONES || []).some((z) => +z.id === +a.foe)) throw new Error('not a legendary zone');
       if (a.type === 'league' && !(E.get('STORY.REGIONS') || []).some((r) => r.key === String(a.reg))) throw new Error('unknown region');
+      if (a.type === 'league' && Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === String(a.reg))) throw new Error('already in your plan');
       const data = a.type === 'discord' ? { spot: ['money', 'xp', 'mix', 'candy'].includes(a.spot) ? a.spot : 'money' } : a.type === 'elite' ? { foe: +a.foe, upTo: 5 } : a.type === 'league' ? { reg: String(a.reg), upTo: 5 } : a.type === 'legend' ? { foe: +a.foe } : a.type === 'money' ? { target: Math.max(1, +a.target || 0) } : a.type === 'region' ? { reg: String(a.reg) } : a.type === 'under' ? { from: a.from === 'auto' || a.from == null ? 'auto' : Math.max(1, +a.from || 1), aim: a.aim === 'loot' ? 'loot' : 'deep' } : {};
       if (a.type === 'legend' && !D()[+a.foe]) throw new Error('unknown Pokémon');
       if (a.type === 'story') {
@@ -9326,7 +9413,7 @@ const Remote = (() => {
       const h = DexInfo.howTo(id), ways = DexInfo.routes(id).map((r) => [r.kind, Casing.names(r.text)]);
       const inPlan = Plan.goals.find((g) => !g.done && (g.foe === id || g.forDex === id || g.item === 'egg:' + id));
       const wild = DexInfo.wild(id).map((c) => [c.ch, Casing.names(c.chapter), c.best, c.open ? 1 : 0, c.now ? 1 : 0, Casing.names(c.spots.map((x) => `${x.place} (${DexInfo.pct(x.pct)}${x.when?.length ? `, ${DexInfo.whenText(x.when)} only` : ''}${x.fights ? `, ${x.fights} fights per run` : ''})`).join(' · '))]);
-      let sw = { owned: false, ways: [] }; try { sw = GoalTypes.shinyWays(id); } catch (__e) { __h('80-remote:210', __e); }
+      let sw = { owned: false, ways: [] }; try { sw = GoalTypes.shinyWays(id); } catch (__e) { __h('80-remote:212', __e); }
       const hunt = Plan.goals.find((g) => !g.done && ['shinyWild', 'shinyBreed'].includes(g.type) && +(g.target || g.foe) === id);
       replies[rid] = { at: Date.now(), data: { id, name: h.name, types: h.types, reg: h.registered ? 1 : 0, owned: h.owned || 0, now: Casing.names(DexInfo.availableNow(id) || ''), ways, wild, plan: inPlan ? Casing.names(Plan.label(inPlan)) : null,
         shiny: { owned: sw.owned ? 1 : 0, hunt: hunt ? Casing.names(Plan.label(hunt)) : null, ways: sw.ways.map((w) => [w.way, Casing.names(w.text), Math.round(w.hours * 10) / 10]) } } };
@@ -9392,11 +9479,11 @@ const Remote = (() => {
       const ro = U.rankOf(m, String(a.key)); if (!ro || ro.key !== String(a.key)) throw new Error('that gem doesn\'t fit it'); if (ro.why) throw new Error(ro.why);
       if (+a.rank !== (+m.rank || 0)) throw new Error('its rank changed - refresh and try again');
       const r = U.rankUp(m.uid, String(a.key)); if (!r) throw new Error('the game said no');
-      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch (__e) { __h('80-remote:276', __e); }
+      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch (__e) { __h('80-remote:278', __e); }
       return `${D()[m.id]?.name} is rank ${r.rank} now (back to Lv 5)`;
     },
     'update.check': async () => {
-      await Updater.check(); try { push(true); } catch (__e) { __h('80-remote:280', __e); }
+      await Updater.check(); try { push(true); } catch (__e) { __h('80-remote:282', __e); }
       const v = Updater.available, I = Updater.info;
       if (I.err && !I.latest) return 'could not reach GitHub: ' + I.err;
       return v ? `New Update ${v} is ready${Updater.downloaded === v ? ' - downloaded, tap Reload Game to run it' : ''}` : `you're up to date (${VERSION})`;
@@ -9465,16 +9552,16 @@ const Remote = (() => {
   let lastPair = 0;
   let es = null, seen = new Set(), parts = new Map(), lastSig = '', lastSent = 0, pushing = false, lastErr = null, watchedAt = 0;
   function listen() {
-    try { es?.close(); } catch (__e) { __h('80-remote:349', __e); }
+    try { es?.close(); } catch (__e) { __h('80-remote:351', __e); }
     es = null;
     if (!cfg.on || !cfg.cmd) return;
     if (relay()) {
       es = new EventSource(`${RELAY}/sub/${encodeURIComponent(cfg.cmd)}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:354', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:356', __e); } };
       pairRelay();
     } else {
       es = new EventSource(`https://ntfy.sh/${cfg.cmd}/sse?since=${cfg.lastCmd || '10m'}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:358', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:360', __e); } };
     }
     es.onerror = () => { lastErr = 'phone link reconnecting…'; };
     es.onopen = () => { lastErr = null; };
@@ -9541,13 +9628,13 @@ const Remote = (() => {
     if (ev?.raid) { kind = 'raid'; foe = +ev.id; reg = ev.reg; }
     else if (a.zone) { foe = +(a.zone.foe ?? a.zone.id); kind = a.zone.wb ? 'wboss' : a.zone.tier ? 'elite' : 'legend'; }
     if (!kind || !foe) return null;
-    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:425', __e); }
+    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:427', __e); }
     const day = Date.now() - 86_400_000;
     // boss fights today against this foe (raid: the raid's static boss; zone: zone fights)
     // (a Legendary like Cresselia is also a 'static' encounter, so 'static' can't mean raid - only the raid flag does)
     const boss = fights.filter((f) => f.at > day && (kind === 'raid' ? !!f.raid : !f.raid));
     let kos, wipes;
-    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:431', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
+    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:433', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
     else { kos = boss.filter((f) => f.outcome === 'ko').length; wipes = boss.filter((f) => f.outcome === 'wipe').length; }
     // time per fight: the median gap between boss fights (travel + fight), else the raid loop time
     const st = boss.map((f) => f.at).sort((x, y) => x - y), gaps = [];
@@ -9556,11 +9643,11 @@ const Remote = (() => {
     const per = gaps.length ? gaps[Math.floor(gaps.length / 2)] : kind === 'raid' ? +ev.loopMs || null : boss[0]?.ms || null;
     let chance = null;
     if (kind === 'raid') chance = +(C.RAID?.CATCH) || 0.01;
-    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:440', __e); } }
+    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:442', __e); } }
     if (!(chance > 0)) chance = fightCache?.foe === foe ? fightCache.chance : null;
     let tries = 0, pity = null;
-    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:443', __e); } pity = +(C.RAID?.PITY) || null; }
-    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:444', __e); } }
+    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:445', __e); } pity = +(C.RAID?.PITY) || null; }
+    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:446', __e); } }
     else tries = +(S.legTries?.[foe] ?? 0);
     const koRate = kos + wipes ? kos / (kos + wipes) : null;
     // expected: KOs for a 50% / 90% chance, and the time that takes at today's KO rate
@@ -9578,7 +9665,7 @@ const Remote = (() => {
     const S = E.get('Game.S') || {}, Dx = E.get('Game.DEX') || {}, a = S.adv || {}, g = E.get('Game');
     const hp = (m) => { try { return [Math.max(0, Math.round(g.curHp(m))), Math.round(g.maxHp(m))]; } catch { return [0, 0]; } };
     const goals = Plan.goals.filter((x) => !x.done && ['running', 'ready'].includes(Plan.live(x.id)?.state)).map((x) => {
-      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:462', __e); }
+      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:464', __e); }
       return [x.id, Casing.names(Plan.live(x.id)?.line || ''), p];
     });
     const foes = (a.battle?.enemies || []).filter((e) => e && e.id != null).map((e) => [e.id, e.level || 0, ...hp(e)]);
