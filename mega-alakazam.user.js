@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.11.5
+// @version      2.11.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.11.5';
+const VERSION = '2.11.6';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1656,6 +1656,10 @@ const Views = (() => {
     // ---- health: self-test + every swallowed error, by place ----
     try {
       const T = Health.test, R = Health.recent(), when = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+      // restore Mega's own data from a file (2026-11-23: the game moved to pokecatch-online.app and the browser keeps each
+      // address's storage apart, so the plan, phone pairing and settings stayed behind on the old address)
+      h += `<div class="card"><h3>📦 Restore Mega Data</h3><div class="dim">Load a saved copy of Mega's data (a .json file of its entries): your plan, phone pairing and settings. Only Mega's own entries are written (the ones starting with "mega-"); the game's save is never touched. The page reloads afterwards.</div>
+        <label class="btn" style="margin-top:8px;display:block;text-align:center;cursor:pointer">Choose File…<input type="file" accept=".json,application/json" data-act="restore-file" style="display:none"></label></div>`;
       h += `<div class="card"><h3>🩺 Health</h3>`;
       h += T ? `<div class="row"><span class="k">Self-test</span><span class="v ${T.failed ? 'bad' : 'ok'}">${T.failed ? `${T.failed} of ${T.n} failed` : `all ${T.n} passed`}${T.warns ? ` <span class="warn">· ${T.warns} warning${T.warns === 1 ? '' : 's'}</span>` : ''}</span></div><div class="row"><span class="k">Last run</span><span class="v dim">${esc(when(T.at))} · v${esc(T.v)} · ${esc(T.why)}</span></div>${(T.results || []).map((r) => `<div class="note ${r.warn ? '' : 'bad'}" style="margin-top:4px"><b>${r.warn ? '⚠' : '✖'} ${esc(r.name)}</b><br>${esc(r.detail || '')}</div>`).join('')}` : '<div class="dim">The self-test hasn\'t run yet.</div>';
       h += `<button class="btn" data-act="health-test">Run Self-Test</button>`;
@@ -1663,7 +1667,7 @@ const Views = (() => {
       h += R.slice(0, 8).map((x) => `<div class="row"><span class="k" style="font-size:12px">${esc(x.site)} ×${x.n}</span><span class="v dim" style="font-size:12px">${esc(x.msg || '')} · ${esc(when(x.last))}</span></div>`).join('');
       if (R.length) h += `<button class="btn" data-act="health-clear">Clear the Error List</button>`;
       h += `<div class="note dim" style="margin-top:8px">Mega checks every goal, planner and screen against your save after each update. A new version that fails is rolled back to the one before by itself, and your phone gets an alert. A goal that keeps failing (5 errors in 30 min) alerts you too.</div></div>`;
-    } catch (__e) { __h('50-views:86', __e); }
+    } catch (__e) { __h('50-views:90', __e); }
     { const U = Updater.info, av = Updater.available;
       h += `<div class="card"><h3>⬆ Updates</h3><div class="row"><span class="k">This version</span><span class="v">${esc(VERSION)}</span></div><div class="row"><span class="k">Newest on GitHub</span><span class="v ${U.err ? 'bad' : ''}">${U.err ? 'could not check: ' + esc(U.err) : U.latest ? esc(U.latest) + (av ? ' <span class="ok">· ready</span>' : ' · up to date') : 'checking…'}</span></div>${U.checkedAt ? `<div class="row"><span class="k">Checked</span><span class="v dim">${new Date(U.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></div>` : ''}
         ${av ? `<button class="btn" data-act="update">New Update ${esc(av)}</button>` : ''}<button class="btn" data-act="update-check">Check now</button>
@@ -1671,7 +1675,7 @@ const Views = (() => {
         <label class="chk"><input type="checkbox" data-act="update-continue" ${Updater.autoContinue ? 'checked' : ''}> Press Continue on the title screen after a reload</label>
         <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
         <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes and downloads a new version by itself; it runs the next time the game reloads (Mega reloads it at a safe moment - not during a zone, raid, tower or league - or use Reload Game on Kinesis). A version that fails to start is skipped and this one keeps running. "Install in Tampermonkey too" makes it permanent there (optional - Tampermonkey also catches up by itself).</div></div>`; }
-    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:13px">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:94', __e); }
+    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:13px">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:98', __e); }
     h += `<div class="card"><h3>🗂️ Tabs</h3><div class="dim" style="font-size:13px">Drag a tab at the top onto another to move it. Your order is saved.</div><button class="btn" data-act="tabs-reset" style="margin-top:6px">Reset tab order</button></div>`;
     { const ci = Calib.info, names = { raid: 'Shiny Raids', elite: 'Elite tiers', zone: 'Legendary zones' };
       const rows = Object.entries(names).map(([k, l]) => { const c = ci[k]; return `<div class="row"><span class="k">${l}</span><span class="v">${c ? `off by ${Math.round(c.errAfter * 100)} pts <span class="dim">(was ${Math.round(c.errBefore * 100)}) · ${c.n} fights · ${new Date(c.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>` : '<span class="dim">not enough fights yet (needs 12)</span>'}</span></div>`; }).join('');
@@ -1696,7 +1700,7 @@ const Views = (() => {
       <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Starf + Nanab while hunting a shiny, Rowap while chasing a roaming legendary (it doubles how long it stays put).</div>
       ${berryRows(esc)}</div>`;
     h += (() => {
-      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:119', __e); }
+      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:123', __e); }
       const nm = (id) => { try { return Casing.names(Engine.get('Game.DEX')[id].name); } catch { return '#' + id; } };
       return `<div class="card"><h3>🥋 Moves</h3>
       <label class="chk"><input type="checkbox" data-act="movetune" ${MoveTune.on ? 'checked' : ''}> Let Mega turn status moves on and off before boss fights</label>
@@ -3251,11 +3255,24 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     document.documentElement.appendChild(host);
     layout();
     root.addEventListener('click', onClick);
-    root.addEventListener('change', changeH = (e) => { if (e.target.matches('input[data-act="berry-on"], input[data-act="berry-keep"]')) { const k = e.target.dataset.k; if (e.target.dataset.act === 'berry-on') Berries.setPref(k, { off: !e.target.checked }); else Berries.setPref(k, { keep: +e.target.value || 0 }); Log.add(`berries: ${k.replace(/-/g, ' ')} ${Berries.pref(k).off ? 'off' : 'on'}, keep ${Berries.pref(k).keep}`); renderBody(true); return; } if (e.target.dataset.msel) { Mirror.ui.box[e.target.dataset.msel] = e.target.value; renderBody(true); return; } if (e.target.matches('select[data-act="add-foe"]')) { planUi.addFoe = +e.target.value || null; renderBody(true); return; }
+    root.addEventListener('change', changeH = (e) => {
+      if (e.target.matches('input[data-act="restore-file"]')) {
+        const f = e.target.files?.[0]; if (!f) return;
+        f.text().then((txt) => {
+          let d; try { d = JSON.parse(txt); } catch { alert('That file is not a Mega data file (not JSON).'); return; }
+          const SKIP = /^mega-(next|prev)-(code|ver)$|^mega-(tested-ver|selftest|test-|game-build|next-try|next-bad)/;
+          const keys = Object.keys(d || {}).filter((k) => /^mega-/.test(k) && typeof d[k] === 'string' && !SKIP.test(k));
+          if (!keys.length) { alert('No Mega entries in that file.'); return; }
+          if (!confirm(`Restore ${keys.length} Mega entries (plan, phone pairing, settings)? This replaces Mega's current data on this address, then reloads the page.`)) return;
+          const wait = () => { const a = Engine.get('Game.S')?.adv; if (a?.battle) return setTimeout(wait, 200); for (const k of keys) localStorage.setItem(k, d[k]); location.reload(); };
+          wait();
+        });
+        return;
+      } if (e.target.matches('input[data-act="berry-on"], input[data-act="berry-keep"]')) { const k = e.target.dataset.k; if (e.target.dataset.act === 'berry-on') Berries.setPref(k, { off: !e.target.checked }); else Berries.setPref(k, { keep: +e.target.value || 0 }); Log.add(`berries: ${k.replace(/-/g, ' ')} ${Berries.pref(k).off ? 'off' : 'on'}, keep ${Berries.pref(k).keep}`); renderBody(true); return; } if (e.target.dataset.msel) { Mirror.ui.box[e.target.dataset.msel] = e.target.value; renderBody(true); return; } if (e.target.matches('select[data-act="add-foe"]')) { planUi.addFoe = +e.target.value || null; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
-      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:185', __e); } renderBody(true); return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:198', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { GoalTypes.setCarrier(g, e.target.value || null); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3314,7 +3331,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:244', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:257', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3348,7 +3365,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:278', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:291', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
@@ -3374,7 +3391,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:304', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:317', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3388,7 +3405,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:318', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:331', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3402,7 +3419,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:332', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:345', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3413,19 +3430,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:343', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:356', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:349', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:362', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:352', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:365', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:355', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:368', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3468,8 +3485,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:398', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:399', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:411', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:412', __e); }
     renderBody(true, w);
   }
 
@@ -3485,7 +3502,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === key) return;
     body.innerHTML = Icons.swap(Sub.apply(prefs.tab, html, prefs, esc)); body.dataset.html = key;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:415', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:428', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3500,13 +3517,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:430', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:431', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:443', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:444', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:436', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:449', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
