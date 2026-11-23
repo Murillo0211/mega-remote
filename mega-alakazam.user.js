@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.39
+// @version      2.10.40
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.39';
+const VERSION = '2.10.40';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2493,7 +2493,7 @@ Views.plan = (w, ui, esc) => {
           <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>
           <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
-        ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
+        ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))}${g.preview.guide ? ` (${g.preview.guide} from the Discord guide)` : ''} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
         ${g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? `<div style="margin:6px 0 0 30px"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
@@ -6747,12 +6747,38 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // the Pokémon worth trying for this bay: the strongest, plus the best against the theme's types and the guards of
   // the floors the run starts at (a guard every GUARD_EVERY floors, x GUARD_MULT strength - the start floor's
   // guard is the first wall: a plain Lv 100 team lost to it on floor 100)
+  // the Discord guide "Underground Expedition Picks" (@destryyy, game v0.5.06, Rank 0, from floor 1): the best 8 per
+  // theme, then the best 8 non-legendaries. Added 2026-11-23 (Jimmy): the ones you own always get tried by the
+  // simulator, and the guide's top trio you own is a starting team. The simulator still decides (your levels, ranks,
+  // start floor and today's guards differ from the guide's).
+  const GUIDE = {
+    flooded: ['White Kyurem', 'Dialga', 'Reshiram', 'Arceus (Poison)', 'Giratina (Origin Forme)', 'Regigigas', 'Genesect (Burn Drive)', 'Zekrom',
+      'Slaking', 'Ferrothorn', 'Venusaur', 'Vileplume', 'Salamence', 'Garchomp', 'Amoonguss', 'Dragonite'],
+    volcanic: ['Kyogre', 'Arceus (Water)', 'Palkia', 'Groudon', 'Giratina', 'Keldeo', 'Suicune', 'White Kyurem',
+      'Garchomp', 'Slaking', 'Walrein', 'Vaporeon', 'Kingdra', 'Feraligatr', 'Milotic', 'Blastoise'],
+    crystal: ['Regigigas', 'Giratina', 'Reshiram', 'Dialga', 'Arceus (Ghost)', 'Palkia', 'Groudon', 'Kyogre',
+      'Slaking', 'Metagross', 'Chandelure', 'Arcanine', 'Volcarona', 'Snorlax', 'Darmanitan', 'Gallade'],
+    dark: ['White Kyurem', 'Dialga', 'Arceus (Steel)', 'Zekrom', 'Reshiram', 'Slaking', 'Ho-Oh', 'Groudon',
+      'Darmanitan', 'Arcanine', 'Tyranitar', 'Emboar', 'Hydreigon', 'Gyarados', 'Braviary'],
+    ancient: ['Lugia', 'Arceus (Psychic)', 'Ho-Oh', 'Landorus (Therian Forme)', 'Rayquaza', 'Mewtwo', 'Giratina', 'Groudon',
+      'Gyarados', 'Garchomp', 'Salamence', 'Musharna', 'Charizard', 'Dragonite', 'Slowbro', 'Slaking'],
+    galleries: ['White Kyurem', 'Zekrom', 'Regigigas', 'Giratina (Origin Forme)', 'Dialga', 'Arceus (Rock)', 'Zapdos', 'Kyogre',
+      'Magnezone', 'Slaking', 'Rhyperior', 'Gigalith', 'Armaldo', 'Rampardos', 'Ampharos', 'Glaceon'],
+  };
+  const norm = (n) => String(n || '').toLowerCase().replace(/[^a-z]/g, '');
+  // your best copy (highest level, then rank) of each guide pick for this theme, in the guide's order
+  function guidePicks(pool, theme) {
+    const list = GUIDE[theme?.key] || []; if (!list.length) return [];
+    const by = new Map();
+    for (const m of pool) { let n = ''; try { n = norm(GemFocus.nameOf(m.id)); } catch (__e) { __h('70-plan-04-underground:84', __e); } const o = by.get(n); if (!o || m.level > o.level || (m.level === o.level && (m.rank || 0) > (o.rank || 0))) by.set(n, m); }
+    return list.map((n) => by.get(norm(n))).filter(Boolean);
+  }
   function candidates(pool, theme, from) {
     const u = U(), cfg = E.get('CONFIG')?.UNDERGROUND || {}, every = +cfg.GUARD_EVERY || 10;
     const lv = (f) => { try { return +u.levelOf(f) || 50; } catch { return 50; } };
     const foes = [];
     for (let f = Math.ceil(Math.max(1, from) / every) * every, k = 0; k < 2; f += every, k++) {
-      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:66', __e); }
+      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:92', __e); }
       ids.slice(0, 5).forEach((id, i) => foes.push({ id: +id, level: lv(f), w: 2 }));
     }
     const TT = theme?.types || [], DEX = E.get('Game.DEX') || {};
@@ -6760,20 +6786,24 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     for (let i = 0; i < Math.min(6, themeIds.length); i++) foes.push({ id: +themeIds[Math.floor(i * themeIds.length / 6)], level: lv(from + 5), w: 1 });
     const cov = (m) => { try { return Sim.coverage(m, foes).reduce((a, v, i) => a + Math.log1p(v) * foes[i].w, 0); } catch { return 0; } };
     const byPow = pool.slice(0, 16), byMatch = pool.map((m) => ({ m, v: cov(m) })).sort((a, b) => b.v - a.v).slice(0, 14).map((x) => x.m);
-    return { short: [...new Set([...byMatch, ...byPow])], cov };
+    const guide = guidePicks(pool, theme);
+    return { short: [...new Set([...guide, ...byMatch, ...byPow])], cov, guide };
   }
   async function ugPick(bay, from, taken, aim) {
     const theme = U().themeOf(bay);
     const pool = eligible().filter((m) => !taken.has(m.uid)).sort((a, b) => b.level - a.level || power(b) - power(a));
     const size = (E.get('CONFIG')?.UNDERGROUND?.TEAM) || 3;
     if (pool.length < size) return { error: `only ${pool.length} Pokémon free to send today` };
-    const { short, cov } = candidates(pool, theme, from);
+    const { short, cov, guide } = candidates(pool, theme, from);
     let team = []; for (const m of short.slice().sort((a, b) => cov(b) - cov(a))) { if (team.length >= size) break; if (!team.some((t) => Sim.species(t) === Sim.species(m))) team.push(m); }
+    // the guide's top trio you own: start there when it does better (the search then tries swaps from the better one)
+    const gTeam = []; for (const m of guide) { if (gTeam.length >= size) break; if (!gTeam.some((t) => Sim.species(t) === Sim.species(m))) gTeam.push(m); }
     // the search keeps the best few teams it saw, then re-runs each FINAL_RUNS times and keeps the one that does best
     // on a bad run - one lucky pair of runs no longer decides
     const seen = new Map(), key = (t) => t.map((m) => m.uid).sort().join(',');
     const note = (t, d) => { const k = key(t), v = scoreOf(d, aim); if (!seen.has(k) || seen.get(k).v < v) seen.set(k, { t, v }); };
     let bestD = await depth(team, theme, from), best = scoreOf(bestD, aim); note(team, bestD);
+    if (gTeam.length === size && key(gTeam) !== key(team)) { const d = await depth(gTeam, theme, from), v = scoreOf(d, aim); note(gTeam, d); if (v > best) { team = gTeam; bestD = d; best = v; } }
     for (let pass = 0; pass < 2; pass++) {
       let better = false;
       for (let slot = 0; slot < size; slot++) {
@@ -6792,7 +6822,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (!fin || v > fin.v) fin = { t, d, v };
     }
     if (fin) { team = fin.t; bestD = fin.d; }
-    return { uids: team.map((m) => m.uid), floors: Math.round(bestD.med ?? bestD.deep), low: Math.round(bestD.deep), cleared: Math.round(bestD.cleared), value: Math.round(bestD.value), from, theme: theme?.name || theme?.key };
+    const gs = new Set(guide.map((m) => m.uid));
+    return { uids: team.map((m) => m.uid), guide: team.filter((m) => gs.has(m.uid)).length, floors: Math.round(bestD.med ?? bestD.deep), low: Math.round(bestD.deep), cleared: Math.round(bestD.cleared), value: Math.round(bestD.value), from, theme: theme?.name || theme?.key };
   }
   // "Best (auto)": a team for each start floor the game offers, keep the one that does best for the aim
   async function ugPickAuto(bay, taken, aim) {
@@ -6821,12 +6852,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:135', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:166', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:139', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:140', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:170', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:171', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -6865,9 +6896,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, pl.from || 1);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:179', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:180', __e); }
-          Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${pl.from} - about floor ${pl.floors}, floor ${pl.low ?? pl.floors} on a bad run (${pl.cleared}+ floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:210', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:211', __e); }
+          Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who}${pl.guide ? ` (${pl.guide} of them from the Discord guide's picks)` : ''} from floor ${pl.from} - about floor ${pl.floors}, floor ${pl.low ?? pl.floors} on a bad run (${pl.cleared}+ floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
           g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, low: pl.low, cleared: pl.cleared, theme: pl.theme };
           delete ugPlans[bay];
         }
@@ -6891,7 +6922,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const st = (() => { try { const s = U().starts(); return s?.length ? s : [1]; } catch { return [1]; } })();
       const from = g.from === 'auto' ? null : st.includes(+g.from || 1) ? +g.from || 1 : 1; // the same fallback the real send uses
       const r = from ? await ugPick(0, from, new Set(), aim) : await ugPickAuto(0, new Set(), aim);
-      g.preview = !r || r.error ? { error: r?.error || 'no team found', at: Date.now() } : { at: Date.now(), from: r.from, floors: r.floors, low: r.low, cleared: r.cleared, value: r.value, theme: r.theme, team: r.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)) };
+      g.preview = !r || r.error ? { error: r?.error || 'no team found', at: Date.now() } : { at: Date.now(), guide: r.guide || 0, from: r.from, floors: r.floors, low: r.low, cleared: r.cleared, value: r.value, theme: r.theme, team: r.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)) };
     } catch (e) { g.preview = { error: e?.message || String(e), at: Date.now() }; } finally { pvBusy = false; ugBusy = false; ugStatus = keepStatus; Plan.save(); }
     return g.preview;
   }
