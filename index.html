@@ -621,7 +621,7 @@ function vPlan() {
         <button class="btn sm" data-c="goal.down" data-a='{"id":"${g.id}"}' data-l="Move down" ${i < s.goals.length - 1 ? '' : 'disabled'}>Down</button>
         <button class="btn sm" data-c="goal.pause" data-a='{"id":"${g.id}"}' data-l="${g.s === 'paused' ? 'Resume' : 'Pause'} goal">${g.s === 'paused' ? 'Resume' : 'Pause'}</button>
         <button class="btn sm danger" data-c="goal.remove" data-a='{"id":"${g.id}"}' data-l="Remove goal" data-confirm="Remove ${esc(g.l)}?">Remove</button>
-      </div>${g.t === 'under' && g.ug ? ugSel(g.ug[0], g.ug[1], s.ugStarts || [1], g.id) + `<button class="btn sm" data-c="goal.ugpreview" data-a='{"id":"${g.id}"}' data-l="Preview the Underground pick">🔍 Preview the Pick</button>` + (g.ug[2] ? `<div class="dim" style="font-size:13px">${esc(g.ug[2])}</div>` : '') : ''}${g.t === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
+      </div>${g.cr !== undefined && s.carriers ? `<select data-cr="1" data-id="${esc(g.id)}"><option value="">Carrier: the fastest (Mega picks)</option>${s.carriers.map(([u, n]) => `<option value="${esc(u)}" ${g.cr === u ? 'selected' : ''}>Carrier: ${esc(n)}</option>`).join('')}</select>` : ''}${g.t === 'under' && g.ug ? ugSel(g.ug[0], g.ug[1], s.ugStarts || [1], g.id) + `<button class="btn sm" data-c="goal.ugpreview" data-a='{"id":"${g.id}"}' data-l="Preview the Underground pick">🔍 Preview the Pick</button>` + (g.ug[2] ? `<div class="dim" style="font-size:13px">${esc(g.ug[2])}</div>` : '') : ''}${g.t === 'raid' ? `<button class="btn" data-c="raid.repick" data-l="Re-pick raid team (about 10 s)">🔄 Re-pick Raid Team</button>` : ''}${/3 times|try anyway/.test(g.y) ? `<button class="btn" data-c="goal.retry" data-a='{"id":"${g.id}"}' data-l="Try again">${/try anyway/.test(g.y) ? 'Try Anyway' : 'Try Again'}</button>` : ''}</div>`;
   });
   if (!s.goals.length) h += `<div class="card">Your plan is empty.</div>`;
   if (s.done.length) h += `<div class="card"><h3>Done Today</h3>${s.done.map(([l, t]) => `<div class="ok">✔ ${esc(l)} <span class="dim">· ${at(t)}</span></div>`).join('')}</div>`;
@@ -1166,6 +1166,7 @@ document.addEventListener('change', (e) => {
   if (t.id === 'simPick') { ui.simPick = +t.value || null; render(); }
   if (t.id === 'asMax') ui.asMax = t.checked;
   if (t.dataset.set) cmd(t.dataset.set, { on: t.checked }, t.checked ? 'Turn on' : 'Turn off');
+  if (t.dataset.cr) { cmd('goal.carrier', { id: t.dataset.id, uid: t.value }, 'Carrier'); return; }
   if (t.dataset.ug) {
     const k = t.dataset.ug, v = t.value;
     if (!t.dataset.id) { if (k === 'from') ui.ugFrom = v; else ui.ugAim = v; return; }
