@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.24
+// @version      2.10.25
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.24';
+const VERSION = '2.10.25';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2493,7 +2493,7 @@ Views.plan = (w, ui, esc) => {
           <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>
           <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
-        ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
+        ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
@@ -6414,15 +6414,23 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // passed: a team that starts at 100 and loses to that floor's guard reads 99 with nothing earned), r.loot one list
   // per floor. Mega used to add the start floor on top (99 + 99 = "floor 198") - fixed.
   const LOOT_V = { shards: 400, geode: 2500, plate: 8000, fossil: 3000, item: 600 }; // rough ₽ worth, for "most loot"
+  // runs = 2 while searching (fast); the finalists get FINAL_RUNS and are judged on a BAD run, not the average
+  // (Jimmy 2026-11-22: estimates ran ~13 floors high - 5 of 10 teams stopped at 99, in front of floor 100's guard).
+  // With: deep / cleared = the 25th percentile (one run in four does worse), med = the middle run.
+  const FINAL_RUNS = 8, FINALISTS = 4;
+  const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.min(b.length - 1, Math.floor(p * b.length))] : 0; };
   async function depth(team, theme, from, runs = 2) {
-    let deep = 0, cleared = 0, value = 0;
+    const deeps = [], cls = []; let value = 0;
     for (let i = 0; i < runs; i++) {
       const r = await U().simulate(team, theme, from);
-      const fl = +r?.floors || 0; deep += fl; cleared += Math.max(0, fl - (from - 1));
+      const fl = +r?.floors || 0; deeps.push(fl); cls.push(Math.max(0, fl - (from - 1)));
       for (const f of r?.loot || []) for (const x of f || []) value += x.k === 'money' ? +x.n || 0 : x.k === 'shards' ? (+x.n || 0) * LOOT_V.shards : LOOT_V[x.k] || 0;
       await new Promise((x) => setTimeout(x, 0));
     }
-    return { deep: deep / runs, cleared: cleared / runs, value: value / runs };
+    const avg = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
+    return runs >= 4
+      ? { deep: q(deeps, 0.25), cleared: q(cls, 0.25), value: value / runs, med: q(deeps, 0.5), runs }
+      : { deep: avg(deeps), cleared: avg(cls), value: value / runs, med: avg(deeps), runs };
   }
   // what the goal is after: the deepest floor (raises your record, which opens higher start floors and better loot
   // bands) or the most loot this run
@@ -6438,7 +6446,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const lv = (f) => { try { return +u.levelOf(f) || 50; } catch { return 50; } };
     const foes = [];
     for (let f = Math.ceil(Math.max(1, from) / every) * every, k = 0; k < 2; f += every, k++) {
-      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:58', __e); }
+      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:66', __e); }
       ids.slice(0, 5).forEach((id, i) => foes.push({ id: +id, level: lv(f), w: 2 }));
     }
     const TT = theme?.types || [], DEX = E.get('Game.DEX') || {};
@@ -6455,20 +6463,30 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     if (pool.length < size) return { error: `only ${pool.length} Pokémon free to send today` };
     const { short, cov } = candidates(pool, theme, from);
     let team = []; for (const m of short.slice().sort((a, b) => cov(b) - cov(a))) { if (team.length >= size) break; if (!team.some((t) => Sim.species(t) === Sim.species(m))) team.push(m); }
-    let bestD = await depth(team, theme, from), best = scoreOf(bestD, aim);
+    // the search keeps the best few teams it saw, then re-runs each FINAL_RUNS times and keeps the one that does best
+    // on a bad run - one lucky pair of runs no longer decides
+    const seen = new Map(), key = (t) => t.map((m) => m.uid).sort().join(',');
+    const note = (t, d) => { const k = key(t), v = scoreOf(d, aim); if (!seen.has(k) || seen.get(k).v < v) seen.set(k, { t, v }); };
+    let bestD = await depth(team, theme, from), best = scoreOf(bestD, aim); note(team, bestD);
     for (let pass = 0; pass < 2; pass++) {
       let better = false;
       for (let slot = 0; slot < size; slot++) {
         for (const c of short) {
           if (team.some((t, k) => t.uid === c.uid || (k !== slot && Sim.species(t) === Sim.species(c)))) continue;
           const trial = team.slice(); trial[slot] = c;
-          const d = await depth(trial, theme, from), v = scoreOf(d, aim);
+          const d = await depth(trial, theme, from), v = scoreOf(d, aim); note(trial, d);
           if (v > best * 1.005 + 0.5) { best = v; bestD = d; team = trial; better = true; }
         }
       }
       if (!better) break;
     }
-    return { uids: team.map((m) => m.uid), floors: Math.round(bestD.deep), cleared: Math.round(bestD.cleared), value: Math.round(bestD.value), from, theme: theme?.name || theme?.key };
+    let fin = null;
+    for (const { t } of [...seen.values()].sort((a, b) => b.v - a.v).slice(0, FINALISTS)) {
+      const d = await depth(t, theme, from, FINAL_RUNS), v = scoreOf(d, aim);
+      if (!fin || v > fin.v) fin = { t, d, v };
+    }
+    if (fin) { team = fin.t; bestD = fin.d; }
+    return { uids: team.map((m) => m.uid), floors: Math.round(bestD.med ?? bestD.deep), low: Math.round(bestD.deep), cleared: Math.round(bestD.cleared), value: Math.round(bestD.value), from, theme: theme?.name || theme?.key };
   }
   // "Best (auto)": a team for each start floor the game offers, keep the one that does best for the aim
   async function ugPickAuto(bay, taken, aim) {
@@ -6477,7 +6495,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     for (const f of starts) {
       ugStatus = `trying a start at floor ${f} (${starts.length} start floors)…`;
       const r = await ugPick(bay, f, taken, aim); if (r.error) return r;
-      const v = scoreOf({ deep: r.floors, cleared: r.cleared, value: r.value }, aim);
+      const v = scoreOf({ deep: r.low ?? r.floors, cleared: r.cleared, value: r.value }, aim);
       if (!win || v > win.v) win = { ...r, v };
     }
     if (win && win.cleared < 1) return { error: 'no start floor where a free team clears even one floor' };
@@ -6497,12 +6515,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:117', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:135', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:121', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:122', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:139', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:140', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -6541,10 +6559,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, pl.from || 1);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:161', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:162', __e); }
-          Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${pl.from} - about floor ${pl.floors} (${pl.cleared} floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
-          g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, cleared: pl.cleared, theme: pl.theme };
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:179', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:180', __e); }
+          Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who} from floor ${pl.from} - about floor ${pl.floors}, floor ${pl.low ?? pl.floors} on a bad run (${pl.cleared}+ floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
+          g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, low: pl.low, cleared: pl.cleared, theme: pl.theme };
           delete ugPlans[bay];
         }
         ugStatus = '';
@@ -6567,7 +6585,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const st = (() => { try { const s = U().starts(); return s?.length ? s : [1]; } catch { return [1]; } })();
       const from = g.from === 'auto' ? null : st.includes(+g.from || 1) ? +g.from || 1 : 1; // the same fallback the real send uses
       const r = from ? await ugPick(0, from, new Set(), aim) : await ugPickAuto(0, new Set(), aim);
-      g.preview = !r || r.error ? { error: r?.error || 'no team found', at: Date.now() } : { at: Date.now(), from: r.from, floors: r.floors, cleared: r.cleared, value: r.value, theme: r.theme, team: r.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)) };
+      g.preview = !r || r.error ? { error: r?.error || 'no team found', at: Date.now() } : { at: Date.now(), from: r.from, floors: r.floors, low: r.low, cleared: r.cleared, value: r.value, theme: r.theme, team: r.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)) };
     } catch (e) { g.preview = { error: e?.message || String(e), at: Date.now() }; } finally { pvBusy = false; ugBusy = false; ugStatus = keepStatus; Plan.save(); }
     return g.preview;
   }
@@ -8843,7 +8861,7 @@ const Remote = (() => {
   function snapshot() {
     const S = E.get('Game.S') || {}, D = E.get('Game.DEX') || {}, w = World.build();
     const prog = (g) => { try { const p = GoalTypes[g.type]?.progress?.(g); return p ? [p.have, p.need, p.unit || '', p.money ? 1 : 0] : null; } catch { return null; } };
-    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
+    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
     const done = Plan.goals.filter((g) => g.done && Date.now() - g.done < 86_400_000).map((g) => [Casing.names(Plan.label(g)), g.done]);
     const a = S.adv || {}, ST = E.get('STORY');
     const where = w.screen?.kind === 'zone' ? `${D[w.screen.id]?.name}'s Legendary Zone` : a.tower ? (a.tower.kind === 'candy' ? 'Candy Factory run' : 'Battle Tower run') : a.chapter != null ? `${ST?.CHAPTERS?.[a.chapter]?.name || 'Chapter ' + a.chapter} · stop ${(+a.node || 0) + 1} of ${(a.nodes || []).length || '?'}` : '';
