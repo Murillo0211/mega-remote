@@ -436,6 +436,12 @@ const bar = (p) => `<div class="bar"><i style="width:${Math.max(0, Math.min(100,
 const img = (id, n = 52) => `<img class="sp" src="${SPRITE(id)}" width="${n}" height="${n}" loading="lazy">`;
 const ICON = { under: '⛏️', region: '📘', candy: '🍬', tower: '🗼', raid: '✨', money: '💰', souls: '👻', loot: '🎁', breed: '🥚', level: '⬆️', elite: '🏆', league: '🎖️', wboss: '🌍', shinyWild: '✨', shinyBreed: '✨' };
 const N = (id) => esc(snap?.nm?.[id] || '#' + id);
+// Battle XP goal: each Pokémon it levels - level, a bar to Lv 100, time left (minutes from the PC; null = still measuring)
+function trRows(g) {
+  if (!g?.tr?.length) return '';
+  const t = (m) => (m == null ? 'measuring…' : m <= 0 ? 'Lv 100 ✔' : m < 60 ? `~${m} min` : m < 2880 ? `~${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `~${Math.round(m / 1440)} days`);
+  return `<div style="margin-top:10px">${g.tr.map(([id, lv, p, eta, sh, rk]) => `<div class="flex" style="margin:8px 0;align-items:center">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${N(id)}</b>${sh ? ' ✨' : ''}${rk ? ' ★' + rk : ''} · Lv ${lv}</span><span class="dim">${t(eta)}</span></div>${bar(p)}</div></div>`).join('')}<div class="dim" style="font-size:13px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`;
+}
 const pic = (g, n = 48) => (g.sp ? img(g.sp, n) : `<span style="width:${n}px;text-align:center;font-size:${Math.round(n * .55)}px;flex:none">${ICON[g.t] || '🎯'}</span>`);
 const progTxt = (p) => (p ? `${p[3] ? '₽' : ''}${(+p[0]).toLocaleString()} of ${p[3] ? '₽' : ''}${(+p[1]).toLocaleString()}${p[2] ? ' ' + esc(p[2]) : ''}` : '');
 const at = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -571,7 +577,7 @@ function vNow() {
   if (probs.length) h += `<div class="card" style="border-color:var(--bad)"><h3>⚠️ Needs You</h3>${probs.map((p) => `<div class="warn">${p}</div>`).join('')}</div>`;
   const scr = s.goals.find((g) => !g.bg && g.s === 'running');
   h += `<div class="card"><h3>Today</h3><div class="lbl">WORKING ON NOW${!scr && s.idle ? ' · IDLE' : ''}</div>`;
-  if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}`;
+  if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}${trRows(scr)}`;
   else if (s.idle) h += `<div class="flex" style="margin-top:6px">${s.idle.u[0] ? img(s.idle.u[0][0], 60) : '<span style="font-size:34px">💤</span>'}<div class="grow"><b style="font-size:17px">${s.idle.u.length ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</b><div>${s.idle.u.map((m) => `${N(m[0])}${m[3] ? ' ✨' : ''}${m[2] ? ' ★' + m[2] : ''} <b>Lv ${m[1]}</b>`).join(' · ')}</div></div></div><div class="dim" style="margin-top:6px">${esc(s.idle.l)}</div>`;
   else h += `<div style="margin-top:6px">${s.run ? 'Nothing can run right this minute.' : 'Nothing - the plan is paused.'}</div>`;
   if (scr?.tm && scr.tm[0]?.length) { const [ms, w, how] = scr.tm; h += `<div class="dim" style="margin-top:6px;font-size:14px">🛡️ Team: ${ms.map(([id, lv]) => `${N(id)} ${lv}`).join(', ')}${w != null ? ` · <b class="${w >= 0.6 ? 'ok' : w >= 0.3 ? 'warn' : 'bad'}">${Math.round(w * 100)}%</b>` : ''}${how ? ` (${esc(how)})` : ''}</div>`; }
