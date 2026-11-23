@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.43
+// @version      2.10.44
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.43';
+const VERSION = '2.10.44';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -8437,7 +8437,9 @@ const Plan = (() => {
       if (oldOn()) { top = 'waiting: Alakazam 4.x is switched on'; return; }
       const h = GoalTypes.holder();
       let runs = st.goals.filter((g) => !g.done && live[g.id]?.state === 'ready');
-      const own = (x) => (/Candy/.test(h || '') && x.type === 'candy') || (/Tower/.test(h || '') && x.type === 'tower') || (/Raid/.test(h || '') && x.type === 'raid');
+      // the goal whose run it is keeps going (an Elite League goal must see its own run: the 10-loss step back and the
+      // wrong-team restart ran only between runs before - 2026-11-23)
+      const own = (x) => (/Candy/.test(h || '') && x.type === 'candy') || (/Tower/.test(h || '') && x.type === 'tower') || (/Raid/.test(h || '') && x.type === 'raid') || (/League/.test(h || '') && x.type === 'league' && x.reg === E.get('Game.S')?.adv?.league?.reg);
       if (h) { for (const g of runs.filter((x) => type(x).uses === 'screen' && !own(x))) live[g.id] = { state: 'wait', why: `${h} is using the battle screen` }; runs = runs.filter((x) => type(x).uses !== 'screen' || own(x)); }
       const screenRuns = runs.some((g) => type(g).uses === 'screen');
       // a real goal wants the screen: end the idle job first (team, buddy, loop and chapter go back)
@@ -8506,14 +8508,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:231', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:233', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:238', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:240', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -8536,7 +8538,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:261', __e); }
+    } catch (__e) { __h('70-plan-20-engine:263', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -8551,7 +8553,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:276', __e); }
+    } catch (__e) { __h('70-plan-20-engine:278', __e); }
   }
   function formGoals() {
     try {
@@ -8561,7 +8563,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:286', __e); }
+    } catch (__e) { __h('70-plan-20-engine:288', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
