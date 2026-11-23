@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.35
+// @version      2.10.36
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.35';
+const VERSION = '2.10.36';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2557,7 +2557,7 @@ Views.plan = (w, ui, esc) => {
     h += `<div class="note dim">Plays that region's chapters in order with the Pokémon caught there: the simulator picks the 6 best for each chapter and its gym, and after 2 losses in a row it trains for 30 minutes in the best cleared chapter, then tries again. It stays in that region's chapters (an older chapter would swap your money, bag and team) and sits below your dailies, which take the screen when they're due.</div></div>`;
   } else if (ui.addType === 'league') {
     const L = GoalTypes.eliteLeagues?.() || [];
-    const lbl = (r) => `${esc(r.name)} · ${r.best} of 5 won${r.best < 5 ? ` · gems: ${r.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')}` : ''}${r.inPlan ? ' (in your plan)' : !r.open ? ' (win its League first)' : r.best >= 5 ? ' (all won)' : ''}`;
+    const lbl = (r) => `${esc(r.name)} · ${r.best} of 5 won${r.odds != null ? ` · tier ${r.best + 1}: ${r.odds >= 0.995 ? '99+' : r.odds > 0 && r.odds < 0.01 ? '<1' : Math.round(r.odds * 100)}% win` : ''}${r.best < 5 ? ` · gems: ${r.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')}` : ''}${r.inPlan ? ' (in your plan)' : !r.open ? ' (win its League first)' : r.best >= 5 ? ' (all won)' : ''}`;
     h += `<select class="sel" data-act="add-league"><option value="">Choose a region…</option>${L.map((r) => `<option value="${r.key}" ${ui.addLeague === r.key ? 'selected' : ''} ${r.inPlan || !r.open || r.best >= 5 ? 'disabled' : ''}>${lbl(r)}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-league" ${ui.addLeague ? '' : 'disabled'}>Add to plan</button>
     <div class="note dim">That region's Elite Four + Champion again, at Lv 100 and ranked to the tier (tier 1 = rank 1 … tier 5 = rank 5), with a Pokémon Center before each one. Win all five in a row to win the tier. <b>Every tier pays once: 1 Legendary gem</b> of one of that League's types (you pick it in the game), and tiers 3 and 5 also give a frame. Mega simulates each tier to pick your best 6 (any region's Pokémon can join), shows the odds, and steps back after 10 losses at one tier.</div></div>`;
@@ -4630,7 +4630,7 @@ const LeagueInfo = (() => {
       try { members = lz.leagueMembers(k) || []; } catch (__e) { __h('64-leagueview:26', __e); }
       try { types = lz.leagueTypes(k) || []; } catch (__e) { __h('64-leagueview:27', __e); }
       const frame = next ? (() => { try { return !!lz.leagueFrame(next); } catch { return false; } })() : false;
-      return { key: k, name: r.name || k, open, best, next, members, types, frame, tiers, pending: pending.filter((p) => p.reg === k).map((p) => p.tier) };
+      return { key: k, name: cap(k), open, best, next, members, types, frame, tiers, pending: pending.filter((p) => p.reg === k).map((p) => p.tier) };
     }).filter((x) => x.open || x.best);
   }
   // Unova: some League foes change at night (the game picks the version when the League run is built)
@@ -8000,7 +8000,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   const simOf = (reg, tier) => EliteSim.leagueFresh(reg, tier);
   const pct = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
   const simulate = (reg, tier) => EliteSim.leagueQueue(reg, tier);
-  const regName = (reg) => (E.get('STORY.REGIONS') || []).find((r) => r.key === reg)?.name || reg;
+  const regName = (reg) => String(reg || '').replace(/^./, (c) => c.toUpperCase()); // the key: English (the game's names are French: Unys)
   const league = {
     uses: 'screen',
     label: (g) => `Elite League ${regName(g.reg)} up to tier ${g.upTo || 5} (Legendary gems)`,
@@ -8060,7 +8060,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:66', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
   };
     // for the add menu: every region with an Elite League, its progress and the gem types it gives
-  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:69', __e); } return { key: r.key, name: r.name || r.key, open, best, types, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
+  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:69', __e); } const s = best < 5 ? EliteSim.leagueFresh(r.key, best + 1) : null; return { key: r.key, name: regName(r.key), open, best, types, odds: s ? s.ko : null, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
   Object.assign(GoalTypes, { league, eliteLeagues });
 })();
 
@@ -9334,7 +9334,7 @@ const Remote = (() => {
       wb: Plan.hasType('wboss') ? 1 : 0,
       myTrade: (() => { try { return Trades.myOffer(); } catch { return null; } })(),
       leagues: (() => { try { return storyLeagues().map((r) => [r.key, r.name, r.inPlan ? 1 : 0]); } catch { return []; } })(),
-      eliteLg: (() => { try { return (GoalTypes.eliteLeagues?.() || []).map((r) => [r.key, r.name, r.best, r.open ? 1 : 0, r.inPlan ? 1 : 0, r.types]); } catch { return []; } })(), upd: (() => { try { return Updater.available; } catch { return null; } })(),
+      eliteLg: (() => { try { return (GoalTypes.eliteLeagues?.() || []).map((r) => [r.key, r.name, r.best, r.open ? 1 : 0, r.inPlan ? 1 : 0, r.types, r.odds == null ? null : Math.round(r.odds * 100)]); } catch { return []; } })(), upd: (() => { try { return Updater.available; } catch { return null; } })(),
       guard: (() => { try { return Guard.failures().map((f) => `${f.label}: ${f.why}`); } catch { return []; } })(),
       dc: (() => { try { const d = DayCare.info(); const sh = (() => { try { return Object.fromEntries(EggPredict.eggs().map((x) => [x.uid, x.shiny ? 1 : 0])); } catch { return {}; } })();
             const fc = (() => { try { const U = EggPredict.upcoming(400); return { k: U.next, b: U.berryOn ? 1 : 0, r: U.rows.filter((r) => r.now || r.berry).slice(0, 5).map((r) => [r.k, r.ahead, r.parent, r.parentShiny ? 1 : 0, r.now ? 1 : 0]), per: (+E.get('CONFIG')?.PENSION?.EGG_MIN || 240) * 60_000, none: (E.read('Game.pensionLayers', []) || []).length ? 0 : 1 }; } catch { return null; } })();
