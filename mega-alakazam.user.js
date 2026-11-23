@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.23
+// @version      2.10.24
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.23';
+const VERSION = '2.10.24';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -492,6 +492,10 @@ const Sim = (() => {
   const eff = (type, types) => G().Adventure.effectiveness(type, types);
   const effectOf = (k) => G().STATUS.effectOf(k);
   const capOf = (k) => G().STATUS.capOf(k);
+  // v0.5.13: every sleep / freeze / paralysis a Pokémon gets in a battle makes the next one less likely, on both
+  // sides - the game's STATUS_RESIST: chance x max(FLOOR, STEP ^ times it already got one this battle)
+  const srMul = (u, st) => { const R = C().STATUS_RESIST; return R && (R.ON || []).includes(st) ? Math.max(+R.FLOOR || 0.25, (+R.STEP || 0.6) ** (u.sr || 0)) : 1; };
+  const srHit = (u, st) => { const R = C().STATUS_RESIST; if (R && (R.ON || []).includes(st)) u.sr = (u.sr || 0) + 1; };
   const isNight = () => G().DAYTIME?.phase?.()?.key === 'night';
   // the game's gym step as it plays right now: a step with atNight (N: Zekrom for Reshiram; Watson's gym: Iris)
   // takes that version when the run is built at night. A run already under way keeps the version it rolled.
@@ -500,7 +504,7 @@ const Sim = (() => {
     try {
       const adv = G().S?.adv, live = (adv?.nodes || []).find((n) => n.type === 'gym' && n.gym && (n.ch == null ? +adv.chapter === +ch : +n.ch === +ch) && (n.gym.name === step.name));
       if (live && ch != null) return live.gym;
-    } catch (__e) { __h('35-sim:47', __e); }
+    } catch (__e) { __h('35-sim:51', __e); }
     return step.atNight && isNight() ? { ...step, ...step.atNight } : step;
   };
   const bestKey = (att, def) => { try { return Gm().bestMoveAgainst(att, typesOf(def))?.key || 'struggle'; } catch { return 'struggle'; } };
@@ -583,23 +587,23 @@ const Sim = (() => {
   function roamZone(foeId) {
     const c = C(), R = c.ROAMING || {}, L = c.LEGEND_ZONE || {};
     if (!(R.GROUPS || []).some((g) => g.ids.includes(+foeId))) return null;
-    let lv = null; try { lv = +G().Roaming.level() || null; } catch (__e) { __h('35-sim:130', __e); }
+    let lv = null; try { lv = +G().Roaming.level() || null; } catch (__e) { __h('35-sim:134', __e); }
     return { id: +foeId, foe: +foeId, hp: L.ROAM_HP ?? 4, power: L.ROAM_POWER ?? 0.6, weather: (R.WEATHER || {})[foeId] || null, burst: null, counter: null, level: lv || R.MIN_LEVEL || 100, wild: true, roam: true };
   }
   function zoneOf(foeId, tier = 0) {
     const LZ = G().LegendZones, z = LZ.get(foeId);
     if (!z) return roamZone(foeId);
     // weekly forms (Deoxys): fight this week's form with its own stats and strength
-    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:137', __e); } }
+    let form = null; if (!tier && Array.isArray(z.forms)) { try { form = +LZ.foe(z) || null; } catch (__e) { __h('35-sim:141', __e); } }
     const fk = form && form !== foeId ? (z.formKnobs || {})[form] : null;
     const base = { id: foeId, foe: fk ? form : foeId, hp: fk?.hp ?? z.hp, power: fk?.power ?? z.power, weather: z.weather || null, burst: z.burst || null, counter: z.counter || null, level: z.level || 100, static: true, wb: !!z.wb };
     // the strength the game really used the last time you fought it (Calib keeps it from the Recorder);
     // not for a new form - those fights were against a different form
-    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:142', __e); } }
+    let obs = null; if (!fk) { try { obs = Calib.observed(foeId, tier); } catch (__e) { __h('35-sim:146', __e); } }
     if (!tier) return obs ? { ...base, hp: obs.hp, power: obs.power, observed: true } : base;
     const EL = C().ELITE || {};
-    let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch (__e) { __h('35-sim:145', __e); }
-    let foe = foeId; try { foe = LZ.eliteFoe(z) || foeId; } catch (__e) { __h('35-sim:146', __e); }
+    let kn = null; try { kn = LZ.eliteKnobs(foeId, null, tier); } catch (__e) { __h('35-sim:149', __e); }
+    let foe = foeId; try { foe = LZ.eliteFoe(z) || foeId; } catch (__e) { __h('35-sim:150', __e); }
     return { ...base, foe, hp: obs?.hp ?? kn?.hp ?? base.hp, power: obs?.power ?? kn?.power ?? base.power, observed: !!obs, level: C().MAX_LEVEL || 100, elite: tier, hurt: EL.HURT?.[tier] ?? null, resist: EL.RESIST?.[tier] ?? 1 };
   }
 
@@ -608,10 +612,10 @@ const Sim = (() => {
     const boss = { uid: 'boss', id: +(zone?.foe ?? foeId), level: zone?.level || 100, shiny: false, foe: true };
     const wx = zone?.weather ? c.WEATHER?.TYPES?.[zone.weather]?.damage || null : null;
     let aura = 1;
-    try { aura = (LZ.AURA || 0) && !zone?.wild ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:155', __e); } // no aura for roamers
+    try { aura = (LZ.AURA || 0) && !zone?.wild ? G().Adventure.rankAura(team) || 1 : 1; } catch (__e) { __h('35-sim:159', __e); } // no aura for roamers
     // tuning learned from your real fights (Calib): boss power / HP per kind of fight
     const ctx = zone?.raid ? 'raid' : zone?.elite ? 'elite' : zone?.wb ? 'wb' : 'zone';
-    let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:158', __e); } }
+    let cal = zone?.cal || null; if (!cal) { try { cal = Calib.get(ctx); } catch (__e) { __h('35-sim:162', __e); } }
     const pk = +(cal?.pk) || 1, hk = +(cal?.hk) || 1;
     const P = (zone?.power ?? 1) * aura * aura * (zone?.wild ? ED.wild ?? 0.85 : ED.static ?? 1) * pk; // roamers hit like wild Pokémon
     const PR = (zone?.power ?? 1) * aura * aura * (ED.static ?? 1) * pk; // rage hits always use 'static'
@@ -686,7 +690,7 @@ const Sim = (() => {
       if (s === 'tri') s = ['burn', 'paralysis', 'freeze'][Math.floor(rnd() * 3)];
       if (!canGet(u, s)) return false;
       if (s === 'confusion') u.confused = 2 + Math.floor(rnd() * 4);
-      else { u.status = s; u.bit = 0; u.lost = 0; if (s === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); }
+      else { u.status = s; u.bit = 0; u.lost = 0; if (s === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); srHit(u, s); }
       return true;
     };
     let calm = 0, rounds = 0;
@@ -732,16 +736,16 @@ const Sim = (() => {
           if (!blocked(a) && a.cur > 0) {
             const fin = a.fin.find((f) => f.min >= B.cur && f.min > 0);
             if (!fin && a.sm && canGet(B, a.sm.st) && (rnd() < SMC || !a.atk.base)) {
-              if (rnd() * 100 < a.sm.chance * RESIST) { inflict(B, a.sm.st); calm = 0; }
+              if (rnd() * 100 < a.sm.chance * RESIST * srMul(B, a.sm.st)) { inflict(B, a.sm.st); calm = 0; }
             } else {
-              const atk = fin ? fin.atk : a.atk, drain = fin ? fin.drain : a.atkDrain, before = B.cur;
+              const atk = fin ? fin.atk : a.atk, drain = fin ? fin.drain : a.atkDrain;
               dmg = roll(atk, fxMult(a, B, atk), 1, a);
               if (atk.recharge) a.recharge = true;
               if (dmg) {
                 calm = 0; B.cur -= dmg;
-                if (drain && a.cur > 0) a.cur = Math.min(a.hp, a.cur + Math.max(1, Math.ceil(Math.min(dmg, before) * drain)));
+                if (drain && a.cur > 0) a.cur = Math.min(a.hp, a.cur + Math.max(1, Math.ceil(a.hp * drain))); // v0.5.13: share of its own max HP
                 thaw(B, atk, dmg);
-                if (B.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1]) inflict(B, atk.fx[0]);
+                if (B.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1] * RESIST * srMul(B, atk.fx[0])) inflict(B, atk.fx[0]);
               }
             }
           }
@@ -765,16 +769,16 @@ const Sim = (() => {
               const t = targets[Math.floor(rnd() * targets.length)];
               const fin = t.bossFin.find((f) => f.min >= t.cur && f.min > 0);
               if (!fin && t.bossSm && canGet(t, t.bossSm.st) && (rnd() < SMC || !t.bossHit.base)) {
-                if (rnd() * 100 < t.bossSm.chance) { inflict(t, t.bossSm.st); calm = 0; }
+                if (rnd() * 100 < t.bossSm.chance * srMul(t, t.bossSm.st)) { inflict(t, t.bossSm.st); calm = 0; }
               } else {
-                const atk = fin ? fin.atk : t.bossHit, drain = fin ? fin.drain : t.bossDrain, before = t.cur;
+                const atk = fin ? fin.atk : t.bossHit, drain = fin ? fin.drain : t.bossDrain;
                 const dmg = roll(atk, fxMult(B, t, atk), P, B);
                 if (atk.recharge) B.recharge = true;
                 if (dmg) {
                   calm = 0; t.cur -= dmg;
-                  if (drain) B.cur = Math.min(B.hp, B.cur + Math.max(1, Math.ceil(Math.min(dmg, before) * drain)));
+                  if (drain) B.cur = Math.min(B.hp, B.cur + Math.max(1, Math.ceil(B.hp * drain))); // v0.5.13: share of its own max HP
                   thaw(t, atk, dmg);
-                  if (t.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1]) inflict(t, atk.fx[0]);
+                  if (t.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1] * srMul(t, atk.fx[0])) inflict(t, atk.fx[0]);
                 }
               }
             }
@@ -986,7 +990,7 @@ const Sim = (() => {
       if (st === 'tri') st = ['burn', 'paralysis', 'freeze'][Math.floor(rnd() * 3)];
       if (!canGet(u, st)) return;
       if (st === 'confusion') u.confused = 2 + Math.floor(rnd() * 4);
-      else { u.status = st; if (st === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); }
+      else { u.status = st; if (st === 'sleep') u.sleep = 1 + Math.floor(rnd() * 3); srHit(u, st); }
     };
     let calm = 0;
     const blocked = (u) => {
@@ -1013,16 +1017,16 @@ const Sim = (() => {
     const hit = (u, t, pp, atkKey, drKey, finKey, smKey, mult) => {
       const fin = pp[finKey].find((f) => f.min >= t.cur && f.min > 0);
       if (!fin && pp[smKey] && canGet(t, pp[smKey].st) && (rnd() < SMC || !pp[atkKey].base)) {
-        if (rnd() * 100 < pp[smKey].chance) { inflict(t, pp[smKey].st); calm = 0; }
+        if (rnd() * 100 < pp[smKey].chance * srMul(t, pp[smKey].st)) { inflict(t, pp[smKey].st); calm = 0; }
         return;
       }
-      const atk = fin ? fin.atk : pp[atkKey], dr = fin ? fin.drain : pp[drKey], before = t.cur;
+      const atk = fin ? fin.atk : pp[atkKey], dr = fin ? fin.drain : pp[drKey];
       const d = roll(atk, u.status === 'burn' ? 0.5 : 0, mult, u);
       if (!d) return;
       calm = 0; t.cur -= d;
-      if (dr) u.cur = Math.min(u.hp, u.cur + Math.max(1, Math.ceil(Math.min(d, before) * dr)));
+      if (dr && u.cur > 0) u.cur = Math.min(u.hp, u.cur + Math.max(1, Math.ceil(u.hp * dr))); // v0.5.13: share of its own max HP
       if (t.status === 'freeze' && atk.type === 'fire' && t.cur > 0) t.status = null;
-      if (t.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1]) inflict(t, atk.fx[0]);
+      if (t.cur > 0 && atk.fx && rnd() * 100 < atk.fx[1] * srMul(t, atk.fx[0])) inflict(t, atk.fx[0]);
     };
     for (;;) {
       if (!aliveF().length) return { win: true, rounds, hp: hpOut() };
@@ -1108,7 +1112,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:655', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:659', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -1117,7 +1121,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:664', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:668', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -2177,9 +2181,10 @@ const DexInfo = (() => {
   const evoFromId = (e) => { if (e.from) return e.from; for (const [f, l] of Object.entries(E.get('EVOLUTIONS') || {})) if ((l || []).includes(e)) return +f; return e.to; };
   function evoText(e) {
     if (!e) return '';
-    // trade evolutions: there is no Link Cable item to use - a Pokémon you RECEIVE in a trade arrives evolved
-    // (offer your Kadabra for someone's Kadabra: theirs comes to you as Alakazam). The game's code, 2026-11-21.
-    if (e.item === 'link-cable') return `by trading: get a ${name(evoFromId(e))} in a trade and it arrives as ${name(e.to)}`;
+    // trade evolutions: a Pokémon you RECEIVE in a trade arrives evolved (offer your Kadabra for someone's Kadabra:
+    // theirs comes to you as Alakazam) - and since game 0.5.13 the Shop sells a Link Cable (₽500,000) you use from
+    // the Pokémon's card, like a stone (Game.useItem). Mega never buys one by itself.
+    if (e.item === 'link-cable') return `with a Link Cable (Shop, ₽500,000 - use it from ${name(evoFromId(e))}'s card), or get a ${name(evoFromId(e))} in a trade and it arrives as ${name(e.to)}`;
     const bits = [];
     if (e.item) bits.push(`with a ${itemName(e.item)}`);
     if (e.party) bits.push(`by gaining a level with ${name(e.party)} in your team`);
@@ -4967,12 +4972,13 @@ const GymPlan = (() => {
     for (const m of sideMons()) {
       const ev = safe(() => E.read('Game.levelEvolutions', [], m), []) || [];
       if (!ev.length || m.level < (safe(() => +E.read('Game.capFor', 0, m), 0) || 999)) continue;
+      if (m.shiny) continue; // game 0.5.133: shinies stay unevolved unless you evolve them from the card (and only base-form shinies trade)
       // never your only copy of a species: evolving it would take that entry out of your Pokédex ('lost')
       if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length <= 1) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:298', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:299', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:300', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:301', __e); } }
     }
     return out;
   }
@@ -4983,7 +4989,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:311', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:312', __e); } }, 5 * 60_000);
   return { gymOf, get, run, ban, banned, clearBans, teamKey, sigOf: (ch) => sig(ch), simRun: (team, G) => simRun(team, G), evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
