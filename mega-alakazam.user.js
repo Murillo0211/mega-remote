@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.12.1
+// @version      2.12.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.12.1';
+const VERSION = '2.12.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4067,10 +4067,16 @@ Views.now = (w, esc, fmtIn) => {
       </div></div>${p ? bar(p.have / p.need) : ''}
       ${L.line ? `<div style="margin-top:8px">${esc(L.line)}</div>` : L.why ? `<div class="dim" style="margin-top:8px">${esc(L.why)}</div>` : ''}
       ${(() => { // Battle XP goal (Jimmy 2026-11-23): each Pokémon it levels - level, a bar to Lv 100, time left
-        if (scrGoal.type !== 'discord' || scrGoal.spot !== 'xp') return '';
+        if (scrGoal.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(scrGoal.spot)) return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
         return `<div style="margin-top:8px" title="Time to Lv 100 at each one's XP rate over the last 20 min">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:12px;white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
+      })()}
+      ${(() => { // Axsiom Plan / Giant Chasm: what this run brought in
+        if (scrGoal.type !== 'discord' || !['axsiom', 'mix'].includes(scrGoal.spot)) return '';
+        const T = (() => { try { return GoalTypes.runTake(scrGoal); } catch { return null; } })(); if (!T) return '';
+        const hrs = Math.max(1 / 60, (Date.now() - T.since) / 3.6e6), per = T.money / hrs;
+        return `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line)"><div class="lbl">This run · ${hrs < 1 ? Math.round(hrs * 60) + ' min' : hrs.toFixed(1) + ' h'}</div><div style="margin-top:2px">₽ <b>${Math.round(T.money).toLocaleString()}</b> <span class="dim">(${Math.round(per).toLocaleString()}/h)</span></div><div style="margin-top:2px;font-size:13px">${T.berries.length ? T.berries.map((b) => `${esc(b.name)} <b>×${b.n}</b>`).join(' · ') : '<span class="dim">no berries yet</span>'}</div></div>`;
       })()}
       ${teamLine(L.team)}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
@@ -4099,8 +4105,8 @@ Views.now = (w, esc, fmtIn) => {
     // then why() says "day" - Mega fetches it (read-only, every 5 min at most) instead of saying "closed"
     const C = E.get('CandyRun'), now = Date.now();
     let why = d.candy.why, type = null;
-    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:134', __e); } }
-    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:135', __e); }
+    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:140', __e); } }
+    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:141', __e); }
     const tname = type ? type[0].toUpperCase() + type.slice(1) : '';
     const inPlan = Plan.hasType('candy');
     h += tile('Candy Factory', d.candy.played || why === 'played' ? `<span class="ok">✔ done today</span>${tname ? ` <span class="dim">(${tname} day)</span>` : ''}`
@@ -4114,12 +4120,12 @@ Views.now = (w, esc, fmtIn) => {
     // the game only fetches the day's draw when its Raids screen opens: Mega fetches it (read-only),
     // at most every 5 min until it has today's, so this line is right without opening that screen
     const R = E.get('Raids'), now = Date.now();
-    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:149', __e); }
-    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:150', __e); } }
+    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:155', __e); }
+    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:156', __e); } }
     let nx = null, reg = null, boss = null, won = false, tries = 0;
-    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:152', __e); }
-    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:153', __e); } }
-    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:154', __e); } }
+    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:158', __e); }
+    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:159', __e); } }
+    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:160', __e); } }
     const inPlan = Plan.hasType('raid'), rname = reg ? esc((E.get('STORY.REGIONS') || []).find((x) => x.key === reg)?.name || reg) : '';
     h += tile('Shiny Raid', !ready ? '<span class="dim">checking today\'s draw…</span>'
       : !reg ? `<span class="dim">no raid today${nx ? ` · next ${DexInfo.clock(nx)}` : ''}</span>`
@@ -4127,14 +4133,14 @@ Views.now = (w, esc, fmtIn) => {
       : `<span class="warn">open now: ✨ ${boss ? nm(boss) : '?'} (${rname})</span>${tries ? ` · ${tries} tries` : ''}<div class="dim">until ${DexInfo.clock(nx)}${inPlan ? '' : ' · add Shiny Raid in the Plan tab and Mega plays it'}</div>`);
   }
   if (d.tower) { const fl = S.tower?.best?.floor; h += tile('Battle Tower', `${fl ? `last run: floor ${fl} · ` : ''}resets in ${fmtIn(d.tower.weekEnds)}`); }
-  try { const dc = DayCare.info(); if (dc.used || dc.mons.length) { const rdy = dc.eggs.filter((e) => e.ready).length; h += tile('Day Care', `${dc.used} of ${dc.max || '?'} eggs${rdy ? ` · <span class="warn">${rdy} ready</span>` : ''}${dc.full ? ' · <span class="warn">incubator full</span>' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : ''}`); } } catch (__e) { __h('62-nowview:162', __e); }
-  try { const B = Object.values(S.buffs || {}).filter((b) => b && b.until > Date.now()); if (B.length) h += tile('Berries on', B.map((b) => `${esc(Casing.names((E.get('CONFIG')?.BUFF_BERRIES?.[b.key]?.name) || b.key)).replace(/^Baie /, '')} <span class="dim">${fmtIn(b.until)}</span>`).join(' · ')); } catch (__e) { __h('62-nowview:163', __e); }
+  try { const dc = DayCare.info(); if (dc.used || dc.mons.length) { const rdy = dc.eggs.filter((e) => e.ready).length; h += tile('Day Care', `${dc.used} of ${dc.max || '?'} eggs${rdy ? ` · <span class="warn">${rdy} ready</span>` : ''}${dc.full ? ' · <span class="warn">incubator full</span>' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : ''}`); } } catch (__e) { __h('62-nowview:168', __e); }
+  try { const B = Object.values(S.buffs || {}).filter((b) => b && b.until > Date.now()); if (B.length) h += tile('Berries on', B.map((b) => `${esc(Casing.names((E.get('CONFIG')?.BUFF_BERRIES?.[b.key]?.name) || b.key)).replace(/^Baie /, '')} <span class="dim">${fmtIn(b.until)}</span>`).join(' · ')); } catch (__e) { __h('62-nowview:169', __e); }
   h += tile('World Boss', wb.caught ? '<span class="ok">✔ caught this edition</span>' : wb.catchable ? '<span class="warn">catchable now</span>' : wb.open ? 'shield up' : '<span class="dim">closed</span>');
   { const sm = (() => { try { return History.sideMoney(); } catch { return null; } })();
     h += tile('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
   h += `</div></div>`; // the dailies grid, then the Today card
 
-  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:169', __e); }
+  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:175', __e); }
 
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
@@ -4178,7 +4184,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:213', __e); }
+  } catch (__e) { __h('62-nowview:219', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -8922,21 +8928,22 @@ const Plan = (() => {
         let kept = '';
         for (const fam of SPOTS[g.spot]?.keep || []) { try { kept += Berries.keep(fam, `${SPOTS[g.spot].title}: ${fam} berry 24/7`); } catch (__e) { __h('70-plan-23-discord:91', __e); } }
         const line = await GoalTypes.level.step(g.job, ctx);
-        if (g.spot === 'xp') { try { sampleXp(g); } catch (__e) { __h('70-plan-23-discord:93', __e); } }
+        if (['xp', 'axsiom', 'mix'].includes(g.spot)) { try { sampleXp(g); } catch (__e) { __h('70-plan-23-discord:93', __e); } }
+        try { tallyRun(g); } catch (__e) { __h('70-plan-23-discord:94', __e); }
         return `${line}${g.job.nCarry === 1 ? ' · 1 carrier' : ''}${kept}`;
       }
       // sweep spots: your 6 fastest clearers of it, on a loop
       if (!g.restore) { g.restore = { team: [...(s.team || [])], chapter: a.chapter, loops: [...(a.loops || [])] }; Plan.save(); Log.add(`${discord.label(g)}: going to ${sp.where}. Your team, chapter and loops come back when it stops.`); }
-      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:98', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:99', __e); } return 'leaving the legendary zone…'; }
       if (!sp.chs.includes(+a.chapter)) {
         if (fighting()) return 'waiting for this fight to end before moving…';
         if (E.call('Adventure.setChapter', sp.ch) === false) return `waiting: the game would not open ${sp.where}`;
         return `moving to ${sp.where}…`;
       }
       soloLoop(sp.key);
-      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:105', __e); }
+      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:106', __e); }
       if (g.carriersFor !== sp.ch || g.carriersV !== Sim.CARRIER_V) {
-        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:107', __e); }
+        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:108', __e); }
         g.carriersFor = sp.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
         if (picks.length && setChapterTeam(g.carriers)) Log.add(`${discord.label(g)}: team ${picks.map((p) => name(p.m.id)).join(', ')} (fastest to clear it)`);
       }
@@ -8949,11 +8956,11 @@ const Plan = (() => {
       return `farming ${sp.where}${money}${candy}${berry}`;
     },
     finish(g) {
-      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:120', __e); } g.job = null; }
+      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:121', __e); } g.job = null; }
       const r = g.restore; if (!r) { Plan.save(); return; }
       if (r.loops) loopsBack(r.loops);
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:124', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:125', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${discord.label(g)}: stopped - your team, chapter and loops are back`);
     },
@@ -8984,7 +8991,7 @@ const Plan = (() => {
     }
   }
   function trainRows(g) {
-    if (g?.type !== 'discord' || g.spot !== 'xp' || !g.job) return [];
+    if (g?.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(g.spot) || !g.job) return [];
     const carry = new Set(g.job.nCarry ? (g.job.carriers || []).slice(0, g.job.nCarry) : []);
     // the team as it is now (a trainee that reached Lv 100 is swapped out for the next one - Jimmy 2026-11-23: the card
     // still showed Gyarados after it hit 100); the goal's own list only when the team isn't set yet
@@ -9000,9 +9007,28 @@ const Plan = (() => {
     }).filter(Boolean);
   }
   const etaText = (ms) => { if (ms == null) return 'measuring…'; if (ms <= 0) return 'Lv 100 ✔'; const m = Math.round(ms / 60e3); return m < 60 ? `~${m} min` : m < 48 * 60 ? `~${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `~${Math.round(m / 1440)} days`; };
+  // ---- this run's take (Jimmy 2026-11-23, the Axsiom card): money earned and berries collected since the goal began ----
+  // Money: the game's own running total of money earned (stats.earned). Berries: every rise in a berry's count is
+  // counted (sampled each step), so berries the plan uses up meanwhile don't hide the ones that dropped.
+  const berryCounts = () => Object.fromEntries(Object.entries(S().items || {}).filter(([k]) => /berry/.test(k)).map(([k, n]) => [k, +n || 0]));
+  function tallyRun(g) {
+    const earned = +(S().stats?.earned || 0), now = berryCounts();
+    if (!g.run) { g.run = { at: Date.now(), e0: earned, got: {}, last: now }; Plan.save(); return; }
+    let ch = false;
+    for (const [k, n] of Object.entries(now)) { const d = n - (g.run.last[k] ?? n); if (d > 0) { g.run.got[k] = (g.run.got[k] || 0) + d; ch = true; } }
+    if (Object.keys(now).some((k) => now[k] !== g.run.last[k])) { g.run.last = now; ch = true; }
+    if (ch) Plan.save();
+  }
+  const berryName = (k) => { const C = E.get('CONFIG') || {}; const n = C.BUFF_BERRIES?.[k]?.name || C.PENSION?.BERRIES?.[k]?.name || k; try { return Casing.names(n).replace(/^(Baie|Berry) /, '').replace(/ Berry$/, '') + ' Berry'; } catch { return n; } };
+  function runTake(g) {
+    if (!g?.run) return null;
+    const money = Math.max(0, +(S().stats?.earned || 0) - (g.run.e0 || 0));
+    const berries = Object.entries(g.run.got || {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ key: k, name: berryName(k), n }));
+    return { since: g.run.at, money, berries };
+  }
   // ---- Ready for Candy ----
   const CANDY_AT = 5.5e6; // XP to the next level where battling stops paying (the chart author's ~5-6 M)
-  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:173', __e); } return o; };
+  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:193', __e); } return o; };
   const awaySet = () => new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
   const capFor = (m) => Math.min(100, +E.read('Game.capFor', 100, m) || 100);
   const slow = (m, at) => xpNeed(m, m.level) >= at;
@@ -9030,13 +9056,13 @@ const Plan = (() => {
     g.candyTold = [...told, ...fresh.map((r) => r.uid)].slice(-200); Plan.save();
     const nm = fresh.map((r) => name(r.id)).join(', ');
     Log.add(`Ready for candy: ${nm} (next level needs ${(fresh[0].next / 1e6).toFixed(1)} M XP)`);
-    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:201', __e); }
+    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:221', __e); }
   }
   // your carrier choice per spot, kept across goals (localStorage mega-discord-carrier: { spot: uid })
   const MEMO = 'mega-discord-carrier';
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
-  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:206', __e); } Plan.save(); }
-  Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, candyReady, CANDY_AT, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
+  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:226', __e); } Plan.save(); }
+  Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, candyReady, CANDY_AT, runTake, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
 /* ===================================================================================================
@@ -9684,7 +9710,7 @@ const Remote = (() => {
   function snapshot() {
     const S = E.get('Game.S') || {}, D = E.get('Game.DEX') || {}, w = World.build();
     const prog = (g) => { try { const p = GoalTypes[g.type]?.progress?.(g); return p ? [p.have, p.need, p.unit || '', p.money ? 1 : 0] : null; } catch { return null; } };
-    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, cr: g.type === 'discord' && ['xp', 'mix', 'axsiom'].includes(g.spot) ? (g.carrier || '') : undefined, tr: g.type === 'discord' && g.spot === 'xp' ? (() => { try { return GoalTypes.trainRows(g).map((r) => [r.id, r.level, Math.round(r.pct * 1000) / 1000, r.eta == null ? null : Math.round(r.eta / 60e3), r.shiny ? 1 : 0, r.rank]); } catch { return undefined; } })() : undefined, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
+    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, cr: g.type === 'discord' && ['xp', 'mix', 'axsiom'].includes(g.spot) ? (g.carrier || '') : undefined, tk: g.type === 'discord' && ['axsiom', 'mix'].includes(g.spot) ? (() => { try { const T = GoalTypes.runTake(g); return T ? [T.since, Math.round(T.money), T.berries.map((b) => [b.name, b.n])] : undefined; } catch { return undefined; } })() : undefined, tr: g.type === 'discord' && ['xp', 'axsiom', 'mix'].includes(g.spot) ? (() => { try { return GoalTypes.trainRows(g).map((r) => [r.id, r.level, Math.round(r.pct * 1000) / 1000, r.eta == null ? null : Math.round(r.eta / 60e3), r.shiny ? 1 : 0, r.rank]); } catch { return undefined; } })() : undefined, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
     const done = Plan.goals.filter((g) => g.done && Date.now() - g.done < 86_400_000).map((g) => [Casing.names(Plan.label(g)), g.done]);
     const a = S.adv || {}, ST = E.get('STORY');
     const where = w.screen?.kind === 'zone' ? `${D[w.screen.id]?.name}'s Legendary Zone` : a.tower ? (a.tower.kind === 'candy' ? 'Candy Factory run' : 'Battle Tower run') : a.chapter != null ? `${ST?.CHAPTERS?.[a.chapter]?.name || 'Chapter ' + a.chapter} · stop ${(+a.node || 0) + 1} of ${(a.nodes || []).length || '?'}` : '';
