@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.34
+// @version      2.10.35
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.34';
+const VERSION = '2.10.35';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3260,7 +3260,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const tier = +t.dataset.tier, k = act === 'elite-sim' ? `L${t.dataset.id}:${tier}` : `G${t.dataset.reg}:${tier}`;
       Views.__eliteRun = Views.__eliteRun || {}; Views.__eliteRun[k] = 0; renderBody(true);
       const onProgress = (p) => { Views.__eliteRun[k] = Math.round(p * 100); renderBody(true); };
-      (act === 'elite-sim' ? EliteSim.legend(+t.dataset.id, tier, { onProgress }) : EliteSim.leagueTeam(t.dataset.reg, tier, { onProgress }))
+      (act === 'elite-sim' ? EliteSim.legend(+t.dataset.id, tier, { onProgress }) : EliteSim.leagueSim(t.dataset.reg, tier, { onProgress }))
         .then((r) => Log.add(`${act === 'elite-sim' ? `${World.dex.name(+t.dataset.id)} elite` : `Elite League ${t.dataset.reg}`} tier ${tier}: ${Math.round(r.ko * 100)}%`))
         .catch((e) => Log.add('simulation failed: ' + (e?.message || e))).finally(() => { delete Views.__eliteRun[k]; renderBody(true); });
     }
@@ -4739,13 +4739,27 @@ Views.league = (esc) => {
   if (L.length) {
     const won = L.reduce((t, r) => t + r.best, 0);
     h += `<div class="card"><h3>Elite League</h3><div>${won} of ${L.length * 5} tiers won</div>
-      <div class="dim" style="margin-top:6px">Each region's Elite Four + Champion again, in tiers 1-5, one after another. Tiers 3 and 5 give a frame; the others let you <b>pick a Legendary gem</b> from that League's types (to rank up your legendaries).</div>
-      <div class="note dim" style="margin-top:8px">Every trainer Pokémon is ranked as high as the tier. "Add: Win Its Tiers" fights tier after tier with your strongest six (the game retries a lost fight by itself), reminds you on your phone to pick each gem, and steps back if a tier is lost 10 times. No win odds here: the game's quick estimator says 0% even for the Champion you've already beaten, so Mega goes by real results.</div></div>`;
+      <div class="dim" style="margin-top:6px">Each region's Elite Four + Champion again at Lv 100, in tiers 1-5, one after another. <b>Every tier pays once: a Legendary gem</b> you pick from that League's types; tiers 3 and 5 also give a frame.</div>
+      <div class="note dim" style="margin-top:8px">Every trainer Pokémon is ranked as high as the tier, and there's a Pokémon Center before each one - win all five in a row to win the tier. The odds below are Mega's gym simulator with the best 6 it finds for that tier (any region's Pokémon can join). "Add: Win Its Tiers" fights tier after tier with that team, reminds you on your phone to pick each gem, and steps back if a tier is lost 10 times.</div></div>`;
+    // the next tier of each League, easiest first (sims run one at a time; a sim is kept 3 h)
+    const runs = EliteSim.leagueRunning, rer = () => { const n = Date.now(); if (n - (Views.__lgRer || 0) < 2000 && EliteSim.leagueRunning.size) return; Views.__lgRer = n; setTimeout(() => { try { UI.refresh(); } catch (__e) { __h('64-leagueview:141', __e); } }, 0); };
+    const open = L.filter((r) => r.next);
+    for (const r of open) if (!EliteSim.leagueFresh(r.key, r.next)) EliteSim.leagueQueue(r.key, r.next, rer);
+    const pctS = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
+    const col = (x) => (x >= 0.6 ? 'var(--ok)' : x >= 0.25 ? 'var(--gold)' : 'var(--bad, #e66)');
+    if (open.length) {
+      const rows = open.map((r) => ({ r, s: EliteSim.leagueFresh(r.key, r.next) })).sort((a, b) => (b.s ? b.s.ko : -1) - (a.s ? a.s.ko : -1));
+      h += `<div class="card"><h3>Easiest Next Tier</h3>${rows.map(({ r, s }, i) => `<div style="display:flex;justify-content:space-between;gap:8px;margin-top:6px"><span>${i === 0 && s ? '⭐ ' : ''}<b>${esc(r.name)}</b> tier ${r.next}</span><span>${s ? `<b style="color:${col(s.ko)}">${pctS(s.ko)}</b>` : runs.has(`${r.key}:${r.next}`) ? `<span class="dim">simulating ${runs.get(`${r.key}:${r.next}`)}%…</span>` : '<span class="dim">waiting…</span>'}</span></div>`).join('')}
+        <div class="dim" style="margin-top:8px">Chance to win all five fights with the best team Mega finds. Sorted easiest first.</div></div>`;
+    }
     for (const r of L) {
       const pips = r.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? 'var(--ok)' : t === r.next ? 'var(--gold)' : 'var(--line)'}"></span>`).join('');
       h += `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">${esc(r.name)} League</b><span>${pips} <span class="dim">${r.best}/5</span></span></div>
         ${r.pending.length ? `<div class="warn" style="margin-top:6px">⚠ Tier ${r.pending.join(', ')} won - pick your gem in the game!</div>` : ''}
-        ${r.next ? `<div style="margin-top:6px">Next: <b>Tier ${r.next}</b> → ${r.frame ? 'a frame' : `<span class="ok">a Legendary gem</span> of your choice: ${r.types.map((t) => esc(LeagueInfo.cap(t))).join(', ')}`}</div>` : '<div class="ok" style="margin-top:6px">All tiers won ✔</div>'}
+        ${r.next ? `<div style="margin-top:6px">Next: <b>Tier ${r.next}</b> → <span class="ok">a Legendary gem</span> of your choice: ${r.types.map((t) => esc(LeagueInfo.cap(t))).join(', ')}${r.frame ? ' + a frame' : ''}</div>` : '<div class="ok" style="margin-top:6px">All tiers won ✔</div>'}
+        ${r.next ? (() => { const s = EliteSim.leagueFresh(r.key, r.next), k = `${r.key}:${r.next}`; const nm = (u) => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, u).id].name); } catch { return '?'; } };
+          return s ? `<div style="margin-top:6px">Tier ${r.next} sim: <b style="color:${col(s.ko)}">${pctS(s.ko)}</b> to win all 5 <span class="dim">(${s.per.map((p) => `${esc(p.leader)} ${pctS(p.win)}`).join(' · ')})</span></div><div class="dim" style="font-size:13px;margin-top:2px">Team: ${s.uids.map((u) => esc(nm(u))).join(', ')}</div>`
+            : `<div class="dim" style="margin-top:6px">Tier ${r.next} sim: ${runs.has(k) ? `simulating ${runs.get(k)}%…` : 'waiting for its turn…'}</div>`; })() : ''}
         <div class="dim" style="font-size:13px;margin-top:4px">${r.members.map((m) => `${esc(m.leader)}${m.champion ? ' (Champion)' : ''} · ${esc(LeagueInfo.cap(m.type || ''))}`).join(' · ')}</div>
         ${LeagueInfo.nightNote(r.key, esc)}
         ${r.next ? (() => { const inPlan = Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key);
@@ -4860,7 +4874,20 @@ const EliteSim = (() => {
     opts.onProgress?.(1);
     return put(`G${reg}:${tier}`, { uids: team.map((m) => m.uid), ko: fin.prod, per: fights.map((f, i) => ({ leader: f.leader, champion: f.champion, win: wins[i] })), sim: 2 });
   }
-  return { get, put, drop, legend, members, leagueTeam, leagueSim, leagueFights };
+  // a saved League sim from the gym simulator, if under 3 h old (levels / ranks change)
+  const leagueFresh = (reg, tier) => { const r = get(`G${reg}:${tier}`); return r && r.sim === 2 && Date.now() - (r.at || 0) < 3 * 3600e3 ? r : null; };
+  // one League sim at a time, for the League screen and the goal (the goal's own sims go through here too)
+  let queue = Promise.resolve();
+  const running = new Map(), failed = new Map(); // "reg:tier" -> progress 0-100 / when it last failed
+  function leagueQueue(reg, tier, onChange) {
+    const k = `${reg}:${tier}`; if (running.has(k) || Date.now() - (failed.get(k) || 0) < 10 * 60e3) return;
+    running.set(k, 0); onChange?.();
+    queue = queue.then(() => leagueSim(reg, tier, { onProgress: (p) => { const v = Math.round(p * 100); if (v !== running.get(k)) { running.set(k, v); onChange?.(); } } })
+      .then((r) => { try { Log.add(`Elite League ${reg} tier ${tier}: best team ${Math.round(r.ko * 100)}% to win all 5 (${r.per.map((p) => `${p.leader} ${Math.round(p.win * 100)}%`).join(', ')})`); } catch (__e) { __h('65-elitesim:115', __e); } })
+      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite League sim failed: ${e?.message || e}`); } catch (__e) { __h('65-elitesim:116', __e); } })
+      .finally(() => { running.delete(k); onChange?.(); }));
+  }
+  return { get, put, drop, legend, members, leagueTeam, leagueSim, leagueFights, leagueFresh, leagueQueue, leagueRunning: running };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -7970,16 +7997,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   const { E, S, name, setChapterTeam, want, LZ } = GoalKit;
   // ---- Elite League: a region's Elite Four + Champion, tiers 1-5 ---------------------------------
   // the simulator (EliteSim.leagueSim) picks the team; redone when older than 3 h (levels/ranks change)
-  const busy = new Set(), STALE = 3 * 3600e3;
-  const simOf = (reg, tier) => { const r = EliteSim.get(`G${reg}:${tier}`); return r && r.sim === 2 && Date.now() - (r.at || 0) < STALE ? r : null; };
+  const simOf = (reg, tier) => EliteSim.leagueFresh(reg, tier);
   const pct = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
-  function simulate(reg, tier) {
-    const k = `${reg}:${tier}`; if (busy.has(k)) return;
-    busy.add(k);
-    setTimeout(() => EliteSim.leagueSim(reg, tier)
-      .then((r) => Log.add(`Elite League ${regName(reg)} tier ${tier}: best team ${pct(r.ko)} to win all 5 (${r.per.map((p) => `${p.leader} ${pct(p.win)}`).join(', ')})`))
-      .catch((e) => Log.add(`Elite League sim failed: ${e?.message || e}`)).finally(() => busy.delete(k)), 0);
-  }
+  const simulate = (reg, tier) => EliteSim.leagueQueue(reg, tier);
   const regName = (reg) => (E.get('STORY.REGIONS') || []).find((r) => r.key === reg)?.name || reg;
   const league = {
     uses: 'screen',
@@ -8012,19 +8032,19 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       g.lastBest = best; Plan.save();
       const inIt = a.league?.reg === g.reg && +a.league?.tier === next;
       if (inIt) { const tries = +(a.league?.tries || 1); g.lost = { ...(g.lost || {}), [next]: Math.max(g.lost?.[next] || 0, tries - 1) }; Plan.save(); }
-      if (inIt && (g.lost?.[next] || 0) >= 10 && !g.force) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:48', __e); } Log.add(`Elite League ${g.reg}: tier ${next} lost 10 times - stepping back`); Notify.send('problem', `Elite League tier ${next} is too strong for now`, 'Lost 10 times in a row - level or rank up your team, then press ▶ on the goal'); return 'stepped back after 10 losses'; }
+      if (inIt && (g.lost?.[next] || 0) >= 10 && !g.force) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:41', __e); } Log.add(`Elite League ${g.reg}: tier ${next} lost 10 times - stepping back`); Notify.send('problem', `Elite League tier ${next} is too strong for now`, 'Lost 10 times in a row - level or rank up your team, then press ▶ on the goal'); return 'stepped back after 10 losses'; }
       if (g.force && best > (g.forceAt ?? -1)) { g.force = false; g.forceAt = best; }
       const sim = simOf(g.reg, next) || EliteSim.get(`G${g.reg}:${next}`) || EliteSim.leagueTeam(g.reg, next);
       if (!inIt) {
-        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-17-league:52', __e); } return 'leaving the current zone…'; }
-        if (a.league) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:53', __e); } return 'leaving the other League run…'; }
+        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-17-league:45', __e); } return 'leaving the current zone…'; }
+        if (a.league) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:46', __e); } return 'leaving the other League run…'; }
         if (!g.restore) { g.restore = { team: [...(S().team || [])], chapter: a.chapter }; Plan.save(); }
         if (sim?.uids?.length) { const cur = S().team || []; if (!(cur.length === sim.uids.length && sim.uids.every((u) => cur.includes(u)))) setChapterTeam(sim.uids); }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'starting…';
         g.enterAt = Date.now();
         { const why = Guard.team(S().team || [], { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`Elite League ${g.reg} tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan-17-league:59', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-17-league:60', __e); }
+        let ok = false; try { ok = E.call('Adventure.startLeague', g.reg, next) !== false; } catch (__e) { __h('70-plan-17-league:52', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-17-league:53', __e); }
         if (ok) {
           Log.add(`Elite League ${regName(g.reg)}: started tier ${next} with ${sim.uids.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}${sim.ko != null ? ` (sim ${pct(sim.ko)})` : ''}`);
           // the game locks the team in at the start (adv.league.team); with a Link Cable it can be the other region's team
@@ -8037,10 +8057,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const sm = simOf(g.reg, next);
       return `Elite League ${regName(g.reg)} tier ${next} · stop ${at + 1} of ${n || '?'} · try ${+(a.league?.tries || 1)}${sm ? ` · sim ${pct(sm.ko)}` : ''}`;
     },
-    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:73', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
+    finish(g) { const a = S().adv || {}; if (a.league?.reg === g.reg) { try { E.call('Adventure.leaveLeague'); } catch (__e) { __h('70-plan-17-league:66', __e); } } const r = g.restore; if (r?.team?.length) setChapterTeam(r.team.filter((u) => E.read('Game.getMon', null, u))); },
   };
     // for the add menu: every region with an Elite League, its progress and the gem types it gives
-  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:76', __e); } return { key: r.key, name: r.name || r.key, open, best, types, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
+  const eliteLeagues = () => { const lz = LZ(); return (E.get('STORY.REGIONS') || []).filter((r) => r?.key).map((r) => { let open = false, best = 0, types = []; try { open = !!lz?.leagueOpen?.(r.key); best = +lz.leagueBest(r.key) || 0; types = lz.leagueTypes(r.key) || []; } catch (__e) { __h('70-plan-17-league:69', __e); } return { key: r.key, name: r.name || r.key, open, best, types, inPlan: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }; }).filter((r) => r.types.length); };
   Object.assign(GoalTypes, { league, eliteLeagues });
 })();
 
@@ -9720,7 +9740,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, GemFocus, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, Engine, EliteSim, GemFocus, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
