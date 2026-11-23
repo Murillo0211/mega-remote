@@ -15,8 +15,9 @@
   /* FIELD:START (generated from mega/design/field.css - edit it there) */
 /* =============================================================================================
  * Field Device — the one design system for Mega (PC panel) and Kinesis (phone).
- * A handheld Pokédex: a red shell (header, tabs) around a calm LCD screen (everything else).
- * Night = dark green-black screen, Day = paper screen. The shell colour is for chrome only;
+ * Colours: Alakazam 4.x's (Jimmy 2026-11-23: "go back to what the old helper had") - a dark purple-navy
+ * shell (header, tabs) around a dark slate screen, violet accent, gold for the one main action.
+ * Night (the default, "Classic") = Alakazam 4.x's slate, Day = paper screen. The shell colour is for chrome only;
  * content uses the screen's own colours, with gold for the one main action on a card.
  *
  * Written once here. The build swaps html for the root: .wrap in Mega's panel, html in Kinesis.
@@ -24,17 +25,17 @@
 
 /* ---- tokens ---- */
 html {
-  --shell-hi:#d23446; --shell:#b0202f; --shell-lo:#7d1222; --seam:#4a0a14; --on-shell:#fff; --on-shell-dim:#ffd9de;
-  --gold:#f2c14e; --gold-lo:#c99a1c; --on-gold:#2b1d00;
+  --shell-hi:#2a2350; --shell:#1f1b38; --shell-lo:#161a28; --seam:#282d3d; --on-shell:#e8eaf2; --on-shell-dim:#a08cff;
+  --gold:#f6c744; --gold-lo:#e2a92b; --on-gold:#16131f;
   --r-s:8px; --r-m:10px; --r-l:14px;
   --s1:4px; --s2:8px; --s3:12px; --s4:16px;
   --t-xs:12px; --t-s:13px; --t-m:15px; --t-l:17px; --t-xl:22px;
   --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 html.th-night {
-  --bg:#0c1719; --card:#112427; --well:#0a1517; --line:#1f4144; --line-2:#2a5654;
-  --ink:#dffcf2; --mute:#8db7ad; --faint:#5f8c84; --acc:#4fe0bc; --acc-ink:#062a22;
-  --ok:#5ee8a0; --warn:#ffc365; --bad:#ff8080; --shiny:#ffd76a; --focus:#4fe0bc66;
+  --bg:#10121a; --card:#171a25; --well:#1e2231; --line:#282d3d; --line-2:#343a4f;
+  --ink:#e8eaf2; --mute:#8b91a7; --faint:#5e6478; --acc:#a08cff; --acc-ink:#16131f;
+  --ok:#5ad68a; --warn:#ffb547; --bad:#ff6b6b; --shiny:#ffd45e; --focus:#a08cff55;
   color-scheme:dark;
 }
 html.th-day {
@@ -97,7 +98,7 @@ label.chk input{flex:none;margin:2px 0 0;width:17px;height:17px;accent-color:var
 /* ---- chips (filters) ---- */
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:var(--s2) 0}
 .chip{all:unset;cursor:pointer;padding:5px 11px;border-radius:999px;font-size:var(--t-s);font-weight:600;color:var(--ink);background:var(--well);border:1px solid var(--line)}
-.chip.on{color:var(--on-shell);background:var(--shell);border-color:var(--seam)}
+.chip.on{color:var(--acc-ink);background:var(--acc);border-color:var(--acc)}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:var(--t-xs);font-weight:800;color:var(--on-shell);background:var(--shell)}
 
 /* ---- Pokémon tiles ---- */
@@ -157,7 +158,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   header .t{flex:1;min-width:0} header .t b{display:block;font-size:15px;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 1px 0 #0005} header .t span{font-size:var(--t-s);color:var(--on-shell-dim)}
   .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px;padding:6px;border-radius:14px;background:var(--shell-lo);border:3px solid var(--seam)}
   .tabs button{all:unset;text-align:center;padding:9px 2px;border-radius:9px;font-weight:700;font-size:14px;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
-  .tabs button.on{background:var(--bg);color:var(--ink);border-color:var(--line-2);box-shadow:0 0 8px var(--focus)}
+  .tabs button.on{background:linear-gradient(90deg,var(--gold),#ffd978);color:var(--on-gold);border-color:var(--gold);box-shadow:none}
   .zbtn{border:1px solid #ffffff30;border-radius:10px;background:#00000030;color:var(--on-shell);font:800 15px var(--font);padding:7px 10px}
   h3{margin:0 0 8px;font-size:var(--t-l)}
   .sheet h3{all:unset;display:block;font-size:var(--t-l);font-weight:800;color:var(--ink);margin:0 0 var(--s2)}
@@ -421,7 +422,7 @@ function tabList() {
 }
 const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['blocs', 'Pokéblocks'], ['set', 'Settings']];
 let tab = store.get('mr-tab', 'now');
-const ui = { simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
+const ui = { sub: store.get('mr-sub', {}), simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (relayErr && Date.now() - relayErr < 20000) { el.innerHTML = `<span class="bad">● can't reach ${RELAY ? 'your PC' : 'ntfy'}</span> - retrying`; return; }
@@ -564,6 +565,30 @@ function animateHp() {
     requestAnimationFrame(step);
   }
 }
+// sub-tabs on Kinesis's own tabs (Now, Plan) - the same idea as Mega's (its mirrored tabs come split already)
+const KSUBS = {
+  now: [['main', 'Overview', null], ['care', 'Day Care', /day care/], ['more', 'Pokédex & Team', /^(pokédex|team|trades)$/]],
+  plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['add', 'Add a Goal', /^add a goal/], ['done', 'Done', /^done/], ['log', 'Log', /^log$/]],
+};
+function subApply(tab, html) {
+  const S = KSUBS[tab]; if (!S) return html;
+  const t = document.createElement('template'); t.innerHTML = html;
+  const lead = [], groups = Object.fromEntries(S.map(([k]) => [k, []])), all = (S.find((x) => !x[2]) || S[0])[0];
+  let seen = false, cur = null;
+  for (const n of [...t.content.childNodes]) {
+    const card = n.nodeType === 1 && n.classList.contains('card');
+    if (!card || n.dataset.sec === 'lead') { if (!seen || !cur || n.dataset?.sec === 'lead') lead.push(n); else groups[cur].push(n); continue; }
+    seen = true;
+    const ds = n.dataset.sec; if (ds && groups[ds]) { cur = ds; groups[ds].push(n); continue; }
+    const h = n.querySelector(':scope > h3, :scope > div > h3'), ti = (h ? h.textContent : '').replace(/[^\p{L}\p{N}\s&·'-]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const hit = S.find(([, , re]) => re && re.test(ti)); cur = hit ? hit[0] : all; groups[cur].push(n);
+  }
+  const shown = S.filter(([k]) => groups[k].length); if (shown.length < 2) return html;
+  let pick = (ui.sub || {})[tab]; if (!groups[pick]?.length) pick = shown[0][0];
+  const box = document.createElement('div'); for (const n of lead) box.appendChild(n);
+  const sec = document.createElement('div'); for (const n of groups[pick]) sec.appendChild(n);
+  return `<div class="chips subtabs" style="grid-column:1/-1;margin:0 0 4px">${shown.map(([k, l]) => `<button class="chip${k === pick ? ' on' : ''}" data-x="sub" data-t="${tab}" data-v="${k}">${esc(l)} <span class="faint" style="font-weight:700">${groups[k].filter((n) => n.nodeType === 1 && n.classList.contains('card')).length}</span></button>`).join('')}</div>` + box.innerHTML + sec.innerHTML;
+}
 function vNow() {
   const s = snap; let h = '';
   { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:var(--acc);padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
@@ -586,7 +611,15 @@ function vNow() {
   if (L?.foes?.length) h += `<div style="margin-top:10px;transition:opacity .4s;${L.between ? 'opacity:.4' : ''}"><div class="lbl">${L.between ? 'Between fights · last opponent' : 'Opponent'}${oppName(L.opp) ? ` · <span style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">${esc(oppName(L.opp))}</span>` : ''}</div>${L.foes.map(([id, lv, c, mx], i) => `<div class="flex hpw" data-k="f${i}-${id}" style="margin-top:4px">${img(id, 36)}<div class="grow"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${N(id)} <span class="dim">Lv ${lv}</span></b><span>${hpNum(`f${i}-${id}`, c)} / ${mx.toLocaleString()}</span></div><div class="bar" style="margin-top:3px"><i class="hp" data-k="f${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%;background:linear-gradient(90deg,var(--bad),var(--warn))"></i></div></div></div>`).join('')}</div>`;
   if (L?.team?.length) { const allies = L.team.filter((t) => t[4]).length; h += `<div style="margin-top:8px"><div class="lbl">${allies ? `Current team · yours + ${allies} allies` : 'Current team'}</div><div style="display:grid;grid-template-columns:repeat(${Math.min(6, L.team.length)},1fr);gap:4px;text-align:center;margin-top:4px">${L.team.map(([id, lv, c, mx, ally], i) => `<div class="hpw${c <= 0 ? ' ko' : ''}" data-k="t${i}-${id}" style="${ally ? 'opacity:.75' : ''}">${img(id, 36)}<div class="bar" style="margin-top:2px;height:6px"><i class="hp" data-k="t${i}-${id}" data-w="${mx ? (100 * c / mx).toFixed(1) : 0}" style="width:${mx ? (100 * c / mx).toFixed(1) : 0}%"></i></div><div class="tmname" style="margin-top:2px">${N(id)}</div><div class="dim" style="font-size:11px;line-height:1.2">Lv ${lv}</div><div class="dim" style="font-size:11px;line-height:1.2">${hpNum(`t${i}-${id}`, c)}/${mx}</div>${ally ? `<div class="dim" style="font-size:10px;line-height:1.1">${esc(ally.split(' ').pop())}</div>` : ''}</div>`).join('')}</div></div>`; }
   if (L?.fight) h += fightBox(L.fight);
-  h += `<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:4px">${s.today.map(([k, v]) => row(esc(k), esc(v))).join('')}</div></div>`;
+  h += `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px">${s.today.map(([k, v]) => `<div style="background:var(--well);border:1px solid var(--line);border-radius:10px;padding:5px 8px;min-width:0"><div class="lbl" style="font-size:11px">${esc(k)}</div><div style="font-size:14px">${esc(v)}</div></div>`).join('')}</div></div>`;
+  // best next rewards (from Mega: the easiest simulated Elite / Elite League tiers, gems ready to rank up, shop hits)
+  if (s.rw) {
+    const pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%', col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
+    let r = s.rw.t.length ? `<div class="lbl">Easiest tiers</div>${s.rw.t.slice(0, 3).map(([w, p, rw]) => row(`${esc(w)} <span class="faint" style="font-size:12px">→ ${esc(rw)}</span>`, `<b class="${col(p)}">${pc(p)}</b>`)).join('')}` : `<div class="dim">No tiers rated yet - open Simulate › Elite or › League.</div>`;
+    if (s.rw.r.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${s.rw.r.map(([n, nx, l]) => `<b>${esc(n)}</b> <span class="dim">→ ★${nx} (${esc(l)})</span>`).join(' · ')}</div>`;
+    if (s.rw.s.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${s.rw.s.map(([l, p, ok, ms]) => `${esc(l)} <span class="${ok ? 'ok' : 'dim'}">${p ? p.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(ms.join(', '))}</span>`).join(' · ')}</div>`;
+    h += `<div class="card"><h3>Best Next Rewards</h3>${r}</div>`;
+  }
   const bg = s.goals.filter((g) => g.bg && g.s !== 'paused');
   if (bg.length) h += `<div class="card"><h3>Running Alongside</h3>${bg.map((g) => `<div class="flex" style="margin:8px 0">${pic(g, 40)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? ` <span class="dim">· ${progTxt(g.p)}</span>` : ''}<div class="dim">${esc(g.n || g.y)}</div></div></div>`).join('')}</div>`;
   // Day Care: eggs in the incubator, counting down on this phone between updates
@@ -614,12 +647,12 @@ function eggFc(dc, since) {
   return h + `<div class="dim" style="font-size:12px;margin-top:4px">Exact, from the game's egg numbers. Changing who's in the Day Care changes the parent; a full incubator moves the times.</div></div>`;
 }
 function vPlan() {
-  const s = snap; let h = `<div class="card"><button class="btn ${s.run ? '' : 'gold'}" style="margin:0" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button><div class="dim" style="margin-top:8px">${esc(s.top)}</div></div>`;
+  const s = snap; let h = `<div class="card" data-sec="lead"><button class="btn ${s.run ? '' : 'gold'}" style="margin:0" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button><div class="dim" style="margin-top:8px">${esc(s.top)}</div></div>`;
   h += addCard(s);
   const W = { running: ['ok', '●', 'running'], ready: ['ok', '●', 'running'], queued: ['dim', '○', 'next'], wait: ['warn', '◐', 'waiting'], paused: ['dim', '❚❚', 'paused'] };
   s.goals.forEach((g, i) => {
     const [cls, dot, word] = W[g.s] || W.wait;
-    h += `<div class="card"><div class="flex"><b class="dim" style="width:20px">${i + 1}</b>${pic(g, 44)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? `<div class="dim">${progTxt(g.p)}</div>` : ''}</div></div>
+    h += `<div class="card" data-sec="${['running', 'ready', 'queued'].includes(g.s) ? 'goals' : 'wait'}"><div class="flex"><b class="dim" style="width:20px">${i + 1}</b>${pic(g, 44)}<div class="grow"><b>${esc(g.l)}</b>${g.p ? `<div class="dim">${progTxt(g.p)}</div>` : ''}</div></div>
       <div class="${cls}" style="margin-top:6px">${dot} ${word}${g.y ? ' · ' + esc(g.y) : ''}${g.s === 'running' && g.n ? ' · ' + esc(g.n) : ''}</div>
       <div class="tools">
         <button class="btn sm" data-c="goal.top" data-a='{"id":"${g.id}"}' data-l="Move to top" ${i ? '' : 'disabled'}>Top</button>
@@ -1044,9 +1077,9 @@ function vAct() {
 }
 // theme: follows Mega (Auto / Day / Night); Auto = day 7 AM - 7 PM on this phone's clock
 function applyTheme() {
-  const t = snap?.theme || 'auto', h = new Date().getHours(), m = t === 'auto' ? (h >= 7 && h < 19 ? 'day' : 'night') : t;
+  const t = snap?.theme || 'auto', m = t === 'day' ? 'day' : 'night'; // Auto = Classic (Alakazam 4.x's dark)
   const el = document.documentElement; if (!el.classList.contains('th-' + m)) { el.classList.remove('th-day', 'th-night'); el.classList.add('th-' + m); }
-  const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = '#7d1222';
+  const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = '#161a28';
 }
 function render() {
   applyTheme();
@@ -1058,7 +1091,7 @@ function render() {
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
   // 1.0: Pokédex, PC, Simulate, Gems and Activity are Mega's own screens (Now, Plan and Trades keep their phone shape)
-  const V = { box: () => mvTab('box'), team: vTeam, act: () => mvTab('act'), now: vNow, plan: vPlan, dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[tab] || vNow;
+  const V = { box: () => mvTab('box'), team: vTeam, act: () => mvTab('act'), now: () => subApply('now', vNow()), plan: () => subApply('plan', vPlan()), dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[tab] || vNow;
   const banner = RELAY ? '' : `<div class="card" style="border-color:var(--gold-lo)"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const ae = document.activeElement, mvFocus = ae && ae.closest?.('.mv') && ae.matches('input') ? { tab: ae.closest('.mv').dataset.mvtab, sel: ae.className ? 'input.' + ae.className.trim().split(/\s+/)[0] : 'input', pos } : null;
@@ -1089,6 +1122,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'sub') { ui.sub = { ...(ui.sub || {}), [t.dataset.t]: t.dataset.v }; store.set('mr-sub', ui.sub); render(); window.scrollTo(0, 0); return; }
   if (x === 'trOpen') { openTrades(+t.dataset.v, t.dataset.sh === '1'); return; }
   if (x === 'trClose') { tr.sel = null; tr.data = null; render(); return; }
   if (x === 'trGive') { tr.give[t.dataset.v] = +t.dataset.i; render(); return; }
