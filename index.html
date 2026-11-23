@@ -444,6 +444,12 @@ const N = (id) => esc(snap?.nm?.[id] || '#' + id);
 // rank badge like the game's: a Roman numeral in its pixel font (Jersey 15), gold with a dark outline (style: .rkn)
 const RK = (n) => (+n > 0 ? `<span class="rkn" title="Rank ${+n}">${['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][+n] || +n}</span>` : '');
 // Battle XP goal: each Pokémon it levels - level, a bar to Lv 100, time left (minutes from the PC; null = still measuring)
+// Axsiom Plan / Giant Chasm: what this run brought in (money earned, berries collected)
+function takeRow(g) {
+  if (!g?.tk) return '';
+  const [since, money, berries] = g.tk, hrs = Math.max(1 / 60, (Date.now() - since) / 3.6e6);
+  return `<div style="margin-top:10px;padding-top:6px;border-top:1px solid var(--line)"><div class="lbl">This run · ${hrs < 1 ? Math.round(hrs * 60) + ' min' : hrs.toFixed(1) + ' h'}</div><div>₽ <b>${money.toLocaleString()}</b> <span class="dim">(${Math.round(money / hrs).toLocaleString()}/h)</span></div><div style="font-size:14px">${berries.length ? berries.map(([n, c]) => `${esc(n)} <b>×${c}</b>`).join(' · ') : '<span class="dim">no berries yet</span>'}</div></div>`;
+}
 function trRows(g) {
   if (!g?.tr?.length) return '';
   const t = (m) => (m == null ? 'measuring…' : m <= 0 ? 'Lv 100 ✔' : m < 60 ? `~${m} min` : m < 2880 ? `~${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `~${Math.round(m / 1440)} days`);
@@ -608,7 +614,7 @@ function vNow() {
   if (probs.length) h += `<div class="card" style="border-color:var(--bad)"><h3>⚠️ Needs You</h3>${probs.map((p) => `<div class="warn">${p}</div>`).join('')}</div>`;
   const scr = s.goals.find((g) => !g.bg && g.s === 'running');
   h += `<div class="card"><h3>Today</h3><div class="lbl">WORKING ON NOW${!scr && s.idle ? ' · IDLE' : ''}</div>`;
-  if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}${trRows(scr)}`;
+  if (scr) h += `<div class="flex" style="margin-top:6px">${pic(scr, 60)}<div class="grow"><b style="font-size:17px">${esc(scr.l)}</b>${scr.p ? `<div class="big">${progTxt(scr.p)}</div>` : ''}</div></div>${scr.p ? bar(scr.p[0] / scr.p[1]) : ''}${scr.n ? `<div style="margin-top:8px">${esc(scr.n)}</div>` : ''}${trRows(scr)}${takeRow(scr)}`;
   else if (s.idle) h += `<div class="flex" style="margin-top:6px">${s.idle.u[0] ? img(s.idle.u[0][0], 60) : '<span style="font-size:34px">💤</span>'}<div class="grow"><b style="font-size:17px">${s.idle.u.length ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</b><div>${s.idle.u.map((m) => `${N(m[0])}${m[3] ? ' ✨' : ''}${RK(m[2])} <b>Lv ${m[1]}</b>`).join(' · ')}</div></div></div><div class="dim" style="margin-top:6px">${esc(s.idle.l)}</div>`;
   else h += `<div style="margin-top:6px">${s.run ? 'Nothing can run right this minute.' : 'Nothing - the plan is paused.'}</div>`;
   if (scr?.tm && scr.tm[0]?.length) { const [ms, w, how] = scr.tm; h += `<div class="dim" style="margin-top:6px;font-size:14px">🛡️ Team: ${ms.map(([id, lv]) => `${N(id)} ${lv}`).join(', ')}${w != null ? ` · <b class="${w >= 0.6 ? 'ok' : w >= 0.3 ? 'warn' : 'bad'}">${Math.round(w * 100)}%</b>` : ''}${how ? ` (${esc(how)})` : ''}</div>`; }
