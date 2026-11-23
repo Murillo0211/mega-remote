@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.30
+// @version      2.10.31
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.30';
+const VERSION = '2.10.31';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3150,7 +3150,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       closest: (sel) => (sel === '[data-act]' ? t : null), matches: (sel) => !!act && sel.includes(`[data-act="${act}"]`) && sel.toLowerCase().startsWith((d.tag || 'button').toLowerCase()) };
     if (act === 'fold-card' || act === 'toggle' || act === 'bigger' || act === 'smaller' || act === 'tab') return 'ok'; // just the PC's own layout
     // spending gems needs the phone's own confirmation sheet (Kinesis sends gem.rank); never a pop-up on the PC
-    if (act === 'gem-rank' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch') return 'confirm on the phone';
+    if (act === 'gem-rank' || act === 'gem-fuse' || act === 'gem-buy' || act === 'gem-reroll' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch') return 'confirm on the phone';
     if (act === 'fights-reload' || (d.tab === 'fights' && /^f-?/.test(act || ''))) fightData = null;
     asPhone(() => { if (d.kind === 'change' && changeH) changeH({ target: t }); else if (d.kind === 'input' && inputH) inputH({ target: t }); else onClick({ target: { closest: () => t }, preventDefault() {}, stopPropagation() {} }); });
     await new Promise((r) => setTimeout(r, 400));
@@ -3191,6 +3191,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:185', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { g.carrier = e.target.value || null; if (g.job) g.job.carriersFor = null; Plan.save(); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3279,7 +3280,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:273', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:274', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3304,7 +3305,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:298', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:299', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3318,6 +3319,22 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:313', __e); } renderBody(true); return; }
+    if (act === 'gem-fuse') {
+      const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
+      if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
+      const r = GemFocus.fuse(k, n); Log.add(r ? `fused ${r.n * f.per} ${f.lowerLabel}s into ${r.n} ${GemFocus.label(r.key)}${r.n === 1 ? '' : 's'}` : 'gem: the game would not fuse that'); renderBody(true); return;
+    }
+    if (act === 'gem-buy') {
+      const k = t.dataset.key, p = GemFocus.price(k);
+      if (!t.dataset.sure && !window.confirm(`Buy 1 ${GemFocus.label(k)} for ${p} shards? (you have ${GemFocus.shards()})`)) return;
+      Log.add(GemFocus.buy(k) ? `bought 1 ${GemFocus.label(k)} for ${p} shards` : 'gem shop: the game would not sell it (not enough shards, or the offer changed)'); renderBody(true); return;
+    }
+    if (act === 'gem-reroll') {
+      const o = GemFocus.shop(); if (!o) return;
+      if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:327', __e); } renderBody(true); return;
+    }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
       const m = Engine.read('Game.getMon', null, t.dataset.uid), U = Engine.get('Underground'); if (!m || !U) return;
@@ -3327,19 +3344,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:321', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:338', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:327', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:344', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:330', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:347', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:333', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:350', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3382,8 +3399,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:376', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:377', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:393', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:394', __e); }
     renderBody(true, w);
   }
 
@@ -3398,7 +3415,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:392', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:409', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3413,13 +3430,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:407', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:408', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:424', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:425', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:413', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:430', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4415,6 +4432,159 @@ Views.gems = (esc) => {
     const bar = `<div style="display:grid;grid-template-columns:repeat(${MODES.length},1fr);gap:6px;margin-bottom:10px">${MODES.map(([k, l]) => `<button class="btn sm${mode === k ? ' gold' : ''}" data-act="sim-mode" data-mode="${k}" style="margin:0">${l}</button>`).join('')}</div>`;
     if (!w.ok) return bar + '<div class="note">Waiting for the game engine.</div>';
     return bar + (mode === 'elite' ? Views.elite(esc, ui) : mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
+  };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * GemFocus (Jimmy 2026-11-23): the Gems tab's planning tools.
+ *  - Focus Pokémon: pick any of your Pokémon and see the gems it takes (its types, at its rarity's tier),
+ *    what the next rank costs, what you have, how many to reach rank 5 - with Rank Up, Fuse and Buy buttons.
+ *  - The gem shop today (the game's own offer, sold for event shards) and its reroll (₽, doubling).
+ *  - Discord picks: the Discord's tier lists (@destryyy - "Legendary Gem Tier List" and "Rare & Uncommon
+ *    Investment Tier List") checked against your copies - and a phone alert when the shop has a gem one of
+ *    them needs and you have the shards for it.
+ * The game's rules (read in its code): rank N costs N gems of one of the Pokémon's gem types (U.gemKeys), only at
+ * Lv 100, and sends it back to Lv 5; fusing makes 1 gem from 3 of the tier below, but only up to Uncommon
+ * (GEM_FUSE_TOP) - Rare and Legendary gems come from the Underground or the shop. Mega never spends gems, shards
+ * or money by itself: every button here is your tap and asks first.
+ * ------------------------------------------------------------------------------------------- */
+const GemFocus = (() => {
+  const E = Engine;
+  const U = () => E.get('Underground');
+  const TIER = ['Common', 'Uncommon', 'Rare', 'Legendary'];
+  const MAX = () => +(E.get('CONFIG')?.UNDERGROUND?.RANK_MAX ?? 5);
+  // the Discord's picks, in their order (English names, as Mega shows them)
+  const WATCH = [
+    ['White Kyurem', 'S legendary'], ['Black Kyurem', 'S legendary'], ['Dialga', 'S legendary'], ['Reshiram', 'S legendary'], ['Kyogre', 'S legendary'], ['Palkia', 'S legendary'],
+    ['Zekrom', 'A legendary'], ['Giratina (Origin Forme)', 'A legendary'], ['Groudon', 'A legendary'], ['Giratina', 'A legendary'], ['Regigigas', 'A legendary'], ['Ho-Oh', 'A legendary'],
+    ['Garchomp', 'Pseudo #1'], ['Metagross', 'Pseudo #2'], ['Tyranitar', 'Pseudo #3'], ['Hydreigon', 'Pseudo #4'], ['Salamence', 'Pseudo #5'], ['Dragonite', 'Pseudo #6'],
+    ['Slaking', 'Rare #1'], ['Gyarados', 'Rare #2'], ['Walrein', 'Rare #3'], ['Mamoswine', 'Rare #4'], ['Feraligatr', 'Rare #5'], ['Lapras', 'Rare #6'], ['Emboar', 'Rare #7'], ['Chandelure', 'Rare #8'], ['Exeggutor', 'Rare #9'], ['Vaporeon', 'Rare #10'],
+    ['Escavalier', 'Uncommon #1'], ['Scrafty', 'Uncommon #2'], ['Skuntank', 'Uncommon #3'], ['Froslass', 'Uncommon #4'], ['Breloom', 'Uncommon #5'],
+  ];
+  const nameOf = (id) => { try { return Casing.names(E.get('Game.DEX')[id].name); } catch { return '#' + id; } };
+  const gems = () => E.get('Game.S')?.under?.gems || {};
+  const tierOf = (k) => +String(k).split(':')[1] || 0;
+  const typeOf = (k) => String(k).split(':')[0];
+  const label = (k) => { try { return U().gemName(k); } catch { return `${TIER[tierOf(k)]} ${typeOf(k)} gem`; } };
+  const owned = () => E.read('Game.ownedMons', []) || [];
+  // one Pokémon: its gem types, what it has, the next rank, and what rank 5 would take in all
+  function status(m) {
+    const u = U(), keys = (() => { try { return u.gemKeys(m.id) || []; } catch { return []; } })(), have = gems();
+    const rank = +(m.rank || 0), max = MAX();
+    const ro = (() => { try { return u.rankOf(m); } catch { return null; } })();
+    let left = 0; for (let r = rank + 1; r <= max; r++) left += r;
+    const best = keys.slice().sort((a, b) => (have[b] || 0) - (have[a] || 0))[0] || null;
+    return { m, keys: keys.map((k) => ({ k, label: label(k), have: have[k] || 0, tier: tierOf(k) })), rank, max, next: ro?.next ?? rank + 1, need: ro?.need ?? rank + 1, why: rank >= max ? 'at the top rank' : ro?.why || null, key: ro?.key || best, left, haveBest: best ? have[best] || 0 : 0 };
+  }
+  // fusing into one of this Pokémon's gem types: 3 of the tier below make 1 (only where the game allows it)
+  function fuseFor(k) {
+    const t = tierOf(k); if (t < 1) return null;
+    const lower = `${typeOf(k)}:${t - 1}`;
+    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:46', __e); }
+    if (to !== k) return { can: false, lower };
+    const per = +(E.get('CONFIG')?.UNDERGROUND?.GEM_FUSE ?? 3), have = gems()[lower] || 0;
+    return { can: true, lower, lowerLabel: label(lower), per, have, makes: Math.floor(have / per) };
+  }
+  const shop = () => { try { return U().offer(); } catch { return null; } };
+  const price = (k) => { try { return +U().gemPrice(k); } catch { return null; } };
+  const shards = () => { try { return +U().shards(); } catch { return 0; } };
+  // your best copy of each Discord pick (highest rank, then level)
+  function watchRows() {
+    const all = owned(), out = [];
+    for (const [n, tag] of WATCH) {
+      const ms = all.filter((m) => nameOf(m.id) === n).sort((a, b) => (b.rank || 0) - (a.rank || 0) || b.level - a.level);
+      if (ms.length) out.push({ ...status(ms[0]), tag, name: n });
+    }
+    return out;
+  }
+  // the shop's gems that one of your Discord picks (still below rank 5) can use
+  function shopHits() {
+    const o = shop(); if (!o) return [];
+    const want = new Map();
+    for (const r of watchRows()) if (r.rank < r.max) for (const x of r.keys) { if (!want.has(x.k)) want.set(x.k, []); want.get(x.k).push(r.name); }
+    return (o.ids || []).filter((k) => want.has(k)).map((k) => ({ k, label: label(k), price: price(k), mons: want.get(k), ok: shards() >= (price(k) || Infinity) }));
+  }
+  // the phone alert: once per shop offer and gem, when you can afford it
+  const TOLD = 'mega-gemshop-told';
+  function watchShop() {
+    try {
+      const o = shop(); if (!o) return;
+      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:75', __e); }
+      if (told.ends !== o.ends) told = { ends: o.ends, keys: [] };
+      const fresh = shopHits().filter((h) => h.ok && !told.keys.includes(h.k));
+      if (!fresh.length) return;
+      for (const h of fresh) told.keys.push(h.k);
+      localStorage.setItem(TOLD, JSON.stringify(told));
+      const ends = new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+      Notify.send('daily', `Gem shop: ${fresh.map((h) => h.label).join(', ')}`, `${fresh.map((h) => `${h.label} (${h.price} shards) - for ${h.mons.slice(0, 3).join(', ')}`).join(' · ')} · you have ${shards()} shards · offer ends ${ends}. Buy it on the Gems tab.`);
+      Log.add(`gem shop: ${fresh.map((h) => `${h.label} for ${h.mons.join(', ')}`).join('; ')} - you can afford it (phone told)`);
+    } catch (__e) { __h('63-gemfocus:84', __e); }
+  }
+  let timer = null;
+  function boot() { if (timer) return; timer = setInterval(watchShop, 5 * 60_000); setTimeout(watchShop, 30_000); }
+  // the buttons (each asks first, in the UI)
+  function fuse(k, n) { const f = fuseFor(k); if (!f?.can) return null; try { return U().fuseGems(f.lower, n); } catch { return null; } }
+  function buy(k) { try { return U().buyGem(k, 1); } catch { return false; } }
+  function reroll() { try { return U().reroll(); } catch { return { error: 'the game refused' }; } }
+  // the menu: Discord picks first, then everyone by name
+  function choices() {
+    const picks = new Set(WATCH.map((x) => x[0]));
+    return owned().map((m) => ({ uid: m.uid, name: nameOf(m.id), lv: m.level, rank: m.rank || 0, shiny: !!m.shiny, pick: picks.has(nameOf(m.id)) }))
+      .sort((a, b) => (b.pick - a.pick) || a.name.localeCompare(b.name) || b.rank - a.rank || b.lv - a.lv);
+  }
+  return { status, fuseFor, shop, price, shards, watchRows, shopHits, watchShop, boot, fuse, buy, reroll, choices, label, TIER, nameOf };
+})();
+
+// ---- the Gems tab: Focus Pokémon, the shop, the Discord picks - above the gem lists that were already there ----
+{
+  const gemsView = Views.gems;
+  Views.gems = (esc) => {
+    const F = GemFocus, ui = Views.gemUi || (Views.gemUi = { focus: (() => { try { return localStorage.getItem('mega-gem-focus') || ''; } catch { return ''; } })() });
+    const sp = (id, n = 44) => `<img src="${Engine.sprite(id)}" width="${n}" height="${n}" style="image-rendering:pixelated;flex:none">`;
+    let h = '';
+    // 1. Focus Pokémon
+    const ch = F.choices();
+    h += `<div class="card"><h3>🎯 Focus Pokémon</h3><select class="sel" data-act="gem-focus"><option value="">Pick one of your Pokémon…</option>${ch.map((c) => `<option value="${c.uid}" ${ui.focus === c.uid ? 'selected' : ''}>${c.pick ? '★ ' : ''}${esc(c.name)}${c.shiny ? ' ✨' : ''} · Lv ${c.lv} · rank ${c.rank}</option>`).join('')}</select><div class="dim" style="font-size:12px;margin-top:4px">★ = on the Discord's gem tier lists</div>`;
+    const m = ui.focus ? Engine.read('Game.getMon', null, ui.focus) : null;
+    if (m) {
+      const s = F.status(m), o = F.shop() || { ids: [] };
+      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:10px">${sp(m.id, 56)}<div style="flex:1"><b style="font-size:16px">${esc(F.nameOf(m.id))}${m.shiny ? ' ✨' : ''}</b><div class="dim">Lv ${m.level} · rank ${s.rank} of ${s.max} · ${s.rank < s.max ? `${s.left} more gems to reach rank ${s.max}` : 'top rank'}</div></div></div>`;
+      if (!s.keys.length) h += `<div class="dim" style="margin-top:8px">This one can't take gems.</div>`;
+      else {
+        h += `<div style="margin-top:8px"><b>Takes:</b> ${s.keys.map((x) => `${esc(x.label)} <span class="${x.have ? 'ok' : 'dim'}">(you have ${x.have})</span>`).join(' or ')}</div>`;
+        if (s.rank < s.max) {
+          h += `<div style="margin-top:6px">Next: rank ${s.next} needs <b>${s.need}</b> of one of them · ${s.why ? `<span class="warn">${esc(s.why)}</span>` : '<span class="ok">✓ ready</span>'}</div>`;
+          if (!s.why) h += `<button class="btn gold" data-act="gem-rank" data-uid="${m.uid}" data-key="${s.key}" data-rank="${s.rank}" data-id="${m.id}" data-need="${s.need}" data-label="${esc(F.label(s.key))}" data-lv="${m.level}">Rank Up to ${s.next} (${s.need} × ${esc(F.label(s.key))})</button>`;
+        }
+        for (const x of s.keys) {
+          const f = F.fuseFor(x.k);
+          if (f?.can) h += `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px"><b>Fuse</b> ${f.per} ${esc(f.lowerLabel)} → 1 ${esc(x.label)} · you have ${f.have} (makes up to ${f.makes})${f.makes ? `<div style="display:flex;gap:6px;margin-top:4px"><button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="1">Fuse 1</button>${f.makes > 1 ? `<button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="${Math.min(f.makes, Math.max(1, s.need - x.have))}">Fuse ${Math.min(f.makes, Math.max(1, s.need - x.have))} (enough for rank ${s.next})</button>` : ''}</div>` : ''}</div>`;
+          else if (x.tier >= 2) h += `<div class="dim" style="margin-top:6px;font-size:13px">${esc(x.label)}s can't be made by fusing - they come from the Underground (deeper floors) or the gem shop (${F.price(x.k) ?? '?'} shards).</div>`;
+          if ((o.ids || []).includes(x.k)) h += `<div style="margin-top:6px"><span class="ok">In the shop today:</span> ${esc(x.label)} for ${F.price(x.k)} shards (you have ${F.shards()}) <button class="btn sm" data-act="gem-buy" data-key="${x.k}" ${F.shards() >= (F.price(x.k) || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`;
+        }
+        h += `<button class="btn sm" data-act="gem-open" data-uid="${m.uid}" style="margin-top:8px">Open in Game</button>`;
+      }
+    }
+    h += `</div>`;
+    // 2. the shop today
+    const o = F.shop();
+    if (o) {
+      const hits = new Map(F.shopHits().map((x) => [x.k, x]));
+      h += `<div class="card"><h3>🛒 Gem Shop Today</h3><div class="dim">You have ${F.shards()} shards · changes ${new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</div>`;
+      for (const k of o.ids || []) { const p = F.price(k), hit = hits.get(k); h += `<div class="row" style="align-items:center;margin-top:6px"><span>${esc(F.label(k))} · ${p} shards${hit ? ` <span class="ok">for ${esc(hit.mons.slice(0, 3).join(', '))}</span>` : ''}</span><button class="btn sm" data-act="gem-buy" data-key="${k}" style="width:auto;margin:0" ${F.shards() >= (p || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`; }
+      h += `<button class="btn sm" data-act="gem-reroll" style="margin-top:8px">New Offer (₽${(+o.cost || 0).toLocaleString()})</button><div class="dim" style="font-size:12px;margin-top:4px">Mega sends your phone a note when the shop has a gem one of the Discord picks needs and you can afford it. It never buys by itself.</div></div>`;
+    }
+    // 3. the Discord picks
+    const W = F.watchRows();
+    if (W.length) {
+      h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">From the Discord's gem tier lists: the Legendaries that gain most from gems, and the non-Legendaries for the 5 Elite slots (Elite allows one Legendary).</div>`;
+      for (const r of W) {
+        const st = r.rank >= r.max ? '<span class="ok">rank 5 ✓</span>' : r.why ? `<span class="dim">${esc(r.why)}</span>` : `<span class="ok">✓ ready for rank ${r.next}</span>`;
+        h += `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">${esc(r.tag)} · Lv ${r.m.level} · rank ${r.rank}</span><div style="font-size:13px">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
+      }
+      h += `</div>`;
+    }
+    return h + gemsView(esc);
   };
 }
 
@@ -9451,13 +9621,13 @@ function start() {
   const wait = setInterval(() => {
     const domReady = document.readyState !== 'loading' && document.body;
     if (!domReady) return;
-    if (Engine.ready() || Date.now() - t0 > 30_000) { clearInterval(wait); try { UI.mount(); } catch (e) { console.error('[Mega Alakazam] UI failed to start', e); } try { TopBar.boot(); } catch (e) { console.error('[Mega Alakazam] top bar failed to start', e); } }
+    if (Engine.ready() || Date.now() - t0 > 30_000) { clearInterval(wait); try { UI.mount(); } catch (e) { console.error('[Mega Alakazam] UI failed to start', e); } try { TopBar.boot(); } catch (e) { console.error('[Mega Alakazam] top bar failed to start', e); } try { GemFocus.boot(); } catch (__e) { __h('90-main:9', __e); } }
   }, 300);
 }
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, Engine, GemFocus, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
