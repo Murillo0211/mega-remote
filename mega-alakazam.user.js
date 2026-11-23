@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.45
+// @version      2.10.46
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.45';
+const VERSION = '2.10.46';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2495,6 +2495,8 @@ Views.plan = (w, ui, esc) => {
         </div>
         ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))}${g.preview.guide ? ` (${g.preview.guide} from the Discord guide)` : ''} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
         ${g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? `<div style="margin:6px 0 0 30px"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
+        ${g.type === 'discord' && g.spot === 'xp' ? (() => { const R = GoalTypes.trainRows?.(g) || []; if (!R.length) return ''; const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
+          return `<div style="margin:8px 0 0 30px">${R.map((r) => `<div style="display:flex;gap:8px;align-items:center;margin-top:6px"><img src="${Engine.sprite(r.id)}" width="32" height="32" style="image-rendering:pixelated;flex:none"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:6px"><span><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${r.rank ? ` ★${r.rank}` : ''} · Lv ${r.level}</span><span class="dim">${GoalTypes.etaText(r.eta)}</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:3px"><div style="height:6px;border-radius:3px;width:${Math.round(r.pct * 100)}%;background:var(--ok)"></div></div></div></div>`).join('')}<div class="dim" style="font-size:12px;margin-top:4px">Time to Lv 100 at each one's XP rate over the last 20 min.</div></div>`; })() : ''}
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
@@ -2550,7 +2552,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:98', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:100', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -8774,20 +8776,21 @@ const Plan = (() => {
         g.job.force = force;
         if (sp.berry === 'xp' && g.spot === 'mix') Berries.keep('money', 'farming Giant Chasm');
         const line = await GoalTypes.level.step(g.job, ctx);
+        if (g.spot === 'xp') { try { sampleXp(g); } catch (__e) { __h('70-plan-23-discord:74', __e); } }
         return `${line}${g.job.nCarry === 1 ? ' · 1 carrier' : ''}`;
       }
       // sweep spots: your 6 fastest clearers of it, on a loop
       if (!g.restore) { g.restore = { team: [...(s.team || [])], chapter: a.chapter, loops: [...(a.loops || [])] }; Plan.save(); Log.add(`${discord.label(g)}: going to ${sp.where}. Your team, chapter and loops come back when it stops.`); }
-      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:78', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:79', __e); } return 'leaving the legendary zone…'; }
       if (!sp.chs.includes(+a.chapter)) {
         if (fighting()) return 'waiting for this fight to end before moving…';
         if (E.call('Adventure.setChapter', sp.ch) === false) return `waiting: the game would not open ${sp.where}`;
         return `moving to ${sp.where}…`;
       }
       soloLoop(sp.key);
-      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:85', __e); }
+      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:86', __e); }
       if (g.carriersFor !== sp.ch || g.carriersV !== Sim.CARRIER_V) {
-        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:87', __e); }
+        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:88', __e); }
         g.carriersFor = sp.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
         if (picks.length && setChapterTeam(g.carriers)) Log.add(`${discord.label(g)}: team ${picks.map((p) => name(p.m.id)).join(', ')} (fastest to clear it)`);
       }
@@ -8800,11 +8803,11 @@ const Plan = (() => {
       return `farming ${sp.where}${money}${candy}${berry}`;
     },
     finish(g) {
-      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:100', __e); } g.job = null; }
+      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:101', __e); } g.job = null; }
       const r = g.restore; if (!r) { Plan.save(); return; }
       if (r.loops) loopsBack(r.loops);
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:104', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:105', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${discord.label(g)}: stopped - your team, chapter and loops are back`);
     },
@@ -8816,11 +8819,42 @@ const Plan = (() => {
   }
   // every Exp. Candy you hold (the candy spot counts what it brings in)
   function candyNow() { let n = 0; for (const k of ['exp-candy-s', 'exp-candy-m', 'exp-candy-big', 'exp-candy-xl', 'rare-candy']) n += +E.read('Game.itemCount', 0, k) || 0; return n; }
+  // ---- Battle XP card (Jimmy 2026-11-23): each Pokémon it levels, its level, a bar to Lv 100 and the time left ----
+  // Total XP so far = the XP of every level below + the XP into this one (Game.xpForNext(level, mon) - it grows with
+  // rank). Sampled every step; the rate is each Pokémon's own gain over the last 20 min (a rank-up resets it).
+  const xpNeed = (m, l) => +safe(() => E.get('Game').xpForNext(l, m), 0) || 0;
+  const xpTotal = (m) => { let t = 0; for (let l = 1; l < m.level; l++) t += xpNeed(m, l); return t + (+m.xp || 0); };
+  const xpTo100 = (m) => { if (m.level >= 100) return 0; let t = Math.max(0, xpNeed(m, m.level) - (+m.xp || 0)); for (let l = m.level + 1; l < 100; l++) t += xpNeed(m, l); return t; };
+  const xpLog = new Map(); // uid -> [[t, total, rank]]
+  function sampleXp(g) {
+    const now = Date.now();
+    for (const u of [...(g.job?.uids || []), ...(g.job?.extra || [])]) {
+      const m = E.read('Game.getMon', null, u); if (!m) continue;
+      const tot = xpTotal(m), r = +(m.rank || 0), L = xpLog.get(u) || [];
+      if (L.length && (tot < L[L.length - 1][1] || r !== L[L.length - 1][2])) L.length = 0; // ranked up / reset
+      if (!L.length || now - L[L.length - 1][0] > 15e3) L.push([now, tot, r]);
+      while (L.length > 2 && now - L[0][0] > 20 * 60e3) L.shift();
+      xpLog.set(u, L);
+    }
+  }
+  function trainRows(g) {
+    if (g?.type !== 'discord' || g.spot !== 'xp' || !g.job) return [];
+    const carry = new Set(g.job.nCarry ? (g.job.carriers || []).slice(0, g.job.nCarry) : []);
+    return [...new Set([...(g.job.uids || []), ...(g.job.extra || [])])].filter((u) => !carry.has(u)).map((u) => {
+      const m = E.read('Game.getMon', null, u); if (!m) return null;
+      const need = xpNeed(m, m.level), frac = m.level >= 100 ? 1 : Math.min(0.999, (+m.xp || 0) / Math.max(1, need));
+      const L = xpLog.get(u) || [], span = L.length > 1 ? (L[L.length - 1][0] - L[0][0]) : 0;
+      const rate = span >= 120e3 ? (L[L.length - 1][1] - L[0][1]) / span : null; // XP per ms, after 2 min of data
+      const left = xpTo100(m), eta = m.level >= 100 ? 0 : rate > 0 ? left / rate : null;
+      return { uid: u, id: m.id, shiny: !!m.shiny, rank: +(m.rank || 0), level: m.level, pct: Math.min(1, (m.level + frac) / 100), eta, perH: rate ? rate * 3.6e6 : null };
+    }).filter(Boolean);
+  }
+  const etaText = (ms) => { if (ms == null) return 'measuring…'; if (ms <= 0) return 'Lv 100 ✔'; const m = Math.round(ms / 60e3); return m < 60 ? `~${m} min` : m < 48 * 60 ? `~${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `~${Math.round(m / 1440)} days`; };
   // your carrier choice per spot, kept across goals (localStorage mega-discord-carrier: { spot: uid })
   const MEMO = 'mega-discord-carrier';
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
-  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:119', __e); } Plan.save(); }
-  Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
+  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:151', __e); } Plan.save(); }
+  Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
 /* ===================================================================================================
@@ -9468,7 +9502,7 @@ const Remote = (() => {
   function snapshot() {
     const S = E.get('Game.S') || {}, D = E.get('Game.DEX') || {}, w = World.build();
     const prog = (g) => { try { const p = GoalTypes[g.type]?.progress?.(g); return p ? [p.have, p.need, p.unit || '', p.money ? 1 : 0] : null; } catch { return null; } };
-    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, cr: g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? (g.carrier || '') : undefined, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
+    const goals = Plan.goals.filter((g) => !g.done).map((g) => { const L = Plan.live(g.id) || {}; let sp = null; try { sp = GoalTypes[g.type]?.sprite?.(g) || null; } catch (__e) { __h('80-remote:80', __e); } return { id: g.id, t: g.type, l: Casing.names(Plan.label(g)), s: g.paused ? 'paused' : L.state || 'wait', y: Casing.names(L.why || ''), n: Casing.names(L.line || ''), sp, p: prog(g), bg: GoalTypes[g.type]?.uses === 'background' ? 1 : 0, cr: g.type === 'discord' && ['xp', 'mix'].includes(g.spot) ? (g.carrier || '') : undefined, tr: g.type === 'discord' && g.spot === 'xp' ? (() => { try { return GoalTypes.trainRows(g).map((r) => [r.id, r.level, Math.round(r.pct * 1000) / 1000, r.eta == null ? null : Math.round(r.eta / 60e3), r.shiny ? 1 : 0, r.rank]); } catch { return undefined; } })() : undefined, ug: g.type === 'under' ? [g.from ?? 1, g.aim || 'deep', g.preview && !g.preview.busy && !g.preview.error ? `Preview: ${g.preview.team.join(', ')} from floor ${g.preview.from}, about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''} (${g.preview.cleared} cleared)` : g.lastSend ? `Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared` : ''] : undefined, d: GoalTypes[g.type]?.daily ? 1 : 0, tm: L.team ? [(L.team.uids || []).map((u) => { const m = E.read('Game.getMon', null, u); return m ? [m.id, m.level] : null; }).filter(Boolean), L.team.win, L.team.how || ''] : null }; });
     const done = Plan.goals.filter((g) => g.done && Date.now() - g.done < 86_400_000).map((g) => [Casing.names(Plan.label(g)), g.done]);
     const a = S.adv || {}, ST = E.get('STORY');
     const where = w.screen?.kind === 'zone' ? `${D[w.screen.id]?.name}'s Legendary Zone` : a.tower ? (a.tower.kind === 'candy' ? 'Candy Factory run' : 'Battle Tower run') : a.chapter != null ? `${ST?.CHAPTERS?.[a.chapter]?.name || 'Chapter ' + a.chapter} · stop ${(+a.node || 0) + 1} of ${(a.nodes || []).length || '?'}` : '';
