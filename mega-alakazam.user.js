@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.10.26
+// @version      2.10.27
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
@@ -18,7 +18,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.10.26';
+const VERSION = '2.10.27';
 // every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -289,7 +289,7 @@ const Engine = (() => {
     'WorldBoss.state', 'WorldBoss.open', 'WorldBoss.catchable', 'WorldBoss.caught',
     'Raids.unlocked', 'Raids.ready', 'Raids.revealed',
     'LegendZones.ZONES', 'LegendZones.knobs', 'LegendZones.state', 'LegendZones.progress', 'LegendZones.whenText',
-    'Adventure.startZone', 'Adventure.leaveZone', 'Adventure.effectiveness', 'Adventure.rankAura', 'Game.zoneTeam', 'Game.save', 'Game.curHp', 'Game.DEX', 'Game.bestMoveAgainst', 'Game.learnOf', 'STATUS.effectOf', 'Adventure.setChapter', 'Adventure.isLooping', 'Adventure.toggleLoop', 'STORY.bandOf', 'STORY.regionOf', 'STORY.CHAPTERS', 'Game.levelXp', 'Game.capFor', 'Game.teamMons', 'Game.setBuddy', 'Game.activeBuffs', 'Game.useBuffBerry', 'Game.itemCount', 'Adventure.zonePool', 'Underground.send', 'Underground.collect', 'Underground.progress', 'Underground.simulate', 'Underground.themeOf', 'Underground.starts', 'Underground.why', 'EVOLUTIONS', 'Game.inDex', 'WEATHER.current', 'WEATHER.hours', 'DAYTIME.phase', 'DAYTIME.PHASES', 'STORY.staticLevel', 'Game.eggReady', 'Game.hatchEgg', 'Game.pensionHasDitto', 'Game.toPension', 'Game.fromPension', 'Adventure.startTower', 'Tower.weekKey', 'Tower.run', 'CandyRun.why', 'CandyRun.loadDay', 'Adventure.startRaid', 'Raids.drawn', 'Raids.lane', 'Raids.reroll', 'Raids.canReroll', 'Raids.setPick', 'Raids.bots', 'Raids.teamKey',
+    'Adventure.startZone', 'Adventure.leaveZone', 'Adventure.loopKey', 'Adventure.effectiveness', 'Adventure.rankAura', 'Game.zoneTeam', 'Game.save', 'Game.curHp', 'Game.DEX', 'Game.bestMoveAgainst', 'Game.learnOf', 'STATUS.effectOf', 'Adventure.setChapter', 'Adventure.isLooping', 'Adventure.toggleLoop', 'STORY.bandOf', 'STORY.regionOf', 'STORY.CHAPTERS', 'Game.levelXp', 'Game.capFor', 'Game.teamMons', 'Game.setBuddy', 'Game.activeBuffs', 'Game.useBuffBerry', 'Game.itemCount', 'Adventure.zonePool', 'Underground.send', 'Underground.collect', 'Underground.progress', 'Underground.simulate', 'Underground.themeOf', 'Underground.starts', 'Underground.why', 'EVOLUTIONS', 'Game.inDex', 'WEATHER.current', 'WEATHER.hours', 'DAYTIME.phase', 'DAYTIME.PHASES', 'STORY.staticLevel', 'Game.eggReady', 'Game.hatchEgg', 'Game.pensionHasDitto', 'Game.toPension', 'Game.fromPension', 'Adventure.startTower', 'Tower.weekKey', 'Tower.run', 'CandyRun.why', 'CandyRun.loadDay', 'Adventure.startRaid', 'Raids.drawn', 'Raids.lane', 'Raids.reroll', 'Raids.canReroll', 'Raids.setPick', 'Raids.bots', 'Raids.teamKey',
     'POKEDEX', 'CONFIG', 'App.refresh',
     'Cloud.trades.species', 'Cloud.trades.offers', 'Cloud.trades.state', 'Cloud.trades.mine', 'Game.tradeBlock', 'Game.tradePreview', 'Game.tierIndex', 'Game.owns', 'Game.canLay', 'Game.tradeFee', 'App.show', 'LegendZones.eliteShown', 'LegendZones.eliteBest', 'LegendZones.eliteNext', 'LegendZones.eliteOpen', 'LegendZones.eliteCan', 'LegendZones.eliteKnobs', 'LegendZones.eliteGem', 'LegendZones.eliteFoe', 'Underground.rankOf', 'UI.monDetail', 'Adventure.winChance', 'Adventure.startLeague', 'Adventure.leaveLeague', 'WorldBoss.attack', 'WorldBoss.autoTeam', 'WorldBoss.left', 'LegendZones.eliteNext', 'STORY.gymTeam', 'LegendZones.leagueOpen', 'LegendZones.leagueBest', 'LegendZones.leagueNext',
   ];
@@ -2502,7 +2502,7 @@ Views.plan = (w, ui, esc) => {
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
   h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option><option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
+    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option>${Object.entries(GoalTypes.discordSpots || {}).map(([k, v]) => `<option value="discord-${k}" ${ui.addType === 'discord-' + k ? 'selected' : ''}>Discord Recommended: ${v.title} (${v.where})</option>`).join('')}<option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -2535,6 +2535,11 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'train') {
     h += `<button class="btn" data-act="plan-add-train" ${Plan.hasType('train') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Exactly what the plan does when it has nothing to do - levels your team first, then your strongest in the PC, in the chapter with the best XP per hour - but as a goal in your list: goals above it go first, goals below wait. It never finishes by itself; remove or pause it when you're done.</div></div>`;
+  } else if (String(ui.addType).startsWith('discord-')) {
+    const k = ui.addType.slice(8), v = (GoalTypes.discordSpots || {})[k] || {};
+    const WHY = { money: 'The most money of every loop with an endgame team: Mega sends your 6 fastest clearers, so laps are quick.', xp: 'The whole Kanto Pokémon League (Elite Four and Champion) as one loop. Every team member gets each win\'s XP even if it never fights: one carrier that sweeps it (two if the simulation says one alone is slower) and the rest leveling - your team first, then your strongest in the PC.', mix: 'The best mix of money, battle XP and Exp. Candies: Mega levels your Pokémon there with carriers, with a Lansat Berry for the money too.', candy: 'The most Exp. Candy drops (random, so it shifts run to run): your 6 fastest clearers on a loop. The goal shows how many candies came in.' }[k] || '';
+    h += `<button class="btn" data-act="plan-add-discord" data-spot="${k}">Add to plan</button>
+    <div class="note dim">From the Discord's Auto-Replay Farming Guide (made on game v0.5.091 - later versions changed XP and money for older regions, so Mega's own measuring may disagree). ${WHY} While it runs, ${esc(v.where || 'the spot')} is your only loop (the game goes on to the next looped chapter after each one); your team, chapter and loops come back when you pause or remove it. It never finishes by itself.</div></div>`;
   } else if (ui.addType === 'bloc') {
     h += `<button class="btn" data-act="plan-add-bloc" ${Plan.hasType('bloc') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Once a day, after the daily reset: tries hundreds of 10-Pokémon teams with the game's own Pokéblock Boss forecast (the same team on the same day always ends the same way), then attacks with the one that empties the most bars. The attack is instant - nobody is sent away, so the 10 stay free for raids and the Underground.</div></div>`;
@@ -2544,7 +2549,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:92', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:97', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3249,6 +3254,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'league-add') { Plan.add('league', { reg: t.dataset.reg, upTo: 5 }); renderBody(true); }
     if (act === 'plan-add-wboss') { Plan.add('wboss', {}); renderBody(true); }
     if (act === 'plan-add-train') { Plan.add('train', {}); planUi.addType = 'legend'; renderBody(true); }
+    if (act === 'plan-add-discord' && t.dataset.spot) { Plan.add('discord', { spot: t.dataset.spot }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-bloc') { Plan.add('bloc', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'sim-mode') { legUi.mode = t.dataset.mode || 'legendary'; prefs.simMode = legUi.mode; savePrefs(); renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'tr-pick') { Trades.pick = { id: +t.dataset.id, shiny: !!t.dataset.shiny }; Trades.openMsg = ''; renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3267,7 +3273,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:267', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:268', __e); } renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
     if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
@@ -3292,7 +3298,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:292', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:293', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3315,19 +3321,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:315', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:316', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:321', __e); } return; }
+    if (act === 'theme') { prefs.theme = THEMES[(THEMES.indexOf(prefs.theme || 'auto') + 1) % 3]; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:322', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:324', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:325', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:327', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:328', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3370,8 +3376,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:370', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:371', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:371', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:372', __e); }
     renderBody(true, w);
   }
 
@@ -3386,7 +3392,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (body.dataset.html === html) return;
     body.innerHTML = Icons.swap(html); body.dataset.html = html;
     if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:386', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:387', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3401,13 +3407,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:401', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:402', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:402', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:403', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:407', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:408', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -6198,6 +6204,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   // the leveling chapter: XP per hour (XpChap - game XP formula x measured wins per hour, scouting
   // close calls). The old foe-level-only pick stays as a fallback.
   function bestChapter(g) {
+    // a fixed spot (the Discord Recommended goals): that chapter - or that League, run as one loop - and nothing else
+    if (g?.force) return { ch: g.force.ch, top: 100, name: g.force.name, forced: true };
     try { const p = XpChap.pick(g); if (p) return p; } catch (e) { Log.add('XP/hour chapter pick failed: ' + (e?.message || e)); }
     const ST = E.get('STORY'), C = E.get('CONFIG') || {}, unlocked = +(S().adv?.unlocked ?? 0);
     let best = null;
@@ -6235,7 +6243,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const have = +E.read('Game.itemCount', 0, 'pinap-berry') || 0;
     if (!have) { if (!pinapOut) Log.add('out of Pinap Berries - training continues without the XP boost'); pinapOut = true; return ' · no Pinap Berries left'; }
     let ok = null;
-    try { ok = E.call('Game.useBuffBerry', 'pinap-berry'); } catch (__e) { __h('70-plan-03-level:47', __e); }
+    try { ok = E.call('Game.useBuffBerry', 'pinap-berry'); } catch (__e) { __h('70-plan-03-level:49', __e); }
     const now = (E.read('Game.activeBuffs', []) || []).find((b) => b.family === 'xp');
     if (now && now.left > 120_000) { Log.add(`used a Pinap Berry (XP x1.25 for 60 min) - ${have - 1} left`); return ` · Pinap ${Math.ceil(now.left / 60_000)} min`; }
     return ok == null ? ' · could not use a Pinap Berry' : '';
@@ -6286,14 +6294,15 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s = S(), a = s.adv || {};
       const best = bestChapter(g);
       if (!best) return 'waiting: no chapter to train in';
-      if (!a.zone && +a.chapter === best.ch) { try { XpChap.tick(best.ch); } catch (__e) { __h('70-plan-03-level:98', __e); } }
+      const inSpot = (c) => (g.force ? g.force.chs.includes(+c) : +c === best.ch);
+      if (!a.zone && inSpot(a.chapter)) { try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-03-level:101', __e); } }
       if (!g.restore) {
-        g.restore = { team: [...(s.team || [])], chapter: a.chapter, loopAdded: null, buddy: s.buddy?.uid ?? null };
+        g.restore = { team: [...(s.team || [])], chapter: a.chapter, loopAdded: null, buddy: s.buddy?.uid ?? null, loops: g.force ? [...(a.loops || [])] : undefined };
         Plan.save();
         Log.add(`${level.label(g)}: training in ${best.name} (wild Lv ${best.top}). Your team, buddy and chapter come back when it's done.`);
       }
       // leave a legendary zone first (the game's own way back)
-      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-03-level:105', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-03-level:108', __e); } return 'leaving the legendary zone…'; }
       // team: 4 trainees + 2 carriers (Jimmy's rule - every team member gets the full XP of each win).
       // A 3rd carrier only when the simulator says it raises total XP per hour: 3 trainees earn 25% less
       // per win, so the 3rd carrier has to make wins come more than a third faster (hard chapters).
@@ -6313,7 +6322,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         // 2 or 3 carriers: whichever gives more total XP per hour
         g.nCarry = 2; let why = '';
         try {
-          const foes = Sim.chapterFoes(best.ch), mons = picks.slice(0, 3).map((p) => p.m);
+          const foes = g.force ? g.force.chs.flatMap((c) => { try { return Sim.chapterFoes(c); } catch { return []; } }) : Sim.chapterFoes(best.ch), mons = picks.slice(0, 3).map((p) => p.m);
           // time per win ~ the best carrier's hits to KO each foe (the game sends the best matchup), + 1 for
           // the fight itself, + 2 per KO it risks taking (a fainted carrier means a trainee fights)
           const cost = (ms) => foes.reduce((t, f) => t + f.w * (1 + Math.min(...ms.map((m) => { const c = Sim.clearScore(m, [{ ...f, w: 1 }]); return 1 / Math.max(c.kill, 0.02) + 2 * c.hurt; }))), 0);
@@ -6322,7 +6331,14 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (x3 > x2 * 1.02) g.nCarry = 3;
             why = ` - 2 carriers ${Math.round(x2 / Math.max(x2, x3) * 100)}% vs 3 carriers ${Math.round(x3 / Math.max(x2, x3) * 100)}% of the best XP/h`;
           }
-        } catch (__e) { __h('70-plan-03-level:134', __e); }
+          // a fixed spot (the Discord's way): ONE carrier that sweeps it and 5 leveling, when the simulator says one
+          // alone still gives more XP per hour (every team member gets the full XP of each win)
+          if (g.force?.carry1 && mons.length >= 2) {
+            const c1 = cost(mons.slice(0, 1)), c2 = cost(mons.slice(0, 2)), x1 = 5 / c1, x2 = 4 / c2;
+            if (x1 > x2 * 1.02) { g.nCarry = 1; why = ` - 1 carrier ${Math.round(x1 / x2 * 100)}% of 2 carriers' XP/h (it sweeps alone)`; }
+            else why = ` - 2 carriers (1 alone would be ${Math.round(x1 / x2 * 100)}% as fast)`;
+          }
+        } catch (__e) { __h('70-plan-03-level:144', __e); }
         Plan.save();
         if (picks.length) Log.add(`carriers for ${best.name}: ${picks.slice(0, g.nCarry).map((p) => name(p.m.id)).join(', ')}${why}`);
       }
@@ -6350,18 +6366,21 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         Log.add(`training team: ${want.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} Lv ${lvl(u)}`).join(', ')}`);
       }
-      if (+a.chapter !== best.ch) {
+      if (!inSpot(a.chapter)) {
         if (E.call('Adventure.setChapter', best.ch) === false) return `waiting: the game would not open ${best.name}`;
         Log.add(`moved to ${best.name} to train`);
       }
+      // a fixed spot: that spot is the ONLY loop while it runs (the game goes on to the next looped chapter after
+      // each one, so other loops would take it elsewhere); your list comes back when the goal stops
+      if (g.force) { GoalTypes.soloLoop(g.force.key); }
       // (the buddy is handled for every activity by Buddy: lowest on the team that can still level)
       // moved chapters (better XP or a 10-minute check): turn off the loop Mega added on the old one
-      if (g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
-        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:169', __e); }
+      if (!g.force && g.restore.loopAdded != null && g.restore.loopAdded !== best.ch) {
+        try { if (E.read('Adventure.isLooping', false, g.restore.loopAdded)) E.call('Adventure.toggleLoop', g.restore.loopAdded); } catch (__e) { __h('70-plan-03-level:182', __e); }
         g.restore.loopAdded = null; Plan.save();
       }
-      if (!E.read('Adventure.isLooping', false, best.ch)) {
-        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:173', __e); }
+      if (!g.force && !E.read('Adventure.isLooping', false, best.ch)) {
+        try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:186', __e); }
       }
       const berry = Berries.keep('xp', 'training');
       return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
@@ -6369,11 +6388,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:181', __e); }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:182', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:194', __e); }
+      if (r.loops) GoalTypes.loopsBack(r.loops);
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:196', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:185', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:199', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
@@ -7908,7 +7928,7 @@ const Plan = (() => {
     const [g] = open.splice(i, 1); open.unshift(g);
     st.goals = [...open, ...st.goals.filter((x) => x.done)]; save();
   }
-  function pause(id) { const g = st.goals.find((x) => x.id === id); if (g) { g.paused = !g.paused; save(); Log.add(`${g.paused ? 'paused' : 'resumed'}: ${name(g)}`); } }
+  function pause(id) { const g = st.goals.find((x) => x.id === id); if (g) { g.paused = !g.paused; if (g.paused && type(g)?.finishOnPause) finish(g); save(); Log.add(`${g.paused ? 'paused' : 'resumed'}: ${name(g)}`); } }
   function clearDone() { st.goals = st.goals.filter((g) => !g.done); save(); }
   function setRunning(on) { st.running = !!on; save(); Log.add(on ? 'plan started' : 'plan paused'); top = on ? 'starting…' : 'paused'; tick(); }
 
@@ -8214,6 +8234,117 @@ const Plan = (() => {
     finish(g) { if (g.job) { try { L().finish(g.job); } catch (__e) { __h('70-plan-22-train:28', __e); } } },
   };
   Object.assign(GoalTypes, { train });
+})();
+
+// goal module: discord (takes shared helpers from GoalKit, registers itself in GoalTypes)
+(() => {
+  const { E, S, name, setChapterTeam, safe } = GoalKit;
+  // ---- Discord Recommended (Jimmy 2026-11-23): the four picks of the Discord's "Auto-Replay Farming Guide"
+  // (@destryyy, made on game v0.5.091 - the game's own battle engine, every loop simulated):
+  //   money  -> Legend Badge (Unova)               a team that sweeps it: a faster lap is more money
+  //   xp     -> the Kanto League, run as ONE loop  every team member gets each win's XP: 1 carry + 5 leveling
+  //   mix    -> Giant Chasm (Unova)                the best mix of money, battle XP and Exp. Candies
+  //   candy  -> Kanto Victory Road                 the most Exp. Candy drops
+  // The game, read in its code: after a chapter it goes on to the NEXT looped chapter (in order) - so while one
+  // of these runs, its spot is the only loop; your loops, team and chapter come back when it's paused / removed.
+  const ST = () => E.get('STORY');
+  const eng = (c) => safe(() => Casing.names(c.name), c?.name || '');
+  const findCh = (test) => safe(() => ST().CHAPTERS.findIndex((c) => test(c)), -1);
+  const SPOTS = {
+    money: { title: 'Money', where: 'Legend Badge', kind: 'sweep', find: () => findCh((c) => (c.reg || 'kanto') === 'unova' && eng(c) === 'Legend Badge'), berry: 'money' },
+    xp: { title: 'Battle XP for your party', where: 'Kanto Pokémon League', kind: 'level', league: 'kanto', berry: 'xp' },
+    mix: { title: 'Money + battle XP + candies', where: 'Giant Chasm', kind: 'level', find: () => findCh((c) => (c.reg || 'kanto') === 'unova' && eng(c) === 'Giant Chasm'), berry: 'xp' },
+    candy: { title: 'Exp. Candies', where: 'Kanto Victory Road', kind: 'sweep', find: () => findCh((c) => (c.reg || 'kanto') === 'kanto' && eng(c) === 'Victory Road') },
+  };
+  // where a spot is: its first chapter, every chapter of it (a League is several), and the game's loop key for it
+  function spotOf(key) {
+    const sp = SPOTS[key]; if (!sp) return null;
+    if (sp.league) {
+      const chs = safe(() => ST().CHAPTERS.map((c, i) => (c.league && (c.reg || 'kanto') === sp.league ? i : -1)).filter((i) => i >= 0), []);
+      if (!chs.length) return null;
+      return { ...sp, ch: chs[0], chs, key: safe(() => E.read('Adventure.loopKey', null, chs[0]), null) ?? (sp.league === 'kanto' ? 'L' : 'L:' + sp.league) };
+    }
+    const ch = sp.find(); if (ch == null || ch < 0) return null;
+    return { ...sp, ch, chs: [ch], key: ch };
+  }
+  const unlocked = () => +(S().adv?.unlocked ?? 0);
+  // the only loop while a spot runs (the game's own loop switch, Adventure.toggleLoop) ...
+  function soloLoop(key) {
+    const loops = [...(S().adv?.loops || [])];
+    for (const k of loops) if (k !== key) { try { E.call('Adventure.toggleLoop', k); } catch (__e) { __h('70-plan-23-discord:36', __e); } }
+    if (!E.read('Adventure.isLooping', false, key)) { try { E.call('Adventure.toggleLoop', key); } catch (__e) { __h('70-plan-23-discord:37', __e); } }
+  }
+  // ... and your own list back afterwards
+  function loopsBack(want) {
+    const now = [...(S().adv?.loops || [])];
+    for (const k of now) if (!want.includes(k)) { try { E.call('Adventure.toggleLoop', k); } catch (__e) { __h('70-plan-23-discord:42', __e); } }
+    for (const k of want) if (!E.read('Adventure.isLooping', false, k)) { try { E.call('Adventure.toggleLoop', k); } catch (__e) { __h('70-plan-23-discord:43', __e); } }
+  }
+  const fighting = () => { const b = S().adv?.battle; return !!b && !b.over && !b.done; };
+  const discord = {
+    uses: 'screen',
+    finishOnPause: true, // pausing puts your loops, team and chapter back too
+    label: (g) => `Discord Recommended: ${SPOTS[g.spot]?.title || g.spot} (${SPOTS[g.spot]?.where || '?'})`,
+    sprite: (g) => { const m = g.job?.uids?.[0] && E.read('Game.getMon', null, g.job.uids[0]); return m?.id || null; },
+    check(g) {
+      const sp = spotOf(g.spot);
+      if (!sp) return { state: 'wait', why: `can't find ${SPOTS[g.spot]?.where || 'that spot'} in this game version` };
+      if (sp.ch > unlocked()) return { state: 'wait', why: `${sp.where} isn't unlocked yet` };
+      if (sp.kind === 'level' && !safe(() => GoalTypes.idlePick().length, 0)) return { state: 'wait', why: 'every Pokémon is at its level cap' };
+      return { state: 'ready', why: null };
+    },
+    async step(g, ctx) {
+      const sp = spotOf(g.spot); if (!sp) return `can't find ${SPOTS[g.spot]?.where}`;
+      const s = S(), a = s.adv || {};
+      // leveling spots: Mega's leveling job, held to this spot, 1 carrier when that's faster
+      if (sp.kind === 'level') {
+        const pick = GoalTypes.idlePick();
+        if (!pick.length) return 'every Pokémon is at its level cap';
+        const force = { ch: sp.ch, chs: sp.chs, key: sp.key, name: sp.where, carry1: true };
+        const atCap = (j) => j.uids.every((u) => (E.read('Game.getMon', null, u)?.level ?? 999) >= Math.min(100, E.read('Game.capFor', 100, E.read('Game.getMon', null, u)) || 100));
+        if (!g.job) { g.job = { id: g.id + ':job', type: 'level', uids: pick, target: 100, idle: true, started: Date.now(), force }; Plan.save(); Log.add(`${discord.label(g)}: leveling ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
+        else if (atCap(g.job) && pick.join() !== g.job.uids.join()) { g.job.uids = pick; g.job.carriersFor = null; g.job.startLv = null; Plan.save(); Log.add(`${discord.label(g)}: now ${pick.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(', ')}`); }
+        g.job.force = force;
+        if (sp.berry === 'xp' && g.spot === 'mix') Berries.keep('money', 'farming Giant Chasm');
+        const line = await GoalTypes.level.step(g.job, ctx);
+        return `${line}${g.job.nCarry === 1 ? ' · 1 carrier' : ''}`;
+      }
+      // sweep spots: your 6 fastest clearers of it, on a loop
+      if (!g.restore) { g.restore = { team: [...(s.team || [])], chapter: a.chapter, loops: [...(a.loops || [])] }; Plan.save(); Log.add(`${discord.label(g)}: going to ${sp.where}. Your team, chapter and loops come back when it stops.`); }
+      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:76', __e); } return 'leaving the legendary zone…'; }
+      if (!sp.chs.includes(+a.chapter)) {
+        if (fighting()) return 'waiting for this fight to end before moving…';
+        if (E.call('Adventure.setChapter', sp.ch) === false) return `waiting: the game would not open ${sp.where}`;
+        return `moving to ${sp.where}…`;
+      }
+      soloLoop(sp.key);
+      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:83', __e); }
+      if (g.carriersFor !== sp.ch || g.carriersV !== Sim.CARRIER_V) {
+        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:85', __e); }
+        g.carriersFor = sp.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
+        if (picks.length && setChapterTeam(g.carriers)) Log.add(`${discord.label(g)}: team ${picks.map((p) => name(p.m.id)).join(', ')} (fastest to clear it)`);
+      }
+      const berry = sp.berry ? Berries.keep(sp.berry, `farming ${sp.where}`) : '';
+      const have = +(s.money ?? 0);
+      if (g.from == null) { g.from = have; g.fromAt = Date.now(); g.candy0 = candyNow(); Plan.save(); }
+      const hrs = (Date.now() - g.fromAt) / 3_600_000;
+      const money = hrs > 0.05 ? ` · ~₽${Math.round((have - g.from) / hrs).toLocaleString()}/h so far` : '';
+      const cd = candyNow() - (g.candy0 || 0), candy = g.spot === 'candy' && hrs > 0.05 ? ` · ${cd} Exp. Candies so far` : '';
+      return `farming ${sp.where}${money}${candy}${berry}`;
+    },
+    finish(g) {
+      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:98', __e); } g.job = null; }
+      const r = g.restore; if (!r) { Plan.save(); return; }
+      if (r.loops) loopsBack(r.loops);
+      const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length) setChapterTeam(back);
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:102', __e); } }
+      g.restore = null; Plan.save();
+      Log.add(`${discord.label(g)}: stopped - your team, chapter and loops are back`);
+    },
+  };
+  // every Exp. Candy you hold (the candy spot counts what it brings in)
+  function candyNow() { let n = 0; for (const k of ['exp-candy-s', 'exp-candy-m', 'exp-candy-big', 'exp-candy-xl', 'rare-candy']) n += +E.read('Game.itemCount', 0, k) || 0; return n; }
+  Object.assign(GoalTypes, { discord, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
 /* ===================================================================================================
@@ -8904,7 +9035,7 @@ const Remote = (() => {
 
   // ---- what the phone may ask (the whole list) ----
   const D = () => E.get('Game.DEX') || {};
-  const ADD_OK = ['legend', 'under', 'bloc', 'train', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
+  const ADD_OK = ['legend', 'under', 'bloc', 'train', 'discord', 'candy', 'tower', 'raid', 'money', 'region', 'wboss', 'elite', 'league', 'story'];
   // Leagues you can add "Beat a region's League" for: unlocked, not beaten (same list as Mega's Plan tab)
   function storyLeagues() {
     const ST = E.get('STORY'), un = +(E.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
@@ -8931,7 +9062,7 @@ const Remote = (() => {
       if (!ADD_OK.includes(a.type)) throw new Error('that goal type can only be added on the PC');
       if (a.type === 'elite' && !(E.get('LegendZones')?.ZONES || []).some((z) => +z.id === +a.foe)) throw new Error('not a legendary zone');
       if (a.type === 'league' && !(E.get('STORY.REGIONS') || []).some((r) => r.key === String(a.reg))) throw new Error('unknown region');
-      const data = a.type === 'elite' ? { foe: +a.foe, upTo: 5 } : a.type === 'league' ? { reg: String(a.reg), upTo: 5 } : a.type === 'legend' ? { foe: +a.foe } : a.type === 'money' ? { target: Math.max(1, +a.target || 0) } : a.type === 'region' ? { reg: String(a.reg) } : a.type === 'under' ? { from: a.from === 'auto' || a.from == null ? 'auto' : Math.max(1, +a.from || 1), aim: a.aim === 'loot' ? 'loot' : 'deep' } : {};
+      const data = a.type === 'discord' ? { spot: ['money', 'xp', 'mix', 'candy'].includes(a.spot) ? a.spot : 'money' } : a.type === 'elite' ? { foe: +a.foe, upTo: 5 } : a.type === 'league' ? { reg: String(a.reg), upTo: 5 } : a.type === 'legend' ? { foe: +a.foe } : a.type === 'money' ? { target: Math.max(1, +a.target || 0) } : a.type === 'region' ? { reg: String(a.reg) } : a.type === 'under' ? { from: a.from === 'auto' || a.from == null ? 'auto' : Math.max(1, +a.from || 1), aim: a.aim === 'loot' ? 'loot' : 'deep' } : {};
       if (a.type === 'legend' && !D()[+a.foe]) throw new Error('unknown Pokémon');
       if (a.type === 'story') {
         const L = storyLeagues().find((r) => r.key === String(a.region)); if (!L) throw new Error('that League is not open, or already beaten');
