@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.11.4
+// @version      2.11.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
+// @match        https://pokecatch-online.app/*
+// @match        https://www.pokecatch-online.app/*
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
 // @updateURL    https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.meta.js
@@ -18,8 +20,8 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.11.4';
-// every "catch (__e) { __h('00-header:22', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
+const VERSION = '2.11.5';
+// every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
 // Tampermonkey updates on its own slow schedule; this lets a plain reload (Kinesis "Reload Game") run the
