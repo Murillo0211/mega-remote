@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.11.6
+// @version      2.11.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.11.6';
+const VERSION = '2.11.7';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -8937,7 +8937,7 @@ const Plan = (() => {
   const xpLog = new Map(); // uid -> [[t, total, rank]]
   function sampleXp(g) {
     const now = Date.now();
-    for (const u of [...(g.job?.uids || []), ...(g.job?.extra || [])]) {
+    for (const u of new Set([...(S().team || []), ...(g.job?.uids || []), ...(g.job?.extra || [])])) {
       const m = E.read('Game.getMon', null, u); if (!m) continue;
       const tot = xpTotal(m), r = +(m.rank || 0), L = xpLog.get(u) || [];
       if (L.length && (tot < L[L.length - 1][1] || r !== L[L.length - 1][2])) L.length = 0; // ranked up / reset
@@ -8949,7 +8949,11 @@ const Plan = (() => {
   function trainRows(g) {
     if (g?.type !== 'discord' || g.spot !== 'xp' || !g.job) return [];
     const carry = new Set(g.job.nCarry ? (g.job.carriers || []).slice(0, g.job.nCarry) : []);
-    return [...new Set([...(g.job.uids || []), ...(g.job.extra || [])])].filter((u) => !carry.has(u)).map((u) => {
+    // the team as it is now (a trainee that reached Lv 100 is swapped out for the next one - Jimmy 2026-11-23: the card
+    // still showed Gyarados after it hit 100); the goal's own list only when the team isn't set yet
+    const team = (S().team || []).filter((u) => !carry.has(u));
+    const list = team.length ? team : [...new Set([...(g.job.uids || []), ...(g.job.extra || [])])].filter((u) => !carry.has(u));
+    return list.map((u) => {
       const m = E.read('Game.getMon', null, u); if (!m) return null;
       const need = xpNeed(m, m.level), frac = m.level >= 100 ? 1 : Math.min(0.999, (+m.xp || 0) / Math.max(1, need));
       const L = xpLog.get(u) || [], span = L.length > 1 ? (L[L.length - 1][0] - L[0][0]) : 0;
@@ -8962,7 +8966,7 @@ const Plan = (() => {
   // your carrier choice per spot, kept across goals (localStorage mega-discord-carrier: { spot: uid })
   const MEMO = 'mega-discord-carrier';
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
-  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:151', __e); } Plan.save(); }
+  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:155', __e); } Plan.save(); }
   Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
