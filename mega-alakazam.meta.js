@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.11.4
+// @version      2.11.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
+// @match        https://pokecatch-online.app/*
+// @match        https://www.pokecatch-online.app/*
 // @match        https://pokecatch-online.netlify.app/*
 // @match        https://pokecatch-online.pages.dev/*
 // @updateURL    https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.meta.js
