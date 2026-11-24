@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.4
+// @version      2.13.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.4';
+const VERSION = '2.13.5';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1679,6 +1679,11 @@ const Views = (() => {
         <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
         <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes and downloads a new version by itself; it runs the next time the game reloads (Mega reloads it at a safe moment - not during a zone, raid, tower or league - or use Reload Game on Kinesis). A version that fails to start is skipped and this one keeps running. "Install in Tampermonkey too" makes it permanent there (optional - Tampermonkey also catches up by itself).</div></div>`; }
     try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:13px">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:101', __e); }
+    { // text size (2.13.5: moved here from the header, so the header keeps its fold button inside the panel)
+      let i = 2; try { i = JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').scaleIdx ?? 2; } catch (__e) { __h('50-views:103', __e); }
+      const pct = [100, 110, 120, 132, 145, 160][Math.max(0, Math.min(5, i))];
+      h += `<div class="card"><h3>🔠 Text size</h3><div class="row"><span class="k">Mega's text</span><span class="v"><b>${pct}%</b></span></div><div class="btns"><button class="btn" data-act="smaller" ${i <= 0 ? 'disabled' : ''}>A− Smaller</button><button class="btn" data-act="bigger" ${i >= 5 ? 'disabled' : ''}>A+ Bigger</button></div><div class="dim" style="font-size:13px;margin-top:6px">The panel gets wider with bigger text, up to about 40% of the screen.</div></div>`;
+    }
     h += `<div class="card"><h3>🗂️ Tabs</h3><div class="dim" style="font-size:13px">Drag a tab at the top onto another to move it. Your order is saved.</div><button class="btn" data-act="tabs-reset" style="margin-top:6px">Reset tab order</button></div>`;
     { const ci = Calib.info, names = { raid: 'Shiny Raids', elite: 'Elite tiers', zone: 'Legendary zones' };
       const rows = Object.entries(names).map(([k, l]) => { const c = ci[k]; return `<div class="row"><span class="k">${l}</span><span class="v">${c ? `off by ${Math.round(c.errAfter * 100)} pts <span class="dim">(was ${Math.round(c.errBefore * 100)}) · ${c.n} fights · ${new Date(c.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>` : '<span class="dim">not enough fights yet (needs 12)</span>'}</span></div>`; }).join('');
@@ -1703,7 +1708,7 @@ const Views = (() => {
       <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Starf + Nanab while hunting a shiny, Rowap while chasing a roaming legendary (it doubles how long it stays put).</div>
       ${berryRows(esc)}</div>`;
     h += (() => {
-      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:126', __e); }
+      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:131', __e); }
       const nm = (id) => { try { return Casing.names(Engine.get('Game.DEX')[id].name); } catch { return '#' + id; } };
       return `<div class="card"><h3>🥋 Moves</h3>
       <label class="chk"><input type="checkbox" data-act="movetune" ${MoveTune.on ? 'checked' : ''}> Let Mega turn status moves on and off before boss fights</label>
@@ -2916,7 +2921,7 @@ const Sub = (() => {
     plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
     gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^(gems|strongest get stronger)$/], ['all', 'Held', null], ['none', 'Not Held', /^\0$/]],
     blocs: [['blocks', 'Pokéblocks', /^pokéblocks/], ['boss', 'Boss', /boss/], ['rev', 'Revealed', /^revealed/], ['rain', 'Rainbow', /rainbow/]],
-    engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar/], ['health', 'Health', null]],
+    engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar|text size/], ['health', 'Health', null]],
     fights: [['leg', 'Legendaries', null], ['other', 'Trainers & Others', null]],
   };
   const title = (card) => {
@@ -3634,7 +3639,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 
   // theme: Classic (Alakazam 4.x's dark, the default) or Day; the header button switches them
   const THEMES = ['auto', 'day', 'night'];
-  const themeNow = () => { const t = prefs.theme || 'auto'; return t === 'day' ? 'day' : 'night'; }; const themeCls = () => (themeNow() === 'day' ? 'th-day' : 'th-night th-zg'); // Auto = Classic (Alakazam 4.x's dark) since 2026-11-23
+  const themeNow = () => { const t = prefs.theme || 'auto'; return t === 'day' ? 'day' : 'night'; }; const themeCls = () => 'th-night th-zg'; // 2.13.5: one theme (the Day theme is gone) // Auto = Classic (Alakazam 4.x's dark) since 2026-11-23
   function render() {
     if (phoneSwap) return; // drawing for the phone right now: the PC panel keeps its own state
     const w = World.build();
@@ -3645,9 +3650,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (!prefs.open) { wrap.innerHTML = `<div class="rail" data-act="toggle" title="Open Mega Alakazam v${esc(VERSION)}"><img src="${MEGA_ICON}" width="44" height="47" alt=""><span class="dot ${cls}" title="${esc(tip)}"></span><span class="open">›</span></div>`; return; }
     const z = scale();
     wrap.innerHTML = `<div class="panel" style="width:${Math.round(width() / z)}px;zoom:${z}"><div class="grip" title="Drag to resize"></div>
-      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">Mega Alakazam</span><span class="vtag">${esc(VERSION)}</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">New Update ${esc(Updater.available)}</button>` : ''}<button class="fold theme" data-act="theme" title="Theme: ${themeNow() === 'day' ? 'Day' : 'Night'} - click to change">${themeNow() === 'day' ? '☀' : '☾'}</button>
-        <button class="fold" data-act="smaller" title="Smaller text" ${prefs.scaleIdx === 0 ? 'disabled' : ''}>A−</button><button class="fold" data-act="bigger" title="Bigger text">A+</button>
-        <button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
+      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">Mega Alakazam</span><span class="vtag">${esc(VERSION)}</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">Update ${esc(Updater.available)}</button>` : ''}<button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
       <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}</button>`).join('')}</div>
       <div class="body"></div><div class="foot"></div></div>`;
     const grip = root?.querySelector('.grip'), panel = root?.querySelector('.panel');
@@ -3657,8 +3660,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:459', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:460', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:457', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:458', __e); }
     renderBody(true, w);
   }
 
@@ -3673,7 +3676,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:475', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:473', __e); }
     const t = Math.floor((Date.now() - session.at) / 1000), tm = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}`;
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
@@ -3703,8 +3706,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:505', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:506', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:503', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:504', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3719,13 +3722,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:521', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:522', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:519', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:520', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:527', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:525', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
