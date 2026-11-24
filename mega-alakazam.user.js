@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.14
+// @version      2.13.15
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.14';
+const VERSION = '2.13.15';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3383,6 +3383,9 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .wrap.th-zg .chips.subtabs .chip:hover{color:var(--ink)}
 .wrap.th-zg .chips.subtabs .chip.on{color:var(--ink);border-bottom-color:var(--acc);background:transparent}
 .wrap.th-zg table{font-size:var(--t-s)}
+/* section switches (Tasks row, Sim modes): underlined text - shared so Kinesis gets it too */
+.snav{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0 2px 10px;border-bottom:1px solid var(--line)} .snav button{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px} .snav button:hover{color:var(--ink)} .snav button.on{color:var(--ink);border-bottom-color:var(--acc)}
+.wrap.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%,transparent);border-color:color-mix(in srgb,var(--acc) 55%,transparent)}
 
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
@@ -3429,7 +3432,6 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .tcats{display:flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
     .tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:6px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
     .tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
-    .snav{display:flex;gap:16px;margin:0 2px 10px;border-bottom:1px solid var(--line)} .snav button{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px} .snav button:hover{color:var(--ink)} .snav button.on{color:var(--ink);border-bottom-color:var(--acc)}
     .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 12px}
     .tcard{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--card);color:var(--ink);font-size:var(--t-m);font-weight:600;min-height:22px}
     .tcard:hover{border-color:var(--acc)} .tcard .ic{color:var(--acc);font-size:var(--t-m)} .tcard small{display:block;font-size:var(--t-s);color:var(--mute)}
@@ -3511,7 +3513,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:163', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:162', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -3618,7 +3620,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
-      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:270', __e); } renderBody(true); return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:269', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { GoalTypes.setCarrier(g, e.target.value || null); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3684,7 +3686,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:336', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:335', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3718,7 +3720,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:370', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:369', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
@@ -3744,7 +3746,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:396', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:395', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3758,7 +3760,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:410', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:409', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3772,7 +3774,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:424', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:423', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3783,19 +3785,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:435', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:434', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:441', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:440', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:444', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:443', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:447', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:446', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3836,8 +3838,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:488', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:489', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:487', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:488', __e); }
     renderBody(true, w);
   }
 
@@ -3854,12 +3856,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:506', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:505', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:510', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:511', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:509', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:510', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -3891,8 +3893,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:543', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:544', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:542', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:543', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3907,13 +3909,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:559', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:560', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:558', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:559', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:565', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:564', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4974,7 +4976,7 @@ Views.gems = (esc) => {
   Views.legends = (w, ui, esc) => {
     const mode = ui.mode || 'legendary';
     const MODES = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'Gyms & League']];
-    const bar = `<div style="display:grid;grid-template-columns:repeat(${MODES.length},1fr);gap:6px;margin-bottom:10px">${MODES.map(([k, l]) => `<button class="btn sm${mode === k ? ' gold' : ''}" data-act="sim-mode" data-mode="${k}" style="margin:0">${l}</button>`).join('')}</div>`;
+    const bar = `<div class="snav">${MODES.map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="sim-mode" data-mode="${k}">${l}</button>`).join('')}</div>`;
     if (!w.ok) return bar + '<div class="note">Waiting for the game engine.</div>';
     return bar + (mode === 'elite' ? Views.elite(esc, ui) : mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
   };
@@ -9406,6 +9408,9 @@ const Plan = (() => {
     const earned = +(S().stats?.earned || 0), now = berryCounts();
     if (!g.run) { g.run = { at: Date.now(), e0: earned, got: {}, last: now }; Plan.save(); return; }
     let ch = false;
+    // money: add each rise of stats.earned (2.13.14 - the game keeps it per region, so a total minus the start went to 0)
+    if (g.run.eLast == null) { g.run.eLast = earned; g.run.money = g.run.money || 0; ch = true; }
+    else if (earned !== g.run.eLast) { if (earned > g.run.eLast) g.run.money = (g.run.money || 0) + (earned - g.run.eLast); g.run.eLast = earned; ch = true; }
     for (const [k, n] of Object.entries(now)) { const d = n - (g.run.last[k] ?? n); if (d > 0) { g.run.got[k] = (g.run.got[k] || 0) + d; ch = true; } }
     if (Object.keys(now).some((k) => now[k] !== g.run.last[k])) { g.run.last = now; ch = true; }
     if (ch) Plan.save();
@@ -9414,13 +9419,13 @@ const Plan = (() => {
   const berryName = (k) => String(k).replace(/^berry-/, '').replace(/-berry$/, '').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Berry';
   function runTake(g) {
     if (!g?.run) return null;
-    const money = Math.max(0, +(S().stats?.earned || 0) - (g.run.e0 || 0));
+    const money = g.run.money != null ? g.run.money : Math.max(0, +(S().stats?.earned || 0) - (g.run.e0 || 0));
     const berries = Object.entries(g.run.got || {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ key: k, name: berryName(k), n }));
     return { since: g.run.at, money, berries };
   }
   // ---- Ready for Candy ----
   const CANDY_AT = 5.5e6; // XP to the next level where battling stops paying (the chart author's ~5-6 M)
-  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:201', __e); } return o; };
+  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:204', __e); } return o; };
   const awaySet = () => new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
   const capFor = (m) => Math.min(100, +E.read('Game.capFor', 100, m) || 100);
   const slow = (m, at) => xpNeed(m, m.level) >= at;
@@ -9448,12 +9453,12 @@ const Plan = (() => {
     g.candyTold = [...told, ...fresh.map((r) => r.uid)].slice(-200); Plan.save();
     const nm = fresh.map((r) => name(r.id)).join(', ');
     Log.add(`Ready for candy: ${nm} (next level needs ${(fresh[0].next / 1e6).toFixed(1)} M XP)`);
-    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:229', __e); }
+    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:232', __e); }
   }
   // your carrier choice per spot, kept across goals (localStorage mega-discord-carrier: { spot: uid })
   const MEMO = 'mega-discord-carrier';
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
-  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:234', __e); } Plan.save(); }
+  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:237', __e); } Plan.save(); }
   Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, candyReady, CANDY_AT, runTake, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
