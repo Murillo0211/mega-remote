@@ -275,7 +275,7 @@ html.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%
 </style>
 </head>
 <body>
-<header><img class="logo" src="icon-192.png" alt="" style="padding:0;object-fit:cover"><div class="t"><b>Kinesis</b><span id="sub">connecting…</span></div><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button><button class="zbtn" data-z="-1">A−</button><button class="zbtn" data-z="1">A+</button></header>
+<header><img class="logo" src="icon-192.png" alt="" style="padding:0;object-fit:cover"><div class="t"><b>Kinesis</b><span id="sub">connecting…</span></div><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button></header>
 <div class="tabs" id="tabs"></div>
 <main id="main"></main>
 <div class="toast" id="toast" style="opacity:0;pointer-events:none"></div>
@@ -1016,10 +1016,10 @@ function mvBox(tab) {
 const MV_FOLD = new Set(JSON.parse(localStorage.getItem('mr-mvfold') || '[]'));
 const foldKey = (tab, h3) => tab + '|' + h3.textContent.trim().slice(0, 40);
 function mvFolds() { for (const h of document.querySelectorAll('.mv .card > h3')) if (MV_FOLD.has(foldKey(h.closest('.mv').dataset.mvtab, h))) h.parentElement.classList.add('folded'); }
-function mvTab(tab) { return `<div class="dim" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 2px 8px;font-size:13px"><span>Live from your PC${MV.at[tab] ? ' · ' + (Date.now() - MV.at[tab] < 60_000 ? 'just now' : Math.round((Date.now() - MV.at[tab]) / 60_000) + ' min ago') : ''}</span><button class="btn sm" style="width:auto;flex:none;padding:0 14px" data-x="mvReload" data-t="${tab}" aria-label="Refresh">⟳</button></div>` + mvBox(tab); }
+function mvTab(tab) { return mvBox(tab); } // 2.14.1: exactly Mega's screen (refreshes by itself)
 // keep the open screen fresh: every 20 s, and every 3 s for a minute after a tap (sim progress, a run starting)
-setInterval(() => { const t = { box: 'box', dex: 'dex', sim: 'legends', gems: 'gems', blocs: 'blocs', fights: 'fights', set: 'engine', tasks: 'tasks', plan: 'queue', care: 'care' }[view()] || null; if (!t || document.hidden) return;
-  const fast = Date.now() < (MV.fastUntil || 0); if (Date.now() - (MV.at[t] || 0) > (fast ? 3000 : 20000)) mvLoad(t); }, 1000);
+setInterval(() => { const t = { now: 'now', trades: 'trades', box: 'box', dex: 'dex', sim: 'legends', gems: 'gems', blocs: 'blocs', fights: 'fights', set: 'engine', tasks: 'tasks', plan: 'queue', care: 'care' }[view()] || null; if (!t || document.hidden) return;
+  const fast = Date.now() < (MV.fastUntil || 0) || t === 'now'; if (Date.now() - (MV.at[t] || 0) > (fast ? (t === 'now' ? 5000 : 3000) : 20000)) mvLoad(t); }, 1000);
 let mvTyping = null;
 document.addEventListener('input', (e) => { const el = e.target.closest('.mv input'); if (!el || el.type === 'checkbox') return; clearTimeout(mvTyping); mvTyping = setTimeout(() => mvSend(el, 'input'), 450); }, true);
 function vFights() { return mvTab('fights'); }
@@ -1028,6 +1028,11 @@ function mvSend(el, kind) {
   const tab = box.dataset.mvtab, data = { ...el.dataset };
   if (data.act === 'fold-card') { el.closest('.card')?.classList.toggle('folded'); return; }
   if (data.act === 'tab' && data.tab) { goTab(data.tab); window.scrollTo(0, 0); render(); return; } // a link to another of Mega's screens
+  if (['gem-fuse', 'gem-buy', 'gem-reroll'].includes(data.act) && !data.sure) { askConfirm((el.textContent || '').trim() + '?').then((ok) => { if (ok) { el.dataset.sure = '1'; mvSend(el, kind); delete el.dataset.sure; } }); return; }
+  // the phone's own sheets for what must be confirmed here (Mega never does these from a phone tap by itself)
+  if (data.act === 'tr-open' && data.id) { openTrades(+data.id, !!data.shiny); window.scrollTo(0, 0); return; }
+  if (data.act === 'm-egg-hatch') { askConfirm(data.uid ? 'Hatch this egg?' : 'Hatch every ready egg?').then((ok) => { if (ok) cmd('egg.hatch', { uid: data.uid || null }, 'Hatch', () => { MV.at.care = 0; MV.at.now = 0; render(); }); }); return; }
+  if (data.act === 'bigger' || data.act === 'smaller') { zoomI = Math.max(0, Math.min(ZOOMS.length - 1, zoomI + (data.act === 'bigger' ? 1 : -1))); store.set('mr-zoom', zoomI); applyZoom(); toast(`Text size: ${Math.round(ZOOMS[zoomI] * 100)}%`); return; } // Mega's Text Size card sizes the phone's text here
   if (data.act === 'gem-rank') { gemSheet({ i: data.id, n: data.need, lb: data.label, r: data.rank, g: data.gain, lv: data.lv, ev: data.ev, u: data.uid, k: data.key }); return; }
   MV.fastUntil = Date.now() + 60_000;
   cmd('ui.act', { tab, data, kind, checked: !!el.checked, value: el.value ?? '', tag: el.tagName.toLowerCase() }, el.textContent.trim().slice(0, 40) || data.act, (r, d) => { if (d && d.html != null) { MV.html[tab] = d.html; MV.at[tab] = Date.now(); render(); } });
@@ -1042,12 +1047,13 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', (e) => { const el = e.target.closest('.mv select[data-act], .mv select'); if (el && el.closest('.mv')) mvSend(el, 'change'); }, true);
 function vSet() {
   const s = snap?.set || {};
-  return `<div class="card"><h3>Updates</h3><div class="dim">Mega ${esc(snap?.ver || '?')}${snap?.upd ? ` · <span class="ok">${esc(snap.upd)} ready</span>` : ''}</div><div class="flex" style="gap:8px;margin-top:8px"><button class="btn grow" data-c="update.check" data-l="Check for updates">⬆ Check for Updates</button><button class="btn grow" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div></div>
+  // 2.14.1: Mega's own Settings first, exactly as on the PC (its Text Size buttons size this phone's text);
+  // then what only the phone has: its alerts and its pairing
+  return `${mvTab('engine')}
+  <div class="lbl" style="margin:16px 2px 6px">This phone</div>
   ${alertsCard()}
-  <div class="lbl" style="margin:16px 2px 6px">Mega's settings on your PC</div>
-  ${mvTab('engine')}
     <div class="card"><h3>This Phone</h3><div>Paired with your PC.${snap ? ` Mega ${esc(snap.ver)}.` : ''}</div>
-    <button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button>
+    <div class="btns"><button class="btn" data-c="ping" data-l="Test the connection">Test the Connection</button><button class="btn" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>
     <button class="btn danger" data-x="unpair">Unpair This Phone</button>
     <div class="dim" style="margin-top:8px">The pairing is saved in this page's link, so a bookmark or Share → Add to Home Screen made from here keeps working (make it from this page, not from an old link). Keep the link to yourself: it's the key to your Mega.</div></div>`;
 }
@@ -1192,7 +1198,7 @@ function render() {
   // 1.0: Pokédex, PC, Simulate, Gems and Activity are Mega's own screens (Now, Plan and Trades keep their phone shape)
   // 2.14: Tasks, Queue and Day Care are Mega's own screens too; Now keeps its phone shape (live numbers), overview only
   const vt = view();
-  const V0 = { box: () => mvTab('box'), team: vTeam, now: () => subApply('now', vNow(), 'main'), tasks: () => mvTab('tasks'), plan: () => mvTab('queue'), care: () => mvTab('care'), dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[vt] || vNow;
+  const V0 = { box: () => mvTab('box'), team: vTeam, now: () => mvTab('now'), tasks: () => mvTab('tasks'), plan: () => mvTab('queue'), care: () => mvTab('care'), dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: () => (tr.sel || tr.mode ? vTrades() : mvTab('trades')), gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[vt] || vNow;
   // the status card (Mega's own, from the snapshot) and the section row, like Mega's panel
   const V = () => ((vt === 'plan' || vt === 'care' || vt === 'set' || vt === 'team' ? '' : (snap.stat || '')) + (GROUPS[tab] ? `<div class="snav">${GROUPS[tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-x="grp" data-v="${k}">${l}</button>`).join('')}</div>` : '') + V0());
   const banner = RELAY ? '' : `<div class="card" style="border-color:var(--gold-lo)"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
