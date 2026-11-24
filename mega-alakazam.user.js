@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.14.1
+// @version      2.14.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.14.1';
+const VERSION = '2.14.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7235,7 +7235,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:205', __e); }
       }
       const berry = Berries.keep('xp', 'training');
-      return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
+      return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.filter((u) => lvl(u) != null).map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
     },
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
