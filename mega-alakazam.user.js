@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.7
+// @version      2.15.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.7';
+const VERSION = '2.15.8';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7378,7 +7378,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     return { short: [...new Set([...guide, ...byMatch, ...byPow])], cov, guide };
   }
   async function ugPick(bay, from, taken, aim) {
-    const theme = U().themeOf(bay);
+    // the theme this bay sends into next: theme(bay). (themeOf(key) turns a theme KEY into its object - given a bay
+    // number it fell back to Flooded, so before 2.15.8 every bay was picked and simulated as Flooded)
+    const theme = U().theme(bay);
     const pool = eligible().filter((m) => !taken.has(m.uid)).sort((a, b) => b.level - a.level || power(b) - power(a));
     const size = (E.get('CONFIG')?.UNDERGROUND?.TEAM) || 3;
     if (pool.length < size) return { error: `only ${pool.length} Pokémon free to send today` };
@@ -7440,12 +7442,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:168', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:170', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:172', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:173', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:174', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:175', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -7467,12 +7469,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       (async () => { try {
         const taken = new Set();
         for (const bay of free.slice(0, left)) {
-          const sig = [S().under?.day, bay, JSON.stringify(u.themeOf(bay)), g.from, aim, JSON.stringify(u.starts()), [...reserved()].sort().join(',')].join('|');
+          const sig = [S().under?.day, bay, JSON.stringify(u.theme(bay)), g.from, aim, JSON.stringify(u.starts()), [...reserved()].sort().join(',')].join('|');
           let pl = ugPlans[bay];
           // a team Jimmy booked for one bay theme on one Underground day (2.15.3: White Kyurem / Dialga / Reshiram for
           // Galleries on 2026-11-25). It waits for them up to 3 h into the day (he frees them from other plans), then gives up.
           const bk = booked();
-          if (bk && bk.day === S().under?.day && u.themeOf(bay)?.key === bk.theme) {
+          if (bk && bk.day === S().under?.day && u.theme(bay)?.key === bk.theme) {
             const busy = reserved(), el = new Set(eligible().map((m) => m.uid));
             const free2 = bk.uids.every((x) => el.has(x) && !busy.has(x) && !taken.has(x));
             if (!free2) {
@@ -7480,7 +7482,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
               if (Date.now() - bk.seen < 3 * 3600_000) { ugStatus = `bay ${bay + 1} is kept for your booked team (${bk.label}) - one of them is still busy`; continue; }
               Log.add(`Underground: your booked team (${bk.label}) was still busy 3 h into the day - bay ${bay + 1} gets a normal pick`); saveBook(null);
             } else {
-              const th = u.themeOf(bay), team = bk.uids.map((x) => E.read('Game.getMon', null, x));
+              const th = u.theme(bay), team = bk.uids.map((x) => E.read('Game.getMon', null, x));
               const d = await depth(team, th, 1, 6);
               pl = { sig, uids: bk.uids.slice(), guide: 0, floors: Math.round(d.med ?? d.deep), low: Math.round(d.deep), cleared: Math.round(d.cleared), value: Math.round(d.value), from: 1, theme: th?.name || bk.theme, booked: 1 };
               ugPlans[bay] = pl;
@@ -7501,8 +7503,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, pl.from || 1);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:229', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:230', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:231', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:232', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who}${pl.guide ? ` (${pl.guide} of them from the Discord guide's picks)` : ''} from floor ${pl.from} - about floor ${pl.floors}, floor ${pl.low ?? pl.floors} on a bad run (${pl.cleared}+ floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
           g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, low: pl.low, cleared: pl.cleared, theme: pl.theme };
           if (pl.booked) { saveBook(null); Log.add('Underground: your booked team is on its way'); }
