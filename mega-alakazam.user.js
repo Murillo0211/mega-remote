@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.14.2
+// @version      2.15.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.14.2';
+const VERSION = '2.15.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2322,7 +2322,7 @@ const DayCare = (() => {
     const d = info(), ready = d.eggs.filter((e) => e.ready && !told.includes(e.uid));
     // auto-collect (2.13.14, Jimmy's switch on the Day Care tab): hatch ready eggs by itself, never inside a
     // Legendary zone, league, tower or raid (the game's own hatch call, like the Hatch button)
-    if (ready.length && autoOn()) {
+    if (ready.length && autoOn() && !(typeof GameMode !== 'undefined' && GameMode.on())) {
       const a = E.get('Game.S')?.adv || {};
       if (!(a.zone || a.league || a.tower || a.raid || a.event)) {
         const r = hatch(); Log.add(`Day Care auto-collect: ${r}`);
@@ -8984,6 +8984,7 @@ const Plan = (() => {
       }
       if (!st.running) { if (st.idle) await idleStop('plan paused'); top = 'paused - press Start to run the plan'; return; }
       if (oldOn()) { top = 'waiting: Alakazam 4.x is switched on'; return; }
+      if (GameMode.on()) { top = 'Game Mode is open on your phone - Mega is stepping aside'; return; }
       const h = GoalTypes.holder();
       let runs = st.goals.filter((g) => !g.done && live[g.id]?.state === 'ready');
       // the goal whose run it is keeps going (an Elite League goal must see its own run: the 10-loss step back and the
@@ -9057,14 +9058,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:233', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:234', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:240', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:241', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -9087,7 +9088,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:263', __e); }
+    } catch (__e) { __h('70-plan-20-engine:264', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -9102,7 +9103,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:278', __e); }
+    } catch (__e) { __h('70-plan-20-engine:279', __e); }
   }
   function formGoals() {
     try {
@@ -9112,7 +9113,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:288', __e); }
+    } catch (__e) { __h('70-plan-20-engine:289', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
@@ -9969,6 +9970,7 @@ const Updater = (() => {
     try {
       const a = E.get('Game.S')?.adv || {};
       if (a.zone || a.tower || a.league || a.event) return false;
+      if (GameMode.on()) return false; // never reload under Jimmy's thumb in Game Mode
       const busy = (Plan.goals || []).some((g) => !g.done && Plan.live(g.id)?.state === 'running' && ['raid', 'elite', 'league', 'wboss', 'legend', 'candy', 'tower', 'trade'].includes(g.type));
       return !busy;
     } catch { return false; }
@@ -9978,16 +9980,16 @@ const Updater = (() => {
     const m = memo(), r = m[v] || { tries: 0, at: 0 };
     if (r.tries >= 4 || Date.now() - r.at < 30 * 60_000 || !safe()) return;
     m[v] = { tries: r.tries + 1, at: Date.now() }; keep(m);
-    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:71', __e); }
-    try { E.call('Game.save'); } catch (__e) { __h('79-update:72', __e); }
-    try { Decisions.save(); } catch (__e) { __h('79-update:73', __e); }
+    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:72', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('79-update:73', __e); }
+    try { Decisions.save(); } catch (__e) { __h('79-update:74', __e); }
     setTimeout(() => location.reload(), 1500);
   }
   const autoOn = () => { try { return JSON.parse(localStorage.getItem('mega-upd-auto') ?? 'true'); } catch { return true; } };
-  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:77', __e); } }
+  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:78', __e); } }
   function afterLoad() {
     const m = memo(), mine = m[VERSION];
-    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:80', __e); } }
+    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:81', __e); } }
     // first run of this version: self-test once the game is up; a failure rolls back to the version before
     if (localStorage.getItem('mega-tested-ver') !== VERSION) setTimeout(firstTest, 90_000);
   }
@@ -9997,22 +9999,22 @@ const Updater = (() => {
     if (!r.failed) { localStorage.setItem('mega-tested-ver', VERSION); return; }
     const why = (r.results || []).filter((x) => !x.warn).slice(0, 2).map((x) => `${x.name}: ${x.detail}`).join(' | ');
     if (window.__MEGA_HOT !== VERSION) { // installed through Tampermonkey: nothing to go back to here - just tell you
-      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:90', __e); }
+      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:91', __e); }
       localStorage.setItem('mega-tested-ver', VERSION); return;
     }
     const pv = localStorage.getItem('mega-prev-ver'), pc = localStorage.getItem('mega-prev-code');
     localStorage.setItem('mega-next-bad', VERSION);
     if (pv && pc && pv !== VERSION) { localStorage.setItem('mega-next-code', pc); localStorage.setItem('mega-next-ver', pv); localStorage.setItem('mega-next-try', '0'); }
     else { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); }
-    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:97', __e); }
-    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:98', __e); }
+    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:98', __e); }
+    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:99', __e); }
     reloadNow('reloading into the version before');
   }
   const E = Engine;
   // After a reload the game waits on its title screen: press its own Continue button (only that one,
   // only on the title screen). "Two saves found" is never touched - it sends a Needs You alert instead.
   const contOn = () => { try { return JSON.parse(localStorage.getItem('mega-auto-continue') ?? 'true'); } catch { return true; } };
-  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:105', __e); } }
+  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:106', __e); } }
   function autoContinue() {
     const t0 = Date.now(); let pressed = false, warned = false;
     const tick = () => {
@@ -10020,15 +10022,15 @@ const Updater = (() => {
       try {
         const txt = document.body?.innerText || '';
         if (/two saves|deux sauvegardes/i.test(txt)) {
-          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:113', __e); } }
+          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:114', __e); } }
           return setTimeout(tick, 2000);
         }
         if (!pressed && contOn() && document.body?.classList.contains('titled')) {
           const b = [...document.querySelectorAll('.title-fx .ti-go')].find((x) => /^\s*(continue|continuer)\s*$/i.test(x.textContent || ''));
-          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:118', __e); } }
+          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:119', __e); } }
         }
         if (pressed && !document.body?.classList.contains('titled')) return;
-      } catch (__e) { __h('79-update:121', __e); }
+      } catch (__e) { __h('79-update:122', __e); }
       setTimeout(tick, 700);
     };
     setTimeout(tick, 1500);
@@ -10039,11 +10041,11 @@ const Updater = (() => {
   // (you pressed Update there), Mega reloads the game so the new version runs
   function install() {
     if (got && got === latest) { reloadNow(`reloading the game to run Mega ${latest}`); return; }
-    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:132', __e); }
+    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:133', __e); }
     const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back); reloadNow(`reloading the game to run Mega ${latest}`); };
     setTimeout(() => { document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); }, 800);
   }
-  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:136', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:136', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:136', __e); } setTimeout(() => location.reload(), 1500); }
+  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:137', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:137', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:137', __e); } setTimeout(() => location.reload(), 1500); }
   return { boot, check, install, reloadNow, setAuto, setContinue, get autoContinue() { return contOn() !== false; }, get downloaded() { return got; }, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
 })();
 
@@ -10335,6 +10337,12 @@ const Remote = (() => {
       if (I.err && !I.latest) return 'could not reach GitHub: ' + I.err;
       return v ? `New Update ${v} is ready${Updater.downloaded === v ? ' - downloaded, tap Reload Game to run it' : ''}` : `you're up to date (${VERSION})`;
     },
+    // Game Mode (2.15): the game's screen on the phone, a tap there presses it here; Mega steps aside meanwhile
+    'gm.css': (a, rid) => { GameMode.hold(); replies[rid] = { at: Date.now(), once: 1, data: GameMode.css() }; return 'ok'; },
+    'gm.frame': (a, rid) => { replies[rid] = { at: Date.now(), once: 1, data: GameMode.get(String(a.h || '')) }; return 'ok'; },
+    'gm.tap': (a) => GameMode.tap(a.f, a.i),
+    'gm.set': (a) => GameMode.set(a.f, a.i, a.v),
+    'gm.off': () => { GameMode.off(); return 'Mega is back in charge'; },
     'game.reload': () => { Updater.reloadNow('phone: reloading the game'); return 'reloading the game - back in a few seconds'; },
     'egg.hatch': (a) => { const r = DayCare.hatch(a.uid || null); if (/^hatched/.test(r)) Log.add('phone: ' + r); return r; },
     'team.get': (a, rid) => { // your team + everyone who can join it (not in the Underground)
@@ -10399,16 +10407,16 @@ const Remote = (() => {
   let lastPair = 0;
   let es = null, seen = new Set(), parts = new Map(), lastSig = '', lastSent = 0, pushing = false, lastErr = null, watchedAt = 0;
   function listen() {
-    try { es?.close(); } catch (__e) { __h('80-remote:353', __e); }
+    try { es?.close(); } catch (__e) { __h('80-remote:359', __e); }
     es = null;
     if (!cfg.on || !cfg.cmd) return;
     if (relay()) {
       es = new EventSource(`${RELAY}/sub/${encodeURIComponent(cfg.cmd)}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:358', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:364', __e); } };
       pairRelay();
     } else {
       es = new EventSource(`https://ntfy.sh/${cfg.cmd}/sse?since=${cfg.lastCmd || '10m'}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:362', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:368', __e); } };
     }
     es.onerror = () => { lastErr = 'phone link reconnecting…'; };
     es.onopen = () => { lastErr = null; };
@@ -10475,13 +10483,13 @@ const Remote = (() => {
     if (ev?.raid) { kind = 'raid'; foe = +ev.id; reg = ev.reg; }
     else if (a.zone) { foe = +(a.zone.foe ?? a.zone.id); kind = a.zone.wb ? 'wboss' : a.zone.tier ? 'elite' : 'legend'; }
     if (!kind || !foe) return null;
-    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:429', __e); }
+    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:435', __e); }
     const day = Date.now() - 86_400_000;
     // boss fights today against this foe (raid: the raid's static boss; zone: zone fights)
     // (a Legendary like Cresselia is also a 'static' encounter, so 'static' can't mean raid - only the raid flag does)
     const boss = fights.filter((f) => f.at > day && (kind === 'raid' ? !!f.raid : !f.raid));
     let kos, wipes;
-    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:435', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
+    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:441', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
     else { kos = boss.filter((f) => f.outcome === 'ko').length; wipes = boss.filter((f) => f.outcome === 'wipe').length; }
     // time per fight: the median gap between boss fights (travel + fight), else the raid loop time
     const st = boss.map((f) => f.at).sort((x, y) => x - y), gaps = [];
@@ -10490,11 +10498,11 @@ const Remote = (() => {
     const per = gaps.length ? gaps[Math.floor(gaps.length / 2)] : kind === 'raid' ? +ev.loopMs || null : boss[0]?.ms || null;
     let chance = null;
     if (kind === 'raid') chance = +(C.RAID?.CATCH) || 0.01;
-    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:444', __e); } }
+    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:450', __e); } }
     if (!(chance > 0)) chance = fightCache?.foe === foe ? fightCache.chance : null;
     let tries = 0, pity = null;
-    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:447', __e); } pity = +(C.RAID?.PITY) || null; }
-    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:448', __e); } }
+    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:453', __e); } pity = +(C.RAID?.PITY) || null; }
+    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:454', __e); } }
     else tries = +(S.legTries?.[foe] ?? 0);
     const koRate = kos + wipes ? kos / (kos + wipes) : null;
     // expected: KOs for a 50% / 90% chance, and the time that takes at today's KO rate
@@ -10512,7 +10520,7 @@ const Remote = (() => {
     const S = E.get('Game.S') || {}, Dx = E.get('Game.DEX') || {}, a = S.adv || {}, g = E.get('Game');
     const hp = (m) => { try { return [Math.max(0, Math.round(g.curHp(m))), Math.round(g.maxHp(m))]; } catch { return [0, 0]; } };
     const goals = Plan.goals.filter((x) => !x.done && ['running', 'ready'].includes(Plan.live(x.id)?.state)).map((x) => {
-      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:466', __e); }
+      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:472', __e); }
       return [x.id, Casing.names(Plan.live(x.id)?.line || ''), p];
     });
     const foes = (a.battle?.enemies || []).filter((e) => e && e.id != null).map((e) => [e.id, e.level || 0, ...hp(e)]);
@@ -10554,6 +10562,112 @@ const Remote = (() => {
 })();
 
 /* ---------------------------------------------------------------------------------------------
+ * Game Mode (2.15, Jimmy 2026-11-23: "a button in Kinesis called Game Mode - the exact layout of the
+ * game minus the animated window, and every tap presses it on my actual game"). While the phone has
+ * Game Mode open, Mega copies what's on the game's screen (top bar, menu, the open page, pop-ups -
+ * never the battle arena or the canvases) and sends it to the phone; a tap there presses the same
+ * element here. Mega steps aside meanwhile (the plan waits; an Elite League or Legendary run the game is
+ * already in keeps going on its own), and picks up again 45 s after the phone stops asking.
+ * Never from the phone: "Two saves found", releasing Pokémon, password / PIN boxes.
+ * ------------------------------------------------------------------------------------------- */
+const GameMode = (() => {
+  let until = 0, frame = 0, lastHtml = '', lastHash = '';
+  const maps = new Map(); // frame -> [element]
+  const on = () => Date.now() < until;
+  const hold = () => { const was = on(); until = Date.now() + 45_000; if (!was) Log.add('Game Mode on the phone - Mega steps aside'); };
+  const off = () => { if (on()) Log.add('Game Mode closed - Mega picks up again'); until = 0; maps.clear(); };
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'CANVAS', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'VIDEO', 'AUDIO', 'META']);
+  const SKIP_ID = new Set(['mega-alakazam', 'arena']);
+  const BLOCK = /two saves|deux sauvegardes|release|relâcher|relacher|libérer|liberer|relâch|delete save|supprimer/i;
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + ':' + s.length; };
+  const KEEP = ['class', 'style', 'alt', 'title', 'aria-label', 'role', 'type', 'placeholder', 'colspan', 'rowspan', 'width', 'height', 'viewBox', 'd', 'fill', 'stroke', 'points', 'x', 'y', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'x2', 'y1', 'y2', 'transform', 'stroke-width', 'opacity', 'min', 'max', 'step'];
+  // the game's stylesheets: its own files by address (they load on the phone straight from the game's site),
+  // and the styles it writes into the page as text
+  function css() {
+    const links = [], text = [];
+    for (const s of document.styleSheets) {
+      const n = s.ownerNode; if (!n || n.closest?.('#mega-alakazam') || /^mega-/.test(n.id || '')) continue; // Mega's own (the panel dock moves the game over)
+      if (s.href) { links.push(s.href); continue; }
+      try { text.push([...s.cssRules].map((r) => r.cssText).join('\n')); } catch (__e) { __h('82-gamemode:30', __e); }
+    }
+    return { links, text: text.join('\n'), html: attr(document.documentElement.className || ''), hstyle: attr(document.documentElement.getAttribute('style') || ''), body: attr(document.body.className || '') };
+  }
+  // one copy of the screen; every element gets data-gm=<n> so a tap can be pressed on the real one
+  function snap() {
+    const els = [];
+    const blockedBox = (el) => { const m = el.closest?.('#modal-root, .modal, [role=dialog]'); return !!(m && BLOCK.test(m.textContent || '') && /two saves|deux sauvegardes/i.test(m.textContent || '')); };
+    function ser(n) {
+      if (n.nodeType === 3) return esc(n.nodeValue);
+      if (n.nodeType !== 1) return '';
+      const tag = n.tagName; if (SKIP.has(tag) || SKIP_ID.has(n.id)) return '';
+      let cs; try { cs = getComputedStyle(n); } catch { return ''; }
+      // the game has its own phone layout (at 640 px and below), so parts the wide screen hides stay in: only the
+      // pages that aren't open (and anything marked hidden) are left out
+      if (n.hidden || (cs.display === 'none' && (n.matches('#app main > .screen, #modal-root, .modal, [role=dialog], .tooltip, .tip') || n.querySelectorAll('*').length > 150))) return '';
+      const i = els.push(n) - 1, t = tag.toLowerCase();
+      let a = ` data-gm="${i}"`;
+      for (const k of KEEP) { const v = n.getAttribute(k); if (v != null && v !== '') a += ` ${k}="${attr(v)}"`; }
+      if (n.id) a += ` id="${attr(n.id)}"`;
+      if (t === 'img') { if (n.currentSrc || n.src) a += ` src="${attr(n.currentSrc || n.src)}"`; a += ' loading="lazy"'; }
+      if (n.disabled) a += ' disabled';
+      if (cs.cursor === 'pointer') a += ' data-gmp="1"';
+      const label = (n.textContent || '').trim().slice(0, 80);
+      const pw = t === 'input' && /password/i.test(n.type || '') || /pin|password|mot de passe/i.test(n.getAttribute('name') || '') || /pin|password|mot de passe/i.test(n.getAttribute('placeholder') || '');
+      if (pw || ((t === 'button' || cs.cursor === 'pointer') && BLOCK.test(label) && label.length < 40) || blockedBox(n)) a += ' data-gmx="1"';
+      if (t === 'input') { if (!pw && n.type !== 'file') a += ` value="${attr(n.value)}"`; if (n.checked) a += ' checked'; return `<input${a}>`; }
+      if (t === 'textarea') return `<textarea${a}>${esc(n.value)}</textarea>`;
+      if (t === 'select') return `<select${a}>${[...n.options].map((o) => `<option value="${attr(o.value)}"${o.selected ? ' selected' : ''}>${esc(o.text)}</option>`).join('')}</select>`;
+      if (t === 'img' || t === 'br' || t === 'hr') return `<${t}${a}>`;
+      let inner = ''; for (const c of n.childNodes) inner += ser(c);
+      return `<${t}${a}>${inner}</${t}>`;
+    }
+    const parts = [];
+    for (const c of document.body.children) parts.push(ser(c));
+    const html = parts.join('');
+    frame += 1; maps.set(frame, els); for (const k of [...maps.keys()]) if (k < frame - 3) maps.delete(k);
+    return { f: frame, html };
+  }
+  // the phone asks for the screen: the same hash back means nothing changed
+  function get(h) {
+    hold();
+    const s = snap(), hh = hash(s.html);
+    if (hh === h) { maps.delete(s.f); frame -= 1; return { same: 1, f: frame }; }
+    lastHtml = s.html; lastHash = hh;
+    return { f: s.f, h: hh, html: s.html };
+  }
+  function find(f, i) { const els = maps.get(+f); const el = els?.[+i]; if (!el || !el.isConnected) throw new Error('the screen changed - tap again'); return el; }
+  function guard(el) {
+    const label = (el.textContent || '').trim();
+    if (el.tagName === 'INPUT' && /password/i.test(el.type || '')) throw new Error('passwords and PINs stay on the Mac');
+    const m = el.closest('#modal-root, .modal, [role=dialog]'); if (m && /two saves|deux sauvegardes/i.test(m.textContent || '')) throw new Error('"Two saves found" stays on the Mac');
+    if (label.length < 40 && BLOCK.test(label)) throw new Error('releasing Pokémon stays on the Mac');
+  }
+  // press it the way a mouse would (some of the game's buttons listen for the press, not the click)
+  function tap(f, i) {
+    hold();
+    const el = find(f, i); guard(el);
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 };
+    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:89', __e); }
+    el.dispatchEvent(new MouseEvent('mousedown', o));
+    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:91', __e); }
+    el.dispatchEvent(new MouseEvent('mouseup', o));
+    el.click();
+    return 'ok';
+  }
+  function set(f, i, v) {
+    hold();
+    const el = find(f, i); guard(el);
+    if (!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) throw new Error('that is not a box you can type in');
+    if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!v; else el.value = String(v ?? '');
+    el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+    return 'ok';
+  }
+  return { on, hold, off, css, get, tap, set, _last: () => ({ hash: lastHash, size: lastHtml.length }) };
+})();
+
+/* ---------------------------------------------------------------------------------------------
  * Main: wait for the page and the engine, then mount the panel.
  * ------------------------------------------------------------------------------------------- */
 function start() {
@@ -10567,7 +10681,7 @@ function start() {
 start();
 Recorder.start();
 // debug handle (read-only use from the console / Claude)
-window.__MEGA = { VERSION, Engine, EliteSim, EliteInfo, GemFocus, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
+window.__MEGA = { VERSION, GameMode, Engine, EliteSim, EliteInfo, GemFocus, MoveTune, TopBar, Berries, EggPredict, Risk, LeagueInfo, XpChap, TradePick, Blackbox, World, Views, Recorder, Analyse, Sim, Legends, Plan, GoalTypes, Log, Health, Notify, Casing, UI, Decisions, GameGuard, GymPlan, Buddy, BossLog,
   // proves the whole path: a silent catch, rewritten by the build, reaching Health
   healthProbe: () => { try { throw new Error('health probe'); } catch (__e) { __h('90-main:17', __e); } return Object.keys(Health.sites).some((k) => k.startsWith('90-main:')); } };
 // self-update: tell the copy that loaded us that we came up; after a healthy minute, clear the try count
