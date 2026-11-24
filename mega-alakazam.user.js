@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.0
+// @version      2.13.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.0';
+const VERSION = '2.13.1';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3260,9 +3260,9 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .th-zg .hd .t{all:unset;font-weight:800;font-size:15px;color:var(--ink);white-space:nowrap}
     .th-zg .hd img.ver{background:var(--acc);border-radius:10px;padding:2px;width:30px;height:32px}
     .vtag{font:11px ui-monospace,monospace;color:var(--mute)}
-    .tabs{grid-template-columns:repeat(7,minmax(0,1fr));gap:0;padding:0 6px;border-bottom:1px solid var(--line)}
+    .tabs{display:flex;gap:0;padding:0 4px;border-bottom:1px solid var(--line)}
     .th-zg .tabs{background:#152132}
-    .tabs button{border-radius:0;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 2px 8px;color:var(--mute)}
+    .tabs button{flex:1 1 auto;border-radius:0;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 3px 8px;color:var(--mute);overflow:visible;text-overflow:clip}
     .tabs button:hover{background:#ffffff0d;color:var(--ink)}
     .tabs button.on{background:transparent;color:var(--acc);border-bottom-color:var(--acc);box-shadow:none}
     .stat{padding:11px 12px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
@@ -3272,8 +3272,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
     .mets div{padding:9px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
     .mets b{display:block;font-size:17px;font-variant-numeric:tabular-nums} .mets span{font-size:11px;color:var(--mute)}
-    .tcats{display:flex;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
-    .tcat{all:unset;cursor:pointer;flex:1;text-align:center;padding:8px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
+    .tcats{display:flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
+    .tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:8px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
     .tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
     .tcats.grp{margin-top:-2px}
     .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
@@ -3670,7 +3670,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const cur = Plan.goals.find((g) => !g.done && ['running', 'ready'].includes(Plan.live(g.id)?.state)) || null, L = cur ? Plan.live(cur.id) : null;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.values(d).filter((x) => x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:472', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:472', __e); }
     const t = Math.floor((Date.now() - session.at) / 1000), tm = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}`;
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
