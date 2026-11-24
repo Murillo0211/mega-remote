@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.5
+// @version      2.13.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.5';
+const VERSION = '2.13.6';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3068,15 +3068,17 @@ const UI = (() => {
   const PREFS_KEY = 'mega-alakazam-ui';
   const prefs = (() => { try { return { tab: 'tasks', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'tasks', open: true }; } })();
   // 2.13: seven tabs; some hold several of Mega's screens, switched by a row under the status card
-  const GROUPS = { live: [['now', 'Now'], ['act', 'Activity'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
+  const GROUPS = { home: [['tasks', 'Tasks'], ['now', 'Now'], ['act', 'Activity'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
   const groupOf = (k) => Object.keys(GROUPS).find((g) => GROUPS[g].some(([x]) => x === k)) || null;
   function goTab(k) { // any screen key (old or new) -> the tab that shows it
     const g = groupOf(k);
     if (g) { prefs.tab = g; prefs.grp = { ...(prefs.grp || {}), [g]: k }; } else prefs.tab = k;
   }
   const view = () => (GROUPS[prefs.tab] ? (prefs.grp?.[prefs.tab] && GROUPS[prefs.tab].some(([x]) => x === prefs.grp[prefs.tab]) ? prefs.grp[prefs.tab] : GROUPS[prefs.tab][0][0]) : prefs.tab);
-  if (!prefs.v213) { goTab(prefs.tab || 'tasks'); if (prefs.tab === 'now' || prefs.tab === 'live') prefs.tab = 'tasks'; delete prefs.tabOrder; prefs.v213 = 1; }
-  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:18', __e); } };
+  if (!prefs.v213) { goTab(prefs.tab || 'tasks'); delete prefs.tabOrder; prefs.v213 = 1; }
+  // 2.13.6: Tasks and Live are one tab (Tasks · Now · Activity · Fights)
+  if (!prefs.v2136) { if (prefs.tab === 'live') goTab(prefs.grp?.live || 'now'); else if (prefs.tab === 'tasks') goTab('tasks'); delete prefs.tabOrder; prefs.v2136 = 1; }
+  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:20', __e); } };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtIn = (t) => {
     if (!t) return '';
@@ -3267,22 +3269,22 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .vtag{font:11px ui-monospace,monospace;color:var(--mute)}
     .tabs{display:flex;gap:0;padding:0 4px;border-bottom:1px solid var(--line)}
     .th-zg .tabs{background:#152132}
-    .tabs button{flex:1 1 auto;border-radius:0;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 3px 8px;color:var(--mute);overflow:visible;text-overflow:clip}
+    .tabs button{flex:1 1 auto;font-size:12.5px;border-radius:0;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 3px 8px;color:var(--mute);overflow:visible;text-overflow:clip}
     .tabs button:hover{background:#ffffff0d;color:var(--ink)}
     .tabs button.on{background:transparent;color:var(--acc);border-bottom-color:var(--acc);box-shadow:none}
-    .stat{padding:11px 12px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
+    .stat{padding:9px 11px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
     .stat .live{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
-    .stat b{display:block;font-size:15px} .stat .dim{font-size:var(--t-s)}
+    .stat b{display:block;font-size:14px} .stat .dim{font-size:var(--t-s)}
     .sdot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 7px var(--acc)} .sdot.off{background:var(--faint);box-shadow:none} .sdot.err{background:var(--bad)}
     .mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
-    .mets div{padding:9px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
-    .mets b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums} .mets span{display:block;font-size:11px;line-height:1.25;color:var(--mute);white-space:nowrap}
+    .mets div{padding:7px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
+    .mets b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums} .mets span{display:block;font-size:11px;line-height:1.25;color:var(--mute);white-space:nowrap}
     .tcats{display:flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
-    .tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:8px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
+    .tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:6px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
     .tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
-    .tcats.grp{margin-top:-2px}
-    .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
-    .tcard{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line-2);border-radius:10px;background:var(--card);color:var(--ink);font-size:var(--t-m);min-height:24px}
+    .snav{display:flex;gap:16px;margin:0 2px 10px;border-bottom:1px solid var(--line)} .snav button{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px} .snav button:hover{color:var(--ink)} .snav button.on{color:var(--ink);border-bottom-color:var(--acc)}
+    .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 12px}
+    .tcard{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--card);color:var(--ink);font-size:var(--t-s);font-weight:600;min-height:22px}
     .tcard:hover{border-color:var(--acc)} .tcard .ic{color:var(--acc);font-size:16px} .tcard small{display:block;font-size:11px;color:var(--mute)}
     .tcard.on{background:color-mix(in srgb,var(--acc) 18%,var(--card));border-color:var(--acc)}
     .taskopts .btn[data-act^="plan-add"]:not([data-act="plan-add-item"]){display:none}
@@ -3309,7 +3311,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       #team-mini{left:${w}px !important}`;
     if (host) host.style.setProperty('--w', w + 'px');
   }
-  const TABS = [['tasks', 'Tasks'], ['plan', 'Queue'], ['live', 'Live'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['legends', 'Sim'], ['engine', 'Settings']];
+  const TABS = [['home', 'Tasks'], ['plan', 'Queue'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['legends', 'Sim'], ['engine', 'Settings']];
   // your tab order (drag to rearrange); tabs added in later versions go at the end
   const tabList = () => { const o = Array.isArray(prefs.tabOrder) ? prefs.tabOrder : [], byK = new Map(TABS); return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))]; };
   // drag with the mouse (pointer events - the browser's own drag-and-drop doesn't fire inside Mega's panel)
@@ -3336,7 +3338,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:133', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:135', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -3443,7 +3445,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
-      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:240', __e); } renderBody(true); return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:242', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { GoalTypes.setCarrier(g, e.target.value || null); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3508,7 +3510,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:305', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:307', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3542,7 +3544,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:339', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:341', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
@@ -3568,7 +3570,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:365', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:367', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3582,7 +3584,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:379', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:381', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3596,7 +3598,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:393', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:395', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3607,19 +3609,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:404', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:406', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:410', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:412', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:413', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:415', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:416', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:418', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3660,8 +3662,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:457', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:458', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:459', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:460', __e); }
     renderBody(true, w);
   }
 
@@ -3676,7 +3678,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:473', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:475', __e); }
     const t = Math.floor((Date.now() - session.at) / 1000), tm = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}`;
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
@@ -3699,15 +3701,15 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (focused && !force) return;
     const vt = view();
     const html = vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.plan(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
-    const top = statusHtml(w) + (GROUPS[prefs.tab] ? `<div class="tcats grp">${GROUPS[prefs.tab].map(([k, l]) => `<button class="tcat${vt === k ? ' on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
+    const top = statusHtml(w) + (GROUPS[prefs.tab] ? `<div class="snav">${GROUPS[prefs.tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
     const key = top + html + '|sub:' + (prefs.sub?.[vt] || ''); // a sub-tab pick changes the screen too
     footer(w);
     if (body.dataset.html === key) return;
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:503', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:504', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:505', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:506', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3722,13 +3724,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:519', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:520', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:521', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:522', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:525', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:527', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
