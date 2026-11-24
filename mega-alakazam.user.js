@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.6
+// @version      2.15.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.6';
+const VERSION = '2.15.7';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -384,7 +384,7 @@ const World = (() => {
   // what is holding the battle screen right now (only one thing can)
   function screenHolder(S) {
     const a = S.adv || {};
-    if (a.event?.raid) return { kind: 'raid', label: 'Shiny Raid run' };
+    if (a.event?.raid) return { kind: 'raid', label: RaidCount.label(a.event) + ' run' };
     if (S.candy?.run) return { kind: 'candy', label: 'Candy Factory run' };
     if (S.tower?.run || a.tower != null) return { kind: 'tower', label: 'Battle Tower run' };
     if (a.league) return { kind: 'league', label: 'League run' };
@@ -1153,6 +1153,16 @@ const Sim = (() => {
  * Storage: IndexedDB ("mega-alakazam" / "fights"), so it never competes with the game's own save
  * for localStorage space. Read-only towards the game.
  * ------------------------------------------------------------------------------------------- */
+// The raid's own KO counter. The daily Shiny Raid counts KOs in Raids.pity (its Master Ball gauge).
+// The "15,000 Trainers" event raid (game 0.5.16, adv.event.date === 'fete15') keeps its own counters
+// in S.fete15: Fete15.tries(reg) goes up once per capture attempt (every KO gives one), and
+// Raids.pity never moves - reading that one made every event-raid fight look like a wipe.
+const RaidCount = {
+  fete: (ev) => ev?.date === 'fete15',
+  kos(ev) { try { return this.fete(ev) ? +Engine.get('Fete15').tries(ev.reg) || 0 : +Engine.get('Raids').pity(ev.reg) || 0; } catch { return 0; } },
+  gauge(ev) { try { return +(this.fete(ev) ? Engine.get('Fete15').pity(ev.reg) : Engine.get('Raids').pity(ev.reg)) || 0; } catch { return 0; } },
+  label: (ev) => (ev?.date === 'fete15' ? '15,000 Trainers raid' : 'Shiny Raid'),
+};
 const Recorder = (() => {
   const E = Engine;
   const DB_NAME = 'mega-alakazam', STORE = 'fights', KEEP_PER_FOE = 60;
@@ -1222,7 +1232,7 @@ const Recorder = (() => {
     const S0 = E.get('Game.S') || {};
     cur.wins0 = +(S0.stats?.wins ?? NaN);
     cur.battles0 = +(S0.stats?.battles ?? NaN);
-    if (cur.raid) { cur.raidReg = S0.adv?.event?.reg || null; try { cur.pity0 = +E.get('Raids').pity(cur.raidReg) || 0; } catch (__e) { __h('40-record:81', __e); } }
+    if (cur.raid) { const ev = S0.adv?.event || {}; cur.raidReg = ev.reg || null; cur.raidDate = ev.date || null; cur.pity0 = RaidCount.kos({ reg: cur.raidReg, date: cur.raidDate }); }
     cur.tries0 = +(S0.legTries?.[cur.foeId] ?? 0);
     cur.hadDex = !!E.read('Game.inDex', false, cur.foeId);
     cur.teamStart = prev.team.slice(); // HP at the start - not always full
@@ -1231,7 +1241,7 @@ const Recorder = (() => {
   function step(b) {
     // the game's own damage meter (0.5.10 "Battle recap": dealt / taken / burn-poison per Pokémon, boss fights only):
     // keep the latest copy, the battle is cleared the instant it ends
-    if (b.meter && cur) { try { cur.meter = { dealt: { ...b.meter.dealt }, dot: { ...b.meter.dot }, taken: { ...b.meter.taken } }; } catch (__e) { __h('40-record:90', __e); } }
+    if (b.meter && cur) { try { cur.meter = { dealt: { ...b.meter.dealt }, dot: { ...b.meter.dot }, taken: { ...b.meter.taken } }; } catch (__e) { __h('40-record:100', __e); } }
     const s = state(b);
     const changed = s.turn !== prev.turn || s.boss !== prev.boss || s.rage !== prev.rage || s.st !== prev.st || s.team.some((h, i) => h !== prev.team[i]) || (s.head?.uid !== prev.head?.uid);
     if (!changed) return;
@@ -1261,7 +1271,7 @@ const Recorder = (() => {
     // caught it outright: a catch needs a KO, and the counters below may not have moved yet
     if (f.hadDex === false && E.read('Game.inDex', false, f.foeId)) return 'ko';
     // Shiny Raid boss: every KO adds a try to the raid's pity counter (raid fights don't count in stats)
-    if (f.raid && f.pity0 != null) { try { return +E.get('Raids').pity(f.raidReg) > f.pity0 ? 'ko' : 'wipe'; } catch (__e) { __h('40-record:120', __e); } }
+    if (f.raid && f.pity0 != null) return RaidCount.kos({ reg: f.raidReg, date: f.raidDate }) > f.pity0 ? 'ko' : 'wipe';
     const tried = +(S.legTries?.[f.foeId] ?? 0) > f.tries0;
     const dB = +(S.stats?.battles ?? NaN) - f.battles0, dW = +(S.stats?.wins ?? NaN) - f.wins0;
     if (tried) return 'ko';
@@ -1280,7 +1290,7 @@ const Recorder = (() => {
     f.turns = f.events.length ? f.events[f.events.length - 1].turn : 0;
     f.ms = Date.now() - f.at;
     try { await put(f); } catch (e) { console.warn('[Mega Alakazam] could not store fight', e); }
-    for (const fn of listeners) try { fn(f); } catch (__e) { __h('40-record:139', __e); }
+    for (const fn of listeners) try { fn(f); } catch (__e) { __h('40-record:149', __e); }
   }
 
   function poll() {
@@ -1300,6 +1310,9 @@ const Recorder = (() => {
       const S = E.get('Game.S') || {};
       for (let i = 0; i < list.length; i++) {
         const f = list[i];
+        // 2.15.7: the 15,000 Trainers raid was scored from the wrong counter - a raid "wipe" whose boss
+        // reached 0 HP was a KO (only fights from the event's week, Nov 2026)
+        if (f.raid && f.outcome === 'wipe' && f.endBoss === 0 && !f.fete15fix && f.at > Date.parse('2026-11-23T00:00:00Z')) { f.outcome = 'ko'; f.fete15fix = 1; f.migrated = (f.migrated ? f.migrated + '; ' : '') + 'event raid wipe->ko (boss at 0)'; await put(f); continue; }
         if (f.v >= 3) continue;
         if (f.v === 2 || f.migrated) {
           // 0.2.5 scored a capture as 'left': the last fight before the foe is in the Pokédex was the catch
@@ -4454,7 +4467,7 @@ Views.now = (w, esc, fmtIn) => {
   let where = '';
   if (w.screen.kind === 'zone') where = `${nm(w.screen.id)}'s Legendary Zone`;
   else if (a.tower) where = a.tower.kind === 'candy' ? 'Candy Factory run' : 'Battle Tower run';
-  else if (a.raid) where = 'Shiny Raid';
+  else if (a.raid || a.event?.raid) where = RaidCount.label(a.event);
   else if (a.chapter != null) where = `${esc(ST?.CHAPTERS?.[a.chapter]?.name || 'Chapter ' + a.chapter)} · stop ${(+a.node || 0) + 1} of ${(a.nodes || []).length || '?'}`;
   const foes = (a.battle?.enemies || []).filter((e) => e && e.id != null);
   const fight = foes.length ? `fighting ${foes.map((e) => `${nm(e.id)}${e.level ? ' Lv ' + e.level : ''}`).join(', ')}` : '';
@@ -6551,7 +6564,7 @@ const GoalKit = (() => {
   // the battle screen is held by a run Mega must never interrupt
   function holder() {
     const s = S(), a = s.adv || {};
-    if (a.event?.raid) return 'a Shiny Raid run';
+    if (a.event?.raid) return 'a ' + RaidCount.label(a.event) + ' run';
     if (a.tower != null) return a.tower.kind === 'candy' ? 'a Candy Factory run' : 'a Battle Tower run';
     if (s.candy?.run) return 'a Candy Factory run';
     if (s.tower?.run) return 'a Battle Tower run';
@@ -8333,20 +8346,21 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   }
   async function raidRepick(by = 'from the phone') {
     const r = RD(), C = E.get('CONFIG')?.RAID || {}, a = S().adv || {};
+    if (RaidCount.fete(a.event)) return 'that\'s the 15,000 Trainers raid - change its team in the game\'s banner';
     const g = Plan.goals.find((x) => x.type === 'raid' && !x.done);
-    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:74', __e); } }
+    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:75', __e); } }
     if (!reg) { if (g) { delete g.pick; Plan.save(); } return 'today\'s raid isn\'t drawn yet - it will pick when it starts'; }
     const lane = (() => { try { return r.lane() || []; } catch { return []; } })(), boss = a.event?.raid ? +a.event.id : lane.find((x) => x.key === reg)?.boss;
     if (!boss) return 'can\'t read today\'s boss';
     const blocked = Guard.blocks('raid'); if (blocked) return 'safety check: ' + blocked;
-    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan-13-raid:79', __e); }
+    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan-13-raid:80', __e); }
     if (g) { g.pick = { ...pick, day, reg }; Plan.save(); }
     const names = pick.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ');
     if (a.event?.raid) { // running now: swap the team for the next fight
       const why = Guard.team(pick.mine, { need: +C.MINE || 2, minLevel: 70 }); if (why) return 'not changed - ' + why;
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = pick.mine;
-      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:85', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:86', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:86', __e); }
+      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:86', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:87', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:87', __e); }
       Log.add(`Shiny Raid: re-picked ${by} - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
       return `now ${names} + ${pick.allyNames.join(' & ')} (sim ${Math.round(pick.ko * 100)}%)`;
     }
@@ -8358,8 +8372,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     sprite: () => null,
     check(g) {
       const r = RD(); if (!r || !E.read('Raids.unlocked', false)) return { state: 'wait', why: 'Shiny Raids are not open yet' };
+      // the 15,000 Trainers event raid is yours: its team and counters aren't the Shiny Raid's, so hands off
+      if (RaidCount.fete(S().adv?.event)) return { state: 'wait', why: 'the 15,000 Trainers raid is running - Mega leaves it to you' };
       if (S().adv?.event?.raid) return { state: 'ready', why: null };
-      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan-13-raid:99', __e); } }
+      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan-13-raid:102', __e); } }
       const reg = (() => { try { return r.drawn(); } catch { return null; } })();
       if (!reg) { const from = r.state?.drawFrom; return { state: 'wait', why: `today's raid isn't drawn yet${from && from > Date.now() ? ` - draws ${DexInfo.clock(from)}` : ''}` }; }
       if ((() => { try { return r.done(reg); } catch { return false; } })()) { const b = (r.lane() || []).find((x) => x.key === reg);
@@ -8394,7 +8410,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}${inTeam < need ? ` · only ${inTeam} of your Pokémon in it` : ''}`;
       }
-      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:134', __e); }
+      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:137', __e); }
       const day = r.dateKey(), lane = (() => { try { return r.lane() || []; } catch { return []; } })();
       const bossOf = (k) => lane.find((x) => x.key === k)?.boss;
       // the reroll: once a day, only when today's boss is a shiny you own or clearly weak, and
@@ -8423,8 +8439,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = mine.map((m) => m.uid);
       const allyN = +C.ALLIES || 2;
       const bots = g.pick.allies.slice(0, allyN).map((key) => ({ b: { key, name: g.pick.allyNames[g.pick.allies.indexOf(key)] } }));
-      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:163', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:164', __e); }
+      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:166', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:167', __e); }
       // safety: your 2 (read back from the game) and the ally trainers must be set as picked
       { const read = S().eventTeams?.[r.teamKey(reg)] || [];
         let why = Guard.team(read, { need: +C.MINE || 2, want: g.pick.mine, minLevel: 70 });
@@ -8446,7 +8462,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         g.blockSaid = null; }
       let ok = false; try { ok = E.call('Adventure.startRaid', reg); } catch (e) { Log.add('Shiny Raid: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:186', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:189', __e); }
       if (ok && S().adv?.event?.raid) { Log.add(`Shiny Raid: started vs ${name(boss)} (${reg}) with ${mine.map((m) => name(m.id)).join(' & ')} + ${bots.slice(0, allyN).map((x) => x.b.name).join(' & ')}`); return `started vs ${name(boss)}`; }
       Log.add('Shiny Raid: the game did not start it and gave no reason - trying again shortly');
       return 'could not start the raid - trying again shortly';
@@ -10506,8 +10522,8 @@ const Remote = (() => {
     // (a Legendary like Cresselia is also a 'static' encounter, so 'static' can't mean raid - only the raid flag does)
     const boss = fights.filter((f) => f.at > day && (kind === 'raid' ? !!f.raid : !f.raid));
     let kos, wipes;
-    if (kind === 'raid') { let t = 0; try { t = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:441', __e); } kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter
-    else { kos = boss.filter((f) => f.outcome === 'ko').length; wipes = boss.filter((f) => f.outcome === 'wipe').length; }
+    if (kind === 'raid' && !RaidCount.fete(ev)) { const t = RaidCount.kos(ev); kos = t; wipes = Math.max(0, boss.length - t); } // the raid's own KO counter (resets daily)
+    else { kos = boss.filter((f) => f.outcome === 'ko').length; wipes = boss.filter((f) => f.outcome === 'wipe').length; } // zones, and the event raid (its counter never resets)
     // time per fight: the median gap between boss fights (travel + fight), else the raid loop time
     const st = boss.map((f) => f.at).sort((x, y) => x - y), gaps = [];
     for (let i = 1; i < st.length; i++) { const g = st[i] - st[i - 1]; if (g < 15 * 60_000) gaps.push(g); }
@@ -10518,7 +10534,7 @@ const Remote = (() => {
     else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:450', __e); } }
     if (!(chance > 0)) chance = fightCache?.foe === foe ? fightCache.chance : null;
     let tries = 0, pity = null;
-    if (kind === 'raid') { try { tries = +E.get('Raids').pity(reg) || 0; } catch (__e) { __h('80-remote:453', __e); } pity = +(C.RAID?.PITY) || null; }
+    if (kind === 'raid') { tries = RaidCount.gauge(ev); pity = +(C.RAID?.PITY) || null; }
     else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:454', __e); } }
     else tries = +(S.legTries?.[foe] ?? 0);
     const koRate = kos + wipes ? kos / (kos + wipes) : null;
