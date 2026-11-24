@@ -688,7 +688,7 @@ function subApply(tab, html, force) {
 }
 function vNow() {
   const s = snap; let h = '';
-  { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:var(--acc);padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
+  // 2.14: the "Away" card is gone (Jimmy 2026-11-23)
   // 2.14: the status card above says running / stopped; Start is here only when it's stopped (Stop is under Tasks)
   if (!s.run) h += `<button class="btn gold" style="margin:0 0 10px" data-c="plan.run" data-a='{"on":true}' data-l="Start Mega">▶ Start Mega</button>`;
   if (s.upd) h += `<div class="card" style="border-color:var(--gold-lo)"><div class="flex"><span style="font-size:22px">⬆</span><div class="grow"><b>New Update ${esc(s.upd)}</b><div class="dim">This PC runs ${esc(s.ver || '?')}. Mega reloads the game by itself at a safe moment once Tampermonkey has it - or reload now.</div></div></div><button class="btn gold" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>`;
@@ -1152,7 +1152,7 @@ function awayCard() {
 }
 function vAct() {
   if (!act.at) setTimeout(() => loadAct(false), 0);
-  let h = awayCard();
+  let h = '';
   const H = act.hist, cut = Date.now() - act.range * 3600000;
   h += `<div class="card"><h3>History</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${[[6, '6 h'], [24, '24 h'], [168, '7 days']].map(([v, l]) => `<button class="btn ${act.range === v ? 'gold' : ''}" style="margin:0" data-x="actRange" data-v="${v}">${l}</button>`).join('')}</div>${H ? '' : '<div class="dim" style="margin-top:8px">Loading from your PC…</div>'}</div>`;
   if (H) {
