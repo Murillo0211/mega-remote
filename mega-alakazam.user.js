@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.12.4
+// @version      2.13.15
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.12.4';
+const VERSION = '2.13.15';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1655,7 +1655,7 @@ const Views = (() => {
       <button class="btn" data-act="n-test">Send a test</button><button class="btn" data-act="n-week">Send the Week So Far</button><button class="btn" data-act="n-new">New topic</button>
       <div class="note dim" style="margin-top:8px">Uses the free <b>ntfy</b> app: on your iPhone install ntfy, tap +, "Subscribe to topic", type the topic above exactly. Mega took over Alakazam 4.x's topic, so if 4.x alerts reach your phone, these will too - then turn off "Send alerts to my phone" in 4.x so you don't get everything twice.</div></div>`;
     try { const r = XpChap.rank().slice(0, 6), best = r[0];
-      h += `<div class="card"><h3>📈 Leveling Chapters</h3><div class="dim" style="font-size:13px">XP per hour = the game's XP formula for each chapter's wild Pokémon x the wins per hour Mega measures while training there. Close calls (within 10%) get a 10-minute check before Mega settles. Estimates for chapters with a leader you might lose to count less (your strongest six simulated against that leader).</div>${r.map((x) => `<div class="row"><span class="k">${x === best ? '⭐ ' : ''}${esc(x.name)} <span class="dim">Lv ${x.top}</span></span><span class="v">${XpChap.fmt(x.xpHr)} XP/h <span class="dim">· ${XpChap.fmt(x.perWin)}/win · ${Math.round(x.rate)} wins/h ${x.real ? 'measured' : x.learned ? `wins measured (${x.min} min)` : 'estimated'}${x.risk < 0.995 ? ` · <span class="warn">x${x.risk.toFixed(2)} for the chance of losing to the leader</span>` : ''}</span></span></div>`).join('') || '<div class="dim">No chapters yet.</div>'}</div>`; } catch (__e) { __h('50-views:78', __e); }
+      h += `<div class="card"><h3>📈 Leveling Chapters</h3><div class="dim" style="font-size:var(--t-s)">XP per hour = the game's XP formula for each chapter's wild Pokémon x the wins per hour Mega measures while training there. Close calls (within 10%) get a 10-minute check before Mega settles. Estimates for chapters with a leader you might lose to count less (your strongest six simulated against that leader).</div>${r.map((x) => `<div class="row"><span class="k">${x === best ? '⭐ ' : ''}${esc(x.name)} <span class="dim">Lv ${x.top}</span></span><span class="v">${XpChap.fmt(x.xpHr)} XP/h <span class="dim">· ${XpChap.fmt(x.perWin)}/win · ${Math.round(x.rate)} wins/h ${x.real ? 'measured' : x.learned ? `wins measured (${x.min} min)` : 'estimated'}${x.risk < 0.995 ? ` · <span class="warn">x${x.risk.toFixed(2)} for the chance of losing to the leader</span>` : ''}</span></span></div>`).join('') || '<div class="dim">No chapters yet.</div>'}</div>`; } catch (__e) { __h('50-views:78', __e); }
     // ---- health: self-test + every swallowed error, by place ----
     try {
       const T = Health.test, R = Health.recent(), when = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
@@ -1667,7 +1667,7 @@ const Views = (() => {
       h += T ? `<div class="row"><span class="k">Self-test</span><span class="v ${T.failed ? 'bad' : 'ok'}">${T.failed ? `${T.failed} of ${T.n} failed` : `all ${T.n} passed`}${T.warns ? ` <span class="warn">· ${T.warns} warning${T.warns === 1 ? '' : 's'}</span>` : ''}</span></div><div class="row"><span class="k">Last run</span><span class="v dim">${esc(when(T.at))} · v${esc(T.v)} · ${esc(T.why)}</span></div>${(T.results || []).map((r) => `<div class="note ${r.warn ? '' : 'bad'}" style="margin-top:4px"><b>${r.warn ? '⚠' : '✖'} ${esc(r.name)}</b><br>${esc(r.detail || '')}</div>`).join('')}` : '<div class="dim">The self-test hasn\'t run yet.</div>';
       h += `<button class="btn" data-act="health-test">Run Self-Test</button>`;
       h += `<div class="row" style="margin-top:8px"><span class="k">Errors (24 h)</span><span class="v ${R.length ? 'warn' : 'ok'}">${R.length ? `${R.reduce((t, x) => t + (x.n || 0), 0)} in ${R.length} place${R.length === 1 ? '' : 's'}` : 'none'}</span></div>`;
-      h += R.slice(0, 8).map((x) => `<div class="row"><span class="k" style="font-size:12px">${esc(x.site)} ×${x.n}</span><span class="v dim" style="font-size:12px">${esc(x.msg || '')} · ${esc(when(x.last))}</span></div>`).join('');
+      h += R.slice(0, 8).map((x) => `<div class="row"><span class="k" style="font-size:var(--t-s)">${esc(x.site)} ×${x.n}</span><span class="v dim" style="font-size:var(--t-s)">${esc(x.msg || '')} · ${esc(when(x.last))}</span></div>`).join('');
       if (R.length) h += `<button class="btn" data-act="health-clear">Clear the Error List</button>`;
       h += `<div class="note dim" style="margin-top:8px">Mega checks every goal, planner and screen against your save after each update. A new version that fails is rolled back to the one before by itself, and your phone gets an alert. A goal that keeps failing (5 errors in 30 min) alerts you too.</div></div>`;
     } catch (__e) { __h('50-views:93', __e); }
@@ -1678,20 +1678,25 @@ const Views = (() => {
         <label class="chk"><input type="checkbox" data-act="update-continue" ${Updater.autoContinue ? 'checked' : ''}> Press Continue on the title screen after a reload</label>
         <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
         <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes and downloads a new version by itself; it runs the next time the game reloads (Mega reloads it at a safe moment - not during a zone, raid, tower or league - or use Reload Game on Kinesis). A version that fails to start is skipped and this one keeps running. "Install in Tampermonkey too" makes it permanent there (optional - Tampermonkey also catches up by itself).</div></div>`; }
-    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:13px">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:101', __e); }
-    h += `<div class="card"><h3>🗂️ Tabs</h3><div class="dim" style="font-size:13px">Drag a tab at the top onto another to move it. Your order is saved.</div><button class="btn" data-act="tabs-reset" style="margin-top:6px">Reset tab order</button></div>`;
+    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:var(--t-s)">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:101', __e); }
+    { // text size (2.13.5: moved here from the header, so the header keeps its fold button inside the panel)
+      let i = 2; try { i = JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').scaleIdx ?? 2; } catch (__e) { __h('50-views:103', __e); }
+      const pct = [100, 110, 120, 132, 145, 160][Math.max(0, Math.min(5, i))];
+      h += `<div class="card"><h3>🔠 Text size</h3><div class="row"><span class="k">Mega's text</span><span class="v"><b>${pct}%</b></span></div><div class="btns"><button class="btn" data-act="smaller" ${i <= 0 ? 'disabled' : ''}>A− Smaller</button><button class="btn" data-act="bigger" ${i >= 5 ? 'disabled' : ''}>A+ Bigger</button></div><div class="dim" style="font-size:var(--t-s);margin-top:6px">The panel gets wider with bigger text, up to about 40% of the screen.</div></div>`;
+    }
+    h += `<div class="card"><h3>🗂️ Tabs</h3><div class="dim" style="font-size:var(--t-s)">Drag a tab at the top onto another to move it. Your order is saved.</div><button class="btn" data-act="tabs-reset" style="margin-top:6px">Reset tab order</button></div>`;
     { const ci = Calib.info, names = { raid: 'Shiny Raids', elite: 'Elite tiers', zone: 'Legendary zones' };
       const rows = Object.entries(names).map(([k, l]) => { const c = ci[k]; return `<div class="row"><span class="k">${l}</span><span class="v">${c ? `off by ${Math.round(c.errAfter * 100)} pts <span class="dim">(was ${Math.round(c.errBefore * 100)}) · ${c.n} fights · ${new Date(c.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>` : '<span class="dim">not enough fights yet (needs 12)</span>'}</span></div>`; }).join('');
-      h += `<div class="card"><h3>🎯 Simulator Accuracy</h3><div class="dim" style="font-size:13px">Every boss fight is recorded. Once a day Mega replays them in the simulator and tunes it until its KO predictions match what really happened - so team picks and the 🥊 numbers on your phone stay honest. "Off by" is the average gap between predicted and real KO rates.</div>${rows}<button class="btn" data-act="calib-run">Tune Now</button></div>`; }
+      h += `<div class="card"><h3>🎯 Simulator Accuracy</h3><div class="dim" style="font-size:var(--t-s)">Every boss fight is recorded. Once a day Mega replays them in the simulator and tunes it until its KO predictions match what really happened - so team picks and the 🥊 numbers on your phone stay honest. "Off by" is the average gap between predicted and real KO rates.</div>${rows}<button class="btn" data-act="calib-run">Tune Now</button></div>`; }
     { const G = Guard.results, list = Guard.CHECKS.map((c) => { const r = G[c.key]; return `<div class="row"><span class="k">${esc(c.label)}</span><span class="v ${r && !r.ok ? 'bad' : ''}">${!r ? 'not checked yet' : r.ok ? '<span class="ok">● looks right</span>' : esc(r.why)}</span></div>`; }).join('');
-      h += `<div class="card"><h3>🛡️ Safety Checks</h3><div class="dim" style="font-size:13px">Before Mega starts anything you can't take back (Candy Factory, Shiny Raid, Underground, World Boss, elite zones, Elite League), it reads back the team the game will really use and won't start if it's short, too low, away or not the one it picked. Every 10 minutes it also checks the game data each goal relies on; anything that looks wrong after a game update pauses just those goals.</div>${list}<button class="btn" data-act="guard-run">Check Now</button></div>`; }
+      h += `<div class="card"><h3>🛡️ Safety Checks</h3><div class="dim" style="font-size:var(--t-s)">Before Mega starts anything you can't take back (Candy Factory, Shiny Raid, Underground, World Boss, elite zones, Elite League), it reads back the team the game will really use and won't start if it's short, too low, away or not the one it picked. Every 10 minutes it also checks the game data each goal relies on; anything that looks wrong after a game update pauses just those goals.</div>${list}<button class="btn" data-act="guard-run">Check Now</button></div>`; }
     { const R = Remote.info, ago = R.lastSent ? Math.round((Date.now() - R.lastSent) / 1000) : null;
       h += `<div class="card"><h3>📱 Kinesis (Phone App)</h3>
       <label class="chk"><input type="checkbox" data-act="rm-on" ${R.on ? 'checked' : ''}> Let my phone see and control Mega</label>
       ${R.on ? `<div style="margin-top:6px">${R.lastErr ? `<span class="warn">${esc(R.lastErr)}</span>` : ago != null ? `<span class="ok">●</span> ${R.relay ? 'live (every second)' : R.watched ? 'phone open - live' : 'phone closed - updates every hour'} · last update ${ago < 60 ? ago + ' s' : Math.round(ago / 60) + ' min'} ago` : 'starting…'}</div>
       <label class="chk" style="margin-top:6px"><input type="checkbox" data-act="rm-relay" ${R.relay ? 'checked' : ''}> Use Mega Relay on this PC (no outside service, no limits)</label>
-      ${R.relay ? `<div class="${R.relayOk ? 'ok' : 'warn'}" style="font-size:13px">${R.relayOk ? '● Mega Relay is running - live numbers every second. On your phone open your PC\'s Tailscale address.' : R.relayOk === false ? 'Mega Relay isn\'t running: start it with start-mega-relay on this PC.' : 'checking Mega Relay…'}</div>` : ''}
-      ${R.relay ? '' : `<div class="dim" style="font-size:13px">ntfy messages today: ${R.used} of ${R.budget} for the remote (ntfy's free limit is about 250 a day, shared with phone alerts). For live updates with no limit, use Mega Relay above.</div>`}
+      ${R.relay ? `<div class="${R.relayOk ? 'ok' : 'warn'}" style="font-size:var(--t-s)">${R.relayOk ? '● Mega Relay is running - live numbers every second. On your phone open your PC\'s Tailscale address.' : R.relayOk === false ? 'Mega Relay isn\'t running: start it with start-mega-relay on this PC.' : 'checking Mega Relay…'}</div>` : ''}
+      ${R.relay ? '' : `<div class="dim" style="font-size:var(--t-s)">ntfy messages today: ${R.used} of ${R.budget} for the remote (ntfy's free limit is about 250 a day, shared with phone alerts). For live updates with no limit, use Mega Relay above.</div>`}
       <button class="btn gold" data-act="rm-pair" ${Notify.cfg.topic ? '' : 'disabled'}>Send Setup Link to My Phone</button>
       <button class="btn" data-act="rm-rekey">New Keys (Unpair Every Phone)</button>` : ''}
       <div class="note dim" style="margin-top:8px">Kinesis is a web page for your phone (${esc(R.page)}): the Now screen, your plan (start, pause, add, remove, reorder), the Pokédex with its "ways to get it", legendary sims and settings - while the game keeps running here. Everything goes through ntfy.sh encrypted with a key only this PC and your phone have. Trades and gems still need the game window. The setup link arrives as a phone alert: tap it once on your iPhone, then add the page to your Home Screen.</div></div>`; }
@@ -1703,7 +1708,7 @@ const Views = (() => {
       <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Starf + Nanab while hunting a shiny, Rowap while chasing a roaming legendary (it doubles how long it stays put).</div>
       ${berryRows(esc)}</div>`;
     h += (() => {
-      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:126', __e); }
+      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:131', __e); }
       const nm = (id) => { try { return Casing.names(Engine.get('Game.DEX')[id].name); } catch { return '#' + id; } };
       return `<div class="card"><h3>🥋 Moves</h3>
       <label class="chk"><input type="checkbox" data-act="movetune" ${MoveTune.on ? 'checked' : ''}> Let Mega turn status moves on and off before boss fights</label>
@@ -1724,7 +1729,7 @@ const Views = (() => {
       ${a.ready ? row('Functions in use', `${Engine.REQUIRED.length - a.missing.length}/${Engine.REQUIRED.length}`, a.missing.length ? 'warn' : 'ok') : ''}</div>`;
     if (!a.ready) h += `<div class="note">Not connected, so nothing can be checked. Mega Alakazam stays read-only until the hook connects (usually after the next reload).</div>`;
     else if (a.missing.length) h += `<div class="card"><h3>Missing after a game update</h3>${a.missing.map((p) => `<div><code>${esc(p)}</code></div>`).join('')}</div>`;
-    h += `<div class="card"><h3>Never called (safety rules)</h3><div class="dim" style="font-size:13px">${[...Engine.FORBIDDEN].map((p) => `<code>${esc(p)}</code>`).join(' · ')}</div></div>`;
+    h += `<div class="card"><h3>Never called (safety rules)</h3><div class="dim" style="font-size:var(--t-s)">${[...Engine.FORBIDDEN].map((p) => `<code>${esc(p)}</code>`).join(' · ')}</div></div>`;
     return h;
   }
 
@@ -1769,8 +1774,8 @@ function berryRows(esc) {
   const nm = (k) => { try { return DexInfo.itemName(k) || k; } catch { return k; } };
   return `<div style="margin-top:10px">${L.map((b) => `<div class="row" style="align-items:center;gap:8px">
     <label class="chk" style="flex:1;margin:0"><input type="checkbox" data-act="berry-on" data-k="${esc(b.key)}" ${b.off ? '' : 'checked'}> <b>${esc(nm(b.key))}</b> <span class="dim">· ${esc(FAM[b.family] || b.family)} ×${b.mult} · you have ${b.have}${b.active ? ' · <span class="ok">active</span>' : ''}</span></label>
-    <span class="dim" style="font-size:13px">keep</span><input type="number" min="0" max="9999" inputmode="numeric" data-act="berry-keep" data-k="${esc(b.key)}" value="${b.keep}" style="width:64px"></div>`).join('')}
-    <div class="dim" style="font-size:12px;margin-top:4px">Unchecked: Mega never uses that berry (it uses a weaker one of the same kind if it has one). Keep: Mega stops when you're down to that many.</div></div>`;
+    <span class="dim" style="font-size:var(--t-s)">keep</span><input type="number" min="0" max="9999" inputmode="numeric" data-act="berry-keep" data-k="${esc(b.key)}" value="${b.keep}" style="width:64px"></div>`).join('')}
+    <div class="dim" style="font-size:var(--t-s);margin-top:4px">Unchecked: Mega never uses that berry (it uses a weaker one of the same kind if it has one). Keep: Mega stops when you're down to that many.</div></div>`;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -2315,28 +2320,117 @@ const DayCare = (() => {
   function check() {
     if (!E.ready()) return;
     const d = info(), ready = d.eggs.filter((e) => e.ready && !told.includes(e.uid));
+    // auto-collect (2.13.14, Jimmy's switch on the Day Care tab): hatch ready eggs by itself, never inside a
+    // Legendary zone, league, tower or raid (the game's own hatch call, like the Hatch button)
+    if (ready.length && autoOn()) {
+      const a = E.get('Game.S')?.adv || {};
+      if (!(a.zone || a.league || a.tower || a.raid || a.event)) {
+        const r = hatch(); Log.add(`Day Care auto-collect: ${r}`);
+        if (/^hatched/.test(r)) { try { Notify.send('egg', `Day Care: ${r}`, 'Auto-collect hatched it - it is in your PC'); } catch (__e) { __h('57-daycare:34', __e); } told = [...told, ...ready.map((e) => e.uid)]; try { localStorage.setItem(DONE, JSON.stringify(told)); } catch (__e) { __h('57-daycare:34', __e); } return; }
+      }
+    }
     if (ready.length) {
       const n = ready.map((e) => name(e.id) + (e.shinyParent ? ' ✨' : ''));
       Notify.send('egg', ready.length === 1 ? `${n[0]} egg is ready to hatch` : `${ready.length} eggs are ready to hatch`, ready.length === 1 ? 'Open the Day Care to hatch it' : n.join(', '));
     }
     const live = new Set(d.eggs.map((e) => e.uid));
     told = [...told.filter((u) => live.has(u)), ...ready.map((e) => e.uid)];
-    try { localStorage.setItem(DONE, JSON.stringify(told)); } catch (__e) { __h('57-daycare:34', __e); }
+    try { localStorage.setItem(DONE, JSON.stringify(told)); } catch (__e) { __h('57-daycare:43', __e); }
   }
+  const autoOn = () => { try { return localStorage.getItem('mega-egg-auto') === '1'; } catch { return false; } };
+  const setAuto = (on) => { try { localStorage.setItem('mega-egg-auto', on ? '1' : '0'); } catch (__e) { __h('57-daycare:46', __e); } Log.add(`Day Care auto-collect ${on ? 'on' : 'off'}`); if (on) try { check(); } catch (__e) { __h('57-daycare:46', __e); } };
   let timer = null;
-  function boot() { if (timer) return; timer = setInterval(() => { try { check(); } catch (__e) { __h('57-daycare:37', __e); } }, 30_000); }
+  function boot() { if (timer) return; timer = setInterval(() => { try { check(); } catch (__e) { __h('57-daycare:48', __e); } }, 30_000); }
   const left = (ms) => { const m = Math.ceil(ms / 60_000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`; };
   // hatch ready eggs (one by uid, or every ready one) - for a tap in Mega or Kinesis
   function hatch(uid) {
     const eggs = (E.get('Game.S')?.pension?.eggs || []).filter((e) => (uid ? e.uid === uid : true) && E.read('Game.eggReady', false, e));
     if (!eggs.length) return 'no egg is ready yet';
     const got = [];
-    for (const e of eggs) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('57-daycare:44', __e); } if (r) got.push(name(e.id)); }
-    try { E.call('Game.save'); } catch (__e) { __h('57-daycare:45', __e); } try { E.call('App.refresh'); } catch (__e) { __h('57-daycare:45', __e); }
+    for (const e of eggs) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('57-daycare:55', __e); } if (r) got.push(name(e.id)); }
+    try { E.call('Game.save'); } catch (__e) { __h('57-daycare:56', __e); } try { E.call('App.refresh'); } catch (__e) { __h('57-daycare:56', __e); }
     return got.length ? `hatched ${got.join(', ')}` : 'the game didn\'t hatch it - open the Day Care';
   }
-  return { info, boot, left, name, hatch };
+  return { info, boot, left, name, hatch, autoOn, setAuto };
 })();
+
+/* ---------------------------------------------------------------------------------------------
+ * Day Care tab (2.13.13, Jimmy 2026-11-23: "make it look exactly like ZG, with all that info in place,
+ * easier to read"): the incubator with three numbers and its eggs, the parents as numbered cards,
+ * the natural-egg timer, the shiny egg forecast, and the shiny egg list grouped by parent and berry.
+ * Everything comes from DayCare (the save) and EggPredict (the game's own egg math, exact).
+ * ------------------------------------------------------------------------------------------- */
+Views.daycare = (w, esc) => {
+  if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
+  const E = Engine, S = E.get('Game.S') || {}, P = S.pension || {}, C = E.get('CONFIG')?.PENSION || {};
+  const nm = (id) => esc(Casing.names(E.get('Game.DEX')?.[id]?.name || '#' + id));
+  const eggOf = (id) => { const L = C.LAYS || {}; if (L[id] != null) return +L[id]; let f = []; try { f = E.get('Game').familyOf(+id) || []; } catch (__e) { __h('57-dcview:11', __e); } return +(f[0] ?? id); };
+  const at = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  const dc = DayCare.info(), mine = (() => { try { return EggPredict.eggs(); } catch { return []; } })();
+  const per = (+C.EGG_MIN || 240) * 60_000;
+  const shinyHeld = mine.filter((e) => e.shiny).length, ready = dc.eggs.filter((e) => e.ready).length, hatched = +(S.stats?.hatched ?? 0);
+  const mons = (P.mons || []).map((x) => x?.mon || x).filter(Boolean);
+  let layers = []; try { layers = (E.read('Game.pensionLayers', []) || []).map((x) => x.mon || x); } catch (__e) { __h('57-dcview:17', __e); }
+  const slotOf = (id, shiny) => { const i = mons.findIndex((m) => +m.id === +id && !!m.shiny === !!shiny); return i >= 0 ? i + 1 : null; };
+  const rateTxt = (r) => { const n = Math.round(1 / r); return `1/${n}`; };
+
+  // ---- incubator ----
+  let h = `<div class="dcbox"><div class="dch"><h2>Incubator</h2><span class="dcok">Exact · the game's own egg math</span></div>
+    <div class="dim dcs">Taken ${dc.used}/${dc.max || +C.INCUBATOR || 4}${dc.full ? ' · full - hatch one to make room' : ''}</div>
+    <div class="mets dcm"><div><b>${shinyHeld}</b><span>Shiny eggs held</span></div><div><b>${ready}</b><span>Ready to claim</span></div><div><b>${hatched.toLocaleString()}</b><span>Total hatched</span></div></div>`;
+  if (!dc.eggs.length) h += `<div class="dcs">No eggs in the incubator.</div>`;
+  for (const e of dc.eggs) {
+    const sh = mine.find((x) => x.uid === e.uid)?.shiny, pct = e.ready ? 1 : 1 - e.left / Math.max(1, e.hatchAt - e.laidAt);
+    h += `<div class="dcegg"><img src="${E.sprite(e.id)}" width="40" height="40" style="${e.ready ? '' : 'filter:grayscale(1);opacity:.55'}"><div class="grow"><b>${nm(e.id)}</b> ${sh ? '<span class="dcsh">✦ Shiny</span>' : '<span class="dim">Normal</span>'}
+      <div class="dim">${e.ready ? '<span class="ok">Ready to hatch</span>' : `${DayCare.left(e.left)} left · hatches ${at(e.hatchAt)}`}</div>${e.ready ? '' : `<div class="bar"><i style="width:${Math.round(pct * 100)}%"></i></div>`}</div>
+      ${e.ready ? `<button class="qbtn" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">Hatch</button>` : ''}</div>`;
+  }
+  if (ready > 1) h += `<button class="qbtn" style="margin-top:8px" data-act="m-egg-hatch" data-uid="">Hatch all ready (${ready})</button>`;
+  h += `<label class="chk dcauto"><input type="checkbox" data-act="egg-auto" ${DayCare.autoOn() ? 'checked' : ''}>Auto-collect ready eggs</label><div class="dim dcs">Hatches eggs as soon as they're ready (checked every 30 seconds), but never during a Legendary zone, league, tower or raid. You get a phone alert for each one it hatches.</div>`;
+
+  // ---- parents ----
+  h += `<div class="dch" style="margin-top:14px"><h3>Day Care parents</h3><span class="dim">${mons.length} in Day Care · ${layers.length} can be drawn</span></div>`;
+  if (!mons.length) h += `<div class="dcs dim">No Pokémon in the Day Care.</div>`;
+  else h += `<div class="dcpar">${mons.map((m, i) => {
+    const lays = layers.some((l) => +l.id === +m.id && !!l.shiny === !!m.shiny), ditto = +m.id === 132;
+    return `<div class="dcp"><span class="qpos">${i + 1}</span><div class="grow"><b>${m.shiny ? '✦ ' : ''}${nm(m.id)}</b><div class="dim">${ditto ? 'Needed for natural eggs' : lays ? `Produces ${nm(eggOf(m.id))}` : 'Can\'t lay here'}</div></div></div>`;
+  }).join('')}</div>`;
+  if (dc.laying) {
+    const goal = +P.eggGoal || per, prog = +P.egg || 0;
+    h += `<div class="dcs"><div class="dch"><span>Natural egg progress</span><b>${dc.full ? 'waiting for a free slot' : dc.nextEgg != null ? `next egg in ${DayCare.left(dc.nextEgg)}` : ''}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(prog / goal * 100))}%"></i></div></div>`;
+  }
+
+  // ---- forecast ----
+  let U = null; try { U = EggPredict.upcoming(400); } catch (__e) { __h('57-dcview:48', __e); }
+  h += `<div class="dch" style="margin-top:14px"><h3>Shiny egg forecast</h3>${U ? '<span class="dcok">Exact for these parents</span>' : ''}</div>`;
+  if (!U || !U.layers.length) { h += `<div class="dcs dim">Nobody in the Day Care can lay an egg right now.</div></div>`; return h; }
+  const when = (a) => (dc.nextEgg != null ? at(Date.now() + dc.nextEgg + a * per) : '');
+  // the next egg itself
+  const nextPar = U.layers.length ? U.layers[Math.floor(EggPredict.roll(U.next, 1) * U.layers.length)] : null;
+  const nextRow = U.rows.find((r) => r.k === U.next);
+  const nextShiny = !!nextRow?.now;
+  const firstNat = U.rows.find((r) => r.now), firstBerry = U.rows.find((r) => r.berry && !r.now);
+  h += `<div class="dcnext"><b>Next natural egg #${U.next} · ${nextPar ? nm(eggOf(nextPar.id)) : '?'} · ${nextShiny ? '<span class="dcsh">✦ shiny</span>' : 'normal'}${nextPar ? ` · parent slot ${slotOf(nextPar.id, nextPar.shiny) || '?'}` : ''}</b>
+    <div class="dim">${U.berryOn ? 'A Belue Berry is active for it. ' : ''}${firstNat ? `Natural egg ${firstNat.ahead === 0 ? 'next' : firstNat.ahead + 1} is shiny (${nm(eggOf(firstNat.parent))}, #${firstNat.k})` : 'No natural shiny in the next 400 eggs'}</div></div>
+    <div class="dcpair"><div><span class="dim">Next natural shiny egg</span><b>${firstNat ? `Egg ${firstNat.ahead + 1} · ${nm(eggOf(firstNat.parent))} (#${firstNat.k})` : '—'}</b>${firstNat && when(firstNat.ahead) ? `<span class="dim">about ${when(firstNat.ahead)}</span>` : ''}</div>
+      <div><span class="dim">Next shiny-with-berry egg</span><b>${firstBerry ? `Egg ${firstBerry.ahead + 1} · ${nm(eggOf(firstBerry.parent))} (#${firstBerry.k})` : '—'}</b>${firstBerry && when(firstBerry.ahead) ? `<span class="dim">about ${when(firstBerry.ahead)}</span>` : ''}</div></div>`;
+
+  // ---- shiny egg list, grouped by the parent drawn and whether it needs the berry ----
+  const base = EggPredict.rate(0, 0), par = EggPredict.rate(2, 0);
+  const groups = [
+    ['Shiny parent · natural shiny', rateTxt(par), (r) => r.parentShiny && r.now],
+    ['Shiny parent · shiny only with a berry', `${rateTxt(par)} → ${rateTxt(par * 2)}`, (r) => r.parentShiny && r.berry && !r.now],
+    ['Normal parent · natural shiny', rateTxt(base), (r) => !r.parentShiny && r.now],
+    ['Normal parent · shiny only with a berry', `${rateTxt(base)} → ${rateTxt(base * 2)}`, (r) => !r.parentShiny && r.berry && !r.now],
+  ];
+  h += `<details class="dclist" open><summary>Shiny egg list</summary><div class="dim dcs">Grouped by the parent actually drawn. A berry-only shiny egg needs a Belue Berry fed before that egg is laid.</div>`;
+  for (const [t, rt, f] of groups) {
+    const rows = U.rows.filter(f).slice(0, 4); if (!rows.length) continue;
+    h += `<div class="dcg"><div class="dcgh"><b>${t}</b><span class="dim">${rt}</span></div>${rows.map((r) => `<div class="dcr"><b>${r.ahead === 0 ? 'next egg' : r.ahead + ' eggs from now'}</b><span>slot ${slotOf(r.parent, r.parentShiny) || '?'} ${nm(r.parent)} → ${nm(eggOf(r.parent))}</span><span class="dcok">#${r.k}</span></div>`).join('')}</div>`;
+  }
+  h += `</details><div class="dim dcs">Distance counts natural eggs laid${dc.nextEgg != null ? `; one about every ${Math.round(per / 3_600_000)} h` : ''}. Changing or reordering parents, using a Belue Berry or gift eggs taking numbers will recalculate it.</div></div>`;
+  return h;
+};
 
 /* ---------------------------------------------------------------------------------------------
  * EggPredict: which Day Care eggs will hatch shiny. Read from the game's own code (v0.5.11):
@@ -2491,11 +2585,11 @@ Views.plan = (w, ui, esc) => {
     const sec = ['running', 'ready', 'queued'].includes(L.state) && !g.paused ? 'goals' : 'wait';
     h += `<div class="card goal" data-sec="${sec}">
         <div style="display:flex;align-items:center;gap:10px">
-          <b class="dim" style="width:20px;font-size:16px">${i + 1}</b>
+          <b class="dim" style="width:20px;font-size:var(--t-m)">${i + 1}</b>
           ${sp ? `<img src="${Engine.sprite(sp)}" width="44" height="44" style="image-rendering:pixelated;flex:none">` : `<span style="width:44px;text-align:center;font-size:26px;flex:none">${g.type === 'under' ? '⛏️' : g.type === 'region' ? '📘' : g.type === 'candy' ? '🍬' : g.type === 'tower' ? '🗼' : g.type === 'raid' ? '✨' : g.type === 'elite' ? '🏆' : g.type === 'league' ? '🎖️' : g.type === 'wboss' ? '🌍' : g.type === 'money' ? '💰' : '•'}</span>`}
-          <div style="flex:1;min-width:0"><b class="gt" style="font-size:16px">${esc(Plan.label(g))}</b>${bg ? ' <span class="dim gt" style="font-size:13px">· alongside</span>' : ''}</div>
+          <div style="flex:1;min-width:0"><b class="gt" style="font-size:var(--t-m)">${esc(Plan.label(g))}</b>${bg ? ' <span class="dim gt" style="font-size:var(--t-s)">· alongside</span>' : ''}</div>
         </div>
-        <div class="${cls} st" style="margin:6px 0 0 30px">${dot} ${word}${L.why ? ' · ' + esc(L.why) : ''}${L.state === 'running' && L.line ? ' · ' + esc(L.line) : ''}</div>${L.state === 'running' && L.team && (L.team.win != null || L.team.how) ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">🛡️ ${L.team.win != null ? Math.round(L.team.win * 100) + '% · ' : ''}${esc(L.team.how || '')}</div>` : ''}
+        <div class="${cls} st" style="margin:6px 0 0 30px">${dot} ${word}${L.why ? ' · ' + esc(L.why) : ''}${L.state === 'running' && L.line ? ' · ' + esc(L.line) : ''}</div>${L.state === 'running' && L.team && (L.team.win != null || L.team.how) ? `<div class="dim" style="margin:2px 0 0 30px;font-size:var(--t-s)">🛡️ ${L.team.win != null ? Math.round(L.team.win * 100) + '% · ' : ''}${esc(L.team.how || '')}</div>` : ''}
         ${g.type === 'region' && g.rows?.length ? `<details style="margin:8px 0 0 30px" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
         <div class="tools">
           <button class="btn sm" data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move to the top">Top</button>
@@ -2504,17 +2598,30 @@ Views.plan = (w, ui, esc) => {
           <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>
           <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
-        ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:12px">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))}${g.preview.guide ? ` (${g.preview.guide} from the Discord guide)` : ''} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:12px">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
+        ${g.type === 'under' ? `<div style="margin:6px 0 0 30px;display:flex;gap:6px;flex-wrap:wrap">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div><div style="margin:4px 0 0 30px"><button class="btn sm" data-act="ug-preview" data-id="${g.id}" ${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'disabled' : ''}>${g.preview?.busy && Date.now() - g.preview.at < 300_000 ? 'Trying start floors…' : '🔍 Preview the Pick'}</button></div>${g.preview && !g.preview.busy ? `<div class="${g.preview.error ? 'warn' : 'dim'}" style="margin:2px 0 0 30px;font-size:var(--t-s)">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))}${g.preview.guide ? ` (${g.preview.guide} from the Discord guide)` : ''} from floor ${g.preview.from} (${esc(g.preview.theme || '')}): about floor ${g.preview.floors}${g.preview.low != null && g.preview.low !== g.preview.floors ? ` (${g.preview.low} on a bad run)` : ''}, ${g.preview.cleared} floors cleared, about ₽${(g.preview.value || 0).toLocaleString()} worth of loot`}</div>` : ''}${g.lastSend ? `<div class="dim" style="margin:2px 0 0 30px;font-size:var(--t-s)">Last sent from floor ${g.lastSend.from} (${esc(g.lastSend.theme || '')}): about floor ${g.lastSend.floors}${g.lastSend.low != null && g.lastSend.low !== g.lastSend.floors ? ` (${g.lastSend.low} on a bad run)` : ''}, ${g.lastSend.cleared} floors cleared</div>` : ''}` : ''}
         ${g.type === 'discord' && ['xp', 'mix', 'axsiom'].includes(g.spot) ? `<div style="margin:6px 0 0 30px"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
-  // add a goal - shown right under Start / Pause, above the list
+  // adding goals lives on the Tasks tab now (2.13); the queue keeps a shortcut there
   const goalsHtml = h; h = head;
+  h += `<button class="btn gold" data-act="tab" data-tab="tasks" style="margin:0 0 12px">＋ New task</button>`;
+  h += goalsHtml;
+  if (done.length) h += `<div class="card"><h3>Done</h3>${done.length > 25 ? `<div class="dim" style="margin-bottom:4px">The latest 25 of ${done.length}</div>` : ''}${done.slice().sort((a, b) => (+b.done || 0) - (+a.done || 0)).slice(0, 25).map((g) => `<div class="row"><span class="k">✔ ${esc(Plan.label(g))}</span><span class="v dim">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('')}<button class="btn sm" style="margin-top:6px" data-act="plan-clear">Clear done</button></div>`;
+
+  const lines = Log.lines.slice(ui.showLog ? -40 : -6).reverse();
+  h += `<div class="card"><h3>What Mega did</h3>${lines.length ? lines.map((l) => `<div class="row" style="justify-content:flex-start"><span class="k" style="white-space:nowrap;flex:none;width:78px">${new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span style="text-align:left">${esc(l.text)}</span></div>`).join('') : '<div class="dim">Nothing yet.</div>'}<button class="btn" data-act="log-more">${ui.showLog ? 'Show less' : 'Show more'}</button></div>`;
+  return h;
+};
+
+/* ---------------------------------------------------------------------------------------------
+ * The options for one kind of goal (what used to sit under "Add a goal" on the Plan tab); the Tasks
+ * tab shows it under the task you picked. Ends with one extra </div> (it closed the old card).
+ * ------------------------------------------------------------------------------------------- */
+Views.planAdd = (w, ui, esc) => {
+  let h = '';
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
-  h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="league" ${ui.addType === 'league' ? 'selected' : ''}>Elite League: win its tiers (Legendary gems)</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option>${Object.entries(GoalTypes.discordSpots || {}).map(([k, v]) => `<option value="discord-${k}" ${ui.addType === 'discord-' + k ? 'selected' : ''}>Discord Recommended: ${v.title} (${v.where})</option>`).join('')}<option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -2525,7 +2632,7 @@ Views.plan = (w, ui, esc) => {
     const avail = items.filter((x) => x.have < x.need && x.open && !hunting(x.key));
     const later = items.filter((x) => x.have < x.need && !x.open), have = items.filter((x) => x.have >= x.need), on = items.filter((x) => x.have < x.need && x.open && hunting(x.key));
     h += `<select class="sel" data-act="add-item"><option value="">${avail.length ? `Choose one of ${avail.length} you can find…` : 'Nothing to find right now'}</option>${avail.map((x) => `<option value="${x.key}" ${ui.addItem === x.key ? 'selected' : ''}>${esc(x.name)} · ${DexInfo.pct(x.spots.find((L) => !L.blockers.length)?.chance || 0)}${x.uses.length ? ' · ' + esc(x.uses[0]) : ''}</option>`).join('')}</select>
-      <div class="dim" style="font-size:13px;margin-top:6px">${on.length ? `Hunting now: ${on.map((x) => esc(x.name)).join(', ')} · ` : ''}${have.length ? `You have: ${have.map((x) => esc(x.name)).join(', ')}` : ''}${later.length ? `<br>Not yet: ${later.map((x) => `${esc(x.name)} (${esc(x.spots[0]?.blockers[0] || 'locked')})`).join(', ')}` : ''}</div>`;
+      <div class="dim" style="font-size:var(--t-s);margin-top:6px">${on.length ? `Hunting now: ${on.map((x) => esc(x.name)).join(', ')} · ` : ''}${have.length ? `You have: ${have.map((x) => esc(x.name)).join(', ')}` : ''}${later.length ? `<br>Not yet: ${later.map((x) => `${esc(x.name)} (${esc(x.spots[0]?.blockers[0] || 'locked')})`).join(', ')}` : ''}</div>`;
     if (it) {
       h += `<div style="margin-top:8px">${it.uses.length ? `<div>Used to: ${esc(it.uses.join(', '))}</div>` : ''}${it.need > 1 ? `<div>You collect up to ${it.need} (have ${it.have}).</div>` : ''}</div>`;
       for (const L of it.spots.filter((x) => !x.blockers.length)) h += `<div style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(L.place)}</b> · ${esc(L.chapter)} <span class="dim">ch ${L.ch}</span> · ${DexInfo.pct(L.chance)} at its item stop</div>
@@ -2561,7 +2668,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:99', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:112', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -2591,11 +2698,40 @@ Views.plan = (w, ui, esc) => {
     <div class="note dim">Locked ones can go on the list too: they wait until you unlock them. A legendary with no team gets one from the simulator automatically.</div></div>`;
   }
 
-  h += goalsHtml;
-  if (done.length) h += `<div class="card"><h3>Done</h3>${done.length > 25 ? `<div class="dim" style="margin-bottom:4px">The latest 25 of ${done.length}</div>` : ''}${done.slice().sort((a, b) => (+b.done || 0) - (+a.done || 0)).slice(0, 25).map((g) => `<div class="row"><span class="k">✔ ${esc(Plan.label(g))}</span><span class="v dim">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('')}<button class="btn sm" style="margin-top:6px" data-act="plan-clear">Clear done</button></div>`;
+  return h;
+};
 
-  const lines = Log.lines.slice(ui.showLog ? -40 : -6).reverse();
-  h += `<div class="card"><h3>What Mega did</h3>${lines.length ? lines.map((l) => `<div class="row" style="justify-content:flex-start"><span class="k" style="white-space:nowrap;flex:none;width:78px">${new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span style="text-align:left">${esc(l.text)}</span></div>`).join('') : '<div class="dim">Nothing yet.</div>'}<button class="btn" data-act="log-more">${ui.showLog ? 'Show less' : 'Show more'}</button></div>`;
+/* ---------------------------------------------------------------------------------------------
+ * Queue tab (2.13.12, Jimmy 2026-11-23: "copy the exact layout of ZG"): a heading with the counts
+ * and New task, then one list - the tasks in order, then the finished ones. Each row: position,
+ * name, a state chip, one detail line, and its buttons. No sections, no log (that's on Now).
+ * ------------------------------------------------------------------------------------------- */
+Views.queue = (w, ui, esc) => {
+  if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
+  const open = Plan.goals.filter((g) => !g.done), done = Plan.goals.filter((g) => g.done).sort((a, b) => (+b.done || 0) - (+a.done || 0));
+  const CHIP = { running: ['run', 'Running'], ready: ['run', 'Running'], queued: ['', 'Next'], wait: ['wait', 'Waiting'], paused: ['wait', 'Paused'] };
+  const nextUp = open.find((g) => !g.paused && ['queued', 'ready'].includes(Plan.live(g.id)?.state));
+  let h = `<div class="qhead"><div><h2>Task queue</h2><p>${open.length} to do · ${done.length} finished</p></div><button class="qbtn" data-act="tab" data-tab="tasks">New task</button></div>`;
+  const notice = !Plan.running ? 'Mega is stopped - press Start Mega to run the queue.' : Plan.oldOn() ? 'Alakazam 4.x is switched on, so the queue can\'t act.' : nextUp ? `Next · ${Plan.label(nextUp)}` : '';
+  if (notice) h += `<p class="qnote">${esc(notice)}${Plan.oldOn() ? ' <button class="qbtn" data-act="oldoff">Switch 4.x off</button>' : ''}</p>`;
+  h += `<ol class="qlist">`;
+  if (!open.length) h += `<li class="qempty">Nothing in the queue. Pick a task on the Tasks tab, then Start Now or Add to Queue.</li>`;
+  open.forEach((g, i) => {
+    const L = Plan.live(g.id) || { state: g.paused ? 'paused' : 'wait', why: 'checking…' };
+    const [cc, word] = g.paused ? CHIP.paused : CHIP[L.state] || CHIP.wait;
+    const bg = GoalTypes[g.type]?.uses === 'background';
+    const detail = [bg ? 'runs alongside' : '', L.why, L.state === 'running' ? L.line : ''].filter(Boolean).join(' · ');
+    h += `<li class="qjob${cc === 'run' ? ' on' : ''}"><div class="qjh"><span class="qpos">${i + 1}</span><strong>${esc(Plan.label(g))}</strong><span class="qst ${cc}">${word}</span></div>
+      ${detail ? `<p class="qd">${esc(detail)}</p>` : ''}
+      ${g.type === 'region' && g.rows?.length ? `<details class="qd" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="32" height="32" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
+      ${g.type === 'under' ? `<div class="qx">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div>${g.lastSend ? `<p class="qd">Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}, ${g.lastSend.cleared} floors cleared</p>` : ''}` : ''}
+      ${g.type === 'discord' && ['xp', 'mix', 'axsiom'].includes(g.spot) ? `<div class="qx"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
+      <div class="qact"><button data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''}>Top</button><button data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''}>Up</button><button data-act="g-down" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''}>Down</button><button data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>${g.type === 'under' ? `<button data-act="ug-preview" data-id="${g.id}">Preview pick</button>` : ''}${g.type === 'raid' ? '<button data-act="m-raid-repick">Re-pick team</button>' : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try anyway' : 'Try again'}</button>` : ''}<button class="rm" data-act="g-del" data-id="${g.id}">Remove</button></div>
+      ${g.type === 'under' && g.preview && !g.preview.busy ? `<p class="qd ${g.preview.error ? 'warn' : ''}">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))} from floor ${g.preview.from}: about floor ${g.preview.floors}, ₽${(g.preview.value || 0).toLocaleString()} of loot`}</p>` : ''}</li>`;
+  });
+  for (const g of done.slice(0, 10)) h += `<li class="qjob"><div class="qjh"><span class="qpos">✔</span><strong>${esc(Plan.label(g))}</strong><span class="qst run">Done</span></div><p class="qd">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p></li>`;
+  h += `</ol>`;
+  if (done.length) h += `<button class="qbtn" style="margin-top:8px" data-act="plan-clear">Clear ${done.length} finished</button>`;
   return h;
 };
 
@@ -2808,13 +2944,13 @@ const DexView = (() => {
       if (inPlan) o += `<div class="note" style="margin-bottom:8px">Already in your plan: ${esc(Plan.label(inPlan))} <button class="btn sm" data-act="tab" data-tab="plan">Open plan</button></div>`;
       ways.forEach((wy, k) => {
         o += `<div style="${k ? 'border-top:1px solid var(--line);margin-top:10px;padding-top:10px' : ''}">
-          ${ways.length > 1 ? `<div class="dim" style="font-size:13px;font-weight:700">${k === 0 ? 'BEST' : 'OR'}</div>` : ''}
+          ${ways.length > 1 ? `<div class="dim" style="font-size:var(--t-s);font-weight:700">${k === 0 ? 'BEST' : 'OR'}</div>` : ''}
           <div>${esc(wy.text)}</div>`;
         if (wy.kind === 'wild') { // every chapter it lives in: pick the one to add
           const W = DexInfo.wild(id);
           o += `<div style="margin-top:6px">${W.map((c) => `<div style="padding:8px 0;border-top:1px solid var(--line)">
             <div><b>${esc(c.chapter)}</b> <span class="dim">ch ${c.ch}</span> · ${DexInfo.pct(c.best)}${c.open ? (c.now ? ' <span class="ok">● now</span>' : ' <span class="warn">not at this time / weather</span>') : ' <span class="dim">· not unlocked</span>'}</div>
-            <div class="dim" style="font-size:13px">${c.spots.map((x) => `${esc(x.place)} (${DexInfo.pct(x.pct)}${x.when?.length ? ` · ${x.on ? '' : '<span class="warn">'}${esc(DexInfo.whenText(x.when))} only${x.on ? '' : '</span>'}` : ''}${x.fights ? ` · ${x.fights} wild fight${x.fights > 1 ? 's' : ''} per run` : ''})`).join(' · ')}</div>
+            <div class="dim" style="font-size:var(--t-s)">${c.spots.map((x) => `${esc(x.place)} (${DexInfo.pct(x.pct)}${x.when?.length ? ` · ${x.on ? '' : '<span class="warn">'}${esc(DexInfo.whenText(x.when))} only${x.on ? '' : '</span>'}` : ''}${x.fights ? ` · ${x.fights} wild fight${x.fights > 1 ? 's' : ''} per run` : ''})`).join(' · ')}</div>
             ${c.open && !inPlan ? `<button class="btn${c.ch === wy.ch ? ' gold' : ''}" data-act="dex-add-wild" data-id="${id}" data-ch="${c.ch}">Add: Catch Here</button>` : ''}</div>`).join('')}</div></div>`;
           return;
         }
@@ -2905,10 +3041,10 @@ const Sub = (() => {
   const SUBS = {
     now: [['main', 'Overview', null], ['care', 'Day Care', /day care/], ['more', 'Pokédex & Team', /^(pokédex|team|trades)$/]],
     act: [['hist', 'History', /^history/], ['goals', 'Goals', null], ['stats', 'Stats', /^(money|pokédex|pokedex|total levels|shinies|lv 100)/], ['log', 'Log', /^log\b/]],
-    plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['add', 'Add a Goal', /^add a goal/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
+    plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
     gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^(gems|strongest get stronger)$/], ['all', 'Held', null], ['none', 'Not Held', /^\0$/]],
     blocs: [['blocks', 'Pokéblocks', /^pokéblocks/], ['boss', 'Boss', /boss/], ['rev', 'Revealed', /^revealed/], ['rain', 'Rainbow', /rainbow/]],
-    engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar/], ['health', 'Health', null]],
+    engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar|text size/], ['health', 'Health', null]],
     fights: [['leg', 'Legendaries', null], ['other', 'Trainers & Others', null]],
   };
   const title = (card) => {
@@ -2916,7 +3052,7 @@ const Sub = (() => {
     return (h ? h.textContent : '').replace(/[^\p{L}\p{N}\s&·'-]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   };
   const has = (tab) => !!SUBS[tab];
-  function apply(tab, html, prefs, esc = (s) => String(s)) {
+  function apply(tab, html, prefs, esc = (s) => String(s), opt = {}) { // opt.pick: show that section only, without the chip row
     const S = SUBS[tab]; if (!S || typeof html !== 'string' || typeof document === 'undefined') return html;
     const t = document.createElement('template'); t.innerHTML = html;
     const lead = [], groups = Object.fromEntries(S.map(([k]) => [k, []]));
@@ -2933,18 +3069,118 @@ const Sub = (() => {
       cur = hit ? hit[0] : catchAll; groups[cur].push(n);
     }
     const shown = S.filter(([k]) => groups[k].length);
-    if (shown.length < 2) return html; // nothing to split
-    let pick = prefs?.sub?.[tab];
+    if (shown.length < 2 && !opt.pick) return html; // nothing to split
+    let pick = opt.pick || prefs?.sub?.[tab];
     if (!groups[pick]?.length) pick = shown[0][0];
     const box = document.createElement('div');
     for (const n of lead) box.appendChild(n);
     const bar = `<div class="chips subtabs" style="position:sticky;top:-12px;z-index:3;background:var(--bg);margin:-4px -2px 8px;padding:6px 2px">${shown.map(([k, l]) => `<button class="chip${k === pick ? ' on' : ''}" data-act="subtab" data-tab="${tab}" data-k="${k}">${esc(l)} <span class="faint" style="font-weight:700">${groups[k].filter((n) => n.nodeType === 1 && n.classList.contains('card')).length}</span></button>`).join('')}</div>`;
     const sec = document.createElement('div');
     for (const n of groups[pick]) sec.appendChild(n);
-    return bar + box.innerHTML + sec.innerHTML;
+    return (opt.pick ? '' : bar) + box.innerHTML + sec.innerHTML;
   }
   return { apply, has, SUBS };
 })();
+
+/* ---------------------------------------------------------------------------------------------
+ * Tasks (2.13, Jimmy 2026-11-23: "simple, straightforward" - the ZGRay helper's layout with Mega's
+ * engine under it). Pick a group, pick a task card, set its options, then Start Now (it goes to the
+ * top of the queue and the plan runs) or Add to Queue. Every task is one of Mega's goal types; the
+ * options are the same ones the Plan tab's old "Add a goal" form had (Views.planAdd).
+ * ------------------------------------------------------------------------------------------- */
+const Tasks = (() => {
+  const CATS = [['adv', 'Adventure'], ['col', 'Collect'], ['evt', 'Events'], ['res', 'Resources']];
+  // k = the task, t = the goal type it adds (planAdd's addType), ic = icon, one = only one in the plan at a time
+  const LIST = [
+    { k: 'region', cat: 'adv', ic: 'book', name: 'Complete the Pokédex', t: 'region', hint: 'Catches everything a region is missing.' },
+    { k: 'money', cat: 'adv', ic: 'coin', name: 'Auto money', t: 'money', one: 1, hint: 'Farms the best-paying chapter up to a target.' },
+    { k: 'story', cat: 'adv', ic: 'globe', name: 'Advance the story', t: 'story', hint: 'Beats a region\'s chapters and League, for new regions.' },
+    { k: 'daily', cat: 'adv', ic: 'clock', name: 'Daily clears', t: 'daily', hint: 'Your dailies and weeklies, all at once.' },
+    { k: 'legend', cat: 'col', ic: 'star', name: 'Catch a legendary', t: 'legend', hint: 'Simulates a team and catches it.' },
+    { k: 'shiny', cat: 'col', ic: 'shiny', name: 'Shiny hunt', t: 'shiny', hint: 'Breeds or hunts the shiny you pick in the Pokédex.' },
+    { k: 'train', cat: 'col', ic: 'team', name: 'Level Pokémon', t: 'train', one: 1, hint: 'Levels your team, then your strongest in the PC.' },
+    { k: 'd-xp', cat: 'col', ic: 'trophy', name: 'Battle XP', t: 'discord-xp', hint: 'Discord guide: the Kanto League loop, candy when ready.' },
+    { k: 'd-axsiom', cat: 'col', ic: 'shiny', name: 'Axsiom Plan', t: 'discord-axsiom', hint: 'Giant Chasm with Shiny, Capture and Money berries.' },
+    { k: 'd-mix', cat: 'col', ic: 'candy', name: 'Money + XP + candies', t: 'discord-mix', hint: 'Discord guide: Giant Chasm.' },
+    { k: 'd-candy', cat: 'col', ic: 'candy', name: 'Exp. Candies', t: 'discord-candy', hint: 'Discord guide: Kanto Victory Road.' },
+    { k: 'league', cat: 'evt', ic: 'trophy', name: 'Elite League', t: 'league', hint: 'Win a region\'s tiers for Legendary gems.' },
+    { k: 'elite', cat: 'evt', ic: 'fight', name: 'Elite legendaries', t: 'elite', hint: 'Elite tiers of a legendary, from Sim.' },
+    { k: 'raid', cat: 'evt', ic: 'shiny', name: 'Shiny Raid', t: 'raid', one: 1, hint: 'Every day.' },
+    { k: 'candy', cat: 'evt', ic: 'candy', name: 'Candy Factory', t: 'candy', one: 1, hint: 'Every day.' },
+    { k: 'tower', cat: 'evt', ic: 'tower', name: 'Battle Tower', t: 'tower', one: 1, hint: 'Every week.' },
+    { k: 'bloc', cat: 'evt', ic: 'gift', name: 'Pokéblock Boss', t: 'bloc', one: 1, hint: 'Every day.' },
+    { k: 'wboss', cat: 'evt', ic: 'shield', name: 'World Boss', t: 'wboss', one: 1, hint: 'Every edition.' },
+    { k: 'under', cat: 'res', ic: 'pick', name: 'Underground', t: 'under', one: 1, hint: 'Runs alongside your other tasks.' },
+    { k: 'item', cat: 'res', ic: 'pin', name: 'Find a rare item', t: 'item', hint: 'Hunts an item stop until it drops.' },
+  ];
+  // Daily clears = these goal types, each added once
+  const DAILY = [['raid', 'Shiny Raid every day'], ['candy', 'Candy Factory every day'], ['bloc', 'Pokéblock Boss every day'], ['tower', 'Battle Tower every week'], ['wboss', 'World Boss every edition']];
+  const ui = { cat: 'adv', pick: null, daily: Object.fromEntries(DAILY.map(([k]) => [k, true])), msg: '' };
+  try { const p = JSON.parse(localStorage.getItem('mega-tasks-ui') || '{}'); if (p.cat) ui.cat = p.cat; if (p.pick) ui.pick = p.pick; if (p.daily) Object.assign(ui.daily, p.daily); } catch (__e) { __h('59-tasks:35', __e); }
+  const save = () => { try { localStorage.setItem('mega-tasks-ui', JSON.stringify({ cat: ui.cat, pick: ui.pick, daily: ui.daily })); } catch (__e) { __h('59-tasks:36', __e); } };
+  const task = (k) => LIST.find((x) => x.k === k) || null;
+  const inPlan = (type) => { try { return Plan.hasType(type); } catch { return false; } };
+
+  // the options under the picked task
+  function options(w, planUi, esc) {
+    const T = task(ui.pick); if (!T) return `<div class="note dim">Pick a task above to see its options.</div>`;
+    let h = `<div class="card taskopts" data-sec="lead"><h3>${esc(T.name)}</h3>`;
+    if (T.t === 'daily') {
+      h += DAILY.map(([k, l]) => `<label class="chk"><input type="checkbox" data-act="task-daily" data-k="${k}" ${ui.daily[k] ? 'checked' : ''} ${inPlan(k) ? 'disabled' : ''}>${esc(l)}${inPlan(k) ? ' <span class="dim">· already in your queue</span>' : ''}</label>`).join('')
+        + `<div class="note dim" style="margin-top:10px">Dailies go ahead of your other tasks when they're due, then hand the screen back.</div></div>`;
+      return h;
+    }
+    if (T.t === 'shiny') return h + `<div class="note dim">Shiny hunts start from a Pokémon's page in the Pokédex: open the one you want and press its shiny hunt button. Mega breeds it when you own a shiny of its family, otherwise it hunts the wild spot where it's most common.</div><button class="btn gold" data-act="tab" data-tab="dex">Open the Pokédex</button></div>`;
+    if (T.t === 'elite') return h + `<div class="note dim">Elite legendary tiers are added from Sim: it shows the easiest next tier with your simulated win %.</div><button class="btn gold" data-act="tab" data-tab="legends">Open Sim</button></div>`;
+    planUi.addType = T.t;
+    return h + Views.planAdd(w, planUi, esc);
+  }
+
+  function view(w, planUi, esc) {
+    if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
+    const cards = LIST.filter((x) => x.cat === ui.cat);
+    let h = `<div class="lbl" style="margin:2px 0 8px">Choose task</div>
+      <div class="tcats">${CATS.map(([k, l]) => `<button class="tcat${ui.cat === k ? ' on' : ''}" data-act="task-cat" data-k="${k}">${esc(l)}</button>`).join('')}</div>
+      <div class="tgrid">${cards.map((T) => {
+        const busy = T.one && inPlan(T.t);
+        return `<button class="tcard${ui.pick === T.k ? ' on' : ''}" data-act="task-pick" data-k="${T.k}" title="${esc(T.hint)}"><i class="ic ic-${T.ic}"></i><span>${esc(T.name)}${busy ? '<small>in your queue</small>' : ''}</span></button>`;
+      }).join('')}</div>`;
+    h += options(w, planUi, esc);
+    if (ui.msg) h += `<div class="note ok" style="margin-top:8px">${esc(ui.msg)}</div>`;
+    return h;
+  }
+  // footer buttons work on the picked task: the options' add button (the gold one when there are several)
+  function canGo(root) {
+    const T = task(ui.pick); if (!T) return false;
+    if (T.t === 'daily') return DAILY.some(([k]) => ui.daily[k] && !inPlan(k));
+    if (T.t === 'shiny' || T.t === 'elite') return false;
+    const b = addButton(root); return !!b && !b.disabled;
+  }
+  function addButton(root) {
+    const box = root?.querySelector('.taskopts'); if (!box) return null;
+    const all = [...box.querySelectorAll('[data-act^="plan-add"]')];
+    return all.find((b) => b.classList.contains('gold') && !b.disabled) || all.find((b) => !b.disabled) || all[0] || null;
+  }
+  // add the task; now = put what was added at the top and run the plan
+  function go(root, now, click) {
+    const T = task(ui.pick); if (!T) return;
+    const before = new Set(Plan.goals.map((g) => g.id));
+    if (T.t === 'daily') { for (const [k] of DAILY) if (ui.daily[k] && !inPlan(k)) Plan.add(k, {}); }
+    else { const b = addButton(root); if (!b || b.disabled) return; click(b); }
+    const added = Plan.goals.filter((g) => !before.has(g.id));
+    if (!added.length) { ui.msg = 'Nothing new was added (it may already be in your queue).'; return; }
+    if (now) {
+      for (const g of added.slice().reverse()) Plan.toTop(g.id);
+      if (!Plan.running) Plan.setRunning(true);
+      const a = Engine.get('Game.S')?.adv;
+      ui.msg = `${T.name}: started${a?.league || a?.zone ? ' - after the current run ends (Mega never switches mid-run)' : ''}.`;
+    } else ui.msg = `${T.name}: added to your queue (${added.length === 1 ? 'position ' + (Plan.goals.filter((g) => !g.done).indexOf(added[0]) + 1) : added.length + ' tasks'}).`;
+    Log.add(`task ${now ? 'started' : 'queued'}: ${added.map((g) => Plan.label(g)).join(', ')}`);
+    setTimeout(() => { ui.msg = ''; }, 15000);
+  }
+  return { ui, view, canGo, go, save, CATS, LIST, task };
+})();
+Views.tasks = (w, planUi, esc) => Tasks.view(w, planUi, esc);
 
 /* ---------------------------------------------------------------------------------------------
  * UI: the Mega Alakazam panel. Lives in a shadow root so neither the game's styles nor Alakazam
@@ -2953,8 +3189,21 @@ const Sub = (() => {
  * ------------------------------------------------------------------------------------------- */
 const UI = (() => {
   const PREFS_KEY = 'mega-alakazam-ui';
-  const prefs = (() => { try { return { tab: 'now', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'now', open: true }; } })();
-  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:9', __e); } };
+  const prefs = (() => { try { return { tab: 'tasks', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'tasks', open: true }; } })();
+  // 2.13: seven tabs; some hold several of Mega's screens, switched by a row under the status card
+  const GROUPS = { home: [['now', 'Now'], ['tasks', 'Tasks'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
+  const groupOf = (k) => Object.keys(GROUPS).find((g) => GROUPS[g].some(([x]) => x === k)) || null;
+  function goTab(k) { // any screen key (old or new) -> the tab that shows it
+    const g = groupOf(k);
+    if (g) { prefs.tab = g; prefs.grp = { ...(prefs.grp || {}), [g]: k }; } else prefs.tab = k;
+  }
+  const view = () => (GROUPS[prefs.tab] ? (prefs.grp?.[prefs.tab] && GROUPS[prefs.tab].some(([x]) => x === prefs.grp[prefs.tab]) ? prefs.grp[prefs.tab] : GROUPS[prefs.tab][0][0]) : prefs.tab);
+  if (!prefs.v213) { goTab(prefs.tab || 'tasks'); delete prefs.tabOrder; prefs.v213 = 1; }
+  // 2.13.6: Tasks and Live are one tab (Tasks · Now · Activity · Fights)
+  if (prefs.grp?.home === 'act') prefs.grp.home = 'now';
+  if (prefs.grp?.home === 'care') { prefs.grp.home = 'now'; if (prefs.tab === 'home') prefs.tab = 'care'; delete prefs.tabOrder; }
+  if (!prefs.v2136) { if (prefs.tab === 'live') goTab(prefs.grp?.live || 'now'); else if (prefs.tab === 'tasks') goTab('tasks'); delete prefs.tabOrder; prefs.v2136 = 1; }
+  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:22', __e); } };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtIn = (t) => {
     if (!t) return '';
@@ -2997,6 +3246,17 @@ const UI = (() => {
   --ink:#2a231e; --mute:#6b6052; --faint:#998c78; --acc:#0f7a68; --acc-ink:#fff;
   --ok:#147a40; --warn:#9a5c06; --bad:#b4232c; --shiny:#b07d00; --focus:#0f7a6855;
   color-scheme:light;
+}
+
+/* 2.13 night for Mega's panel (Jimmy 2026-11-23: the ZGRay helper's look) - navy screen, mint accent.
+   Kinesis keeps th-night until it gets the same layout. */
+.wrap.th-zg {
+  --shell-hi:#21364a; --shell:#1d2c41; --shell-lo:#1b263d; --seam:#2c3b50; --on-shell:#e6edf8; --on-shell-dim:#93a8c2;
+  --gold:#79dcba; --gold-lo:#5fc9a4; --on-gold:#102d29;
+  --t-xs:12px; --t-s:12px; --t-m:14px; --t-l:14px; --t-xl:20px; /* two text sizes: regular and small */
+  --bg:#111a29; --card:#162233; --well:#0b1423; --line:#2b3b50; --line-2:#3b4e63;
+  --ink:#e6edf8; --mute:#93a8c2; --faint:#62758c; --acc:#79dcba; --acc-ink:#102d29; --focus:#79dcba55;
+  --ok:#79dcba; --warn:#e6be7a; --bad:#ff8a8a; --shiny:#ffd45e;
 }
 
 /* ---- text ---- */
@@ -3103,6 +3363,30 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .ic-gift{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8h18v4H3zm1 5h7v9H4zm9 0h7v9h-7zM11 8h2v14h-2zm-4.5-6C8.6 2 10.8 4.6 12 7c1.2-2.4 3.4-5 5.5-5A2.5 2.5 0 0 1 20 4.5C20 6.4 17 7 12 7 7 7 4 6.4 4 4.5A2.5 2.5 0 0 1 6.5 2z'/%3E%3C/svg%3E")}
 .ic-ghost{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a8 8 0 0 0-8 8v12l2.7-2 2.6 2 2.7-2 2.7 2 2.6-2L20 22V10a8 8 0 0 0-8-8zM9 8.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E")}
 
+/* ---- 2.13.14: Mega's panel in the ZGRay style - one look for every tab (Jimmy 2026-11-23: "format, font size,
+   all flow the same and feel the same"). Boxes: 1px border, 12px corners, bold title in the regular size;
+   buttons: compact, mint for the main one; section switches: underlined text, like the Tasks row. ---- */
+.wrap.th-zg .card{border-color:var(--line-2);border-radius:12px;padding:11px 12px;margin:0 0 10px;box-shadow:none}
+.wrap.th-zg .card h3,.wrap.th-zg h3.card-title{font-size:var(--t-m);font-weight:800;letter-spacing:0;text-transform:none;color:var(--ink);border-bottom:0;padding:0;margin:0 0 6px}
+.wrap.th-zg .card h3 .dim,.wrap.th-zg .card h3 span{font-size:var(--t-s);font-weight:600}
+.wrap.th-zg .lbl{font-size:var(--t-s);letter-spacing:.06em}
+.wrap.th-zg .note{border-color:var(--line-2);border-radius:8px;color:var(--mute);background:var(--card)}
+.wrap.th-zg .btn{min-height:34px;padding:7px 12px;font:600 var(--t-s)/18px var(--font);border-radius:9px;box-shadow:none;background:var(--well)}
+.wrap.th-zg .btn.gold{background:var(--acc);border-color:var(--acc);color:var(--acc-ink);font-weight:800}
+.wrap.th-zg .btn.sm{min-height:30px;padding:5px 9px;font-size:var(--t-s)}
+.wrap.th-zg .btn.danger{color:#f1b3bc}
+.wrap.th-zg input.q,.wrap.th-zg select.sel{font-size:var(--t-m);border-radius:9px;padding:7px 10px}
+.wrap.th-zg .row{padding:6px 0}
+.wrap.th-zg .chip{font-size:var(--t-s);padding:4px 10px}
+.wrap.th-zg .chips.subtabs{display:flex;flex-wrap:wrap;gap:4px 16px;border-bottom:1px solid var(--line);padding:0 2px !important;margin:0 0 10px !important;background:var(--bg)}
+.wrap.th-zg .chips.subtabs .chip{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px}
+.wrap.th-zg .chips.subtabs .chip:hover{color:var(--ink)}
+.wrap.th-zg .chips.subtabs .chip.on{color:var(--ink);border-bottom-color:var(--acc);background:transparent}
+.wrap.th-zg table{font-size:var(--t-s)}
+/* section switches (Tasks row, Sim modes): underlined text - shared so Kinesis gets it too */
+.snav{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0 2px 10px;border-bottom:1px solid var(--line)} .snav button{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px} .snav button:hover{color:var(--ink)} .snav button.on{color:var(--ink);border-bottom-color:var(--acc)}
+.wrap.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%,transparent);border-color:color-mix(in srgb,var(--acc) 55%,transparent)}
+
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
       background:linear-gradient(180deg,var(--shell),var(--shell-lo));border-right:3px solid var(--seam)}
@@ -3113,21 +3397,79 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .grip:hover{background:linear-gradient(90deg,transparent,var(--focus),transparent)}
     .hd{position:relative;display:flex;align-items:center;gap:6px;padding:8px 10px;color:var(--on-shell);user-select:none;
       background:radial-gradient(120% 140% at 0% 0%,var(--shell-hi) 0%,var(--shell-lo) 55%);border-bottom:1px solid var(--seam)}
-    .hd .t{font-weight:800;font-size:14px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;background:linear-gradient(90deg,var(--gold),#ffe08a);-webkit-background-clip:text;background-clip:text;color:transparent}
-    .hd .v{color:var(--on-shell-dim);font-size:12px;margin-left:auto;margin-right:2px}
-    .hd .fold{all:unset;cursor:pointer;color:var(--on-shell);font-size:14px;font-weight:800;padding:3px 8px;border-radius:8px} .hd .fold:hover{background:#ffffff24} .hd .fold[disabled]{opacity:.35;cursor:default}
-    .hd .fold.upd{background:linear-gradient(180deg,var(--gold),var(--gold-lo));color:var(--on-gold);font-size:12px;padding:4px 9px}
-    .hd .vtip{position:absolute;left:8px;top:100%;margin-top:2px;padding:3px 8px;border-radius:8px;background:#1d0a0e;color:#fff;font-size:12px;font-weight:700;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:5;box-shadow:0 2px 10px #0008}
+    .hd .t{font-weight:800;font-size:var(--t-m);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;background:linear-gradient(90deg,var(--gold),#ffe08a);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hd .v{color:var(--on-shell-dim);font-size:var(--t-s);margin-left:auto;margin-right:2px}
+    .hd .fold{all:unset;cursor:pointer;color:var(--on-shell);font-size:var(--t-m);font-weight:800;padding:3px 8px;border-radius:8px} .hd .fold:hover{background:#ffffff24} .hd .fold[disabled]{opacity:.35;cursor:default}
+    .hd .fold.upd{background:linear-gradient(180deg,var(--gold),var(--gold-lo));color:var(--on-gold);font-size:var(--t-s);padding:4px 9px}
+    .hd .vtip{position:absolute;left:8px;top:100%;margin-top:2px;padding:3px 8px;border-radius:8px;background:#1d0a0e;color:#fff;font-size:var(--t-s);font-weight:700;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:5;box-shadow:0 2px 10px #0008}
     .hd img.ver:hover + .vtip{opacity:1}
     .dot{width:12px;height:12px;border-radius:50%;flex:none;box-sizing:border-box;border:2px solid #ffffffb0;background:#5ad68a;box-shadow:0 0 8px #5ad68a}
     .dot.warn{background:#ffb547;box-shadow:0 0 8px #ffb547} .dot.err{background:#ff6b6b;box-shadow:0 0 8px #ff6b6b}
     .tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:8px 10px;background:var(--shell-lo);border-bottom:3px solid var(--seam)}
-    .tabs button{all:unset;cursor:pointer;touch-action:none;text-align:center;padding:5px 2px;border-radius:8px;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
+    .tabs button{all:unset;cursor:pointer;touch-action:none;text-align:center;padding:5px 2px;border-radius:8px;font-weight:700;font-size:var(--t-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
     .tabs button:hover{background:#ffffff1f;color:#fff}
     .tabs button.on{background:linear-gradient(90deg,var(--gold),#ffd978);color:var(--on-gold);border-color:var(--gold);box-shadow:none}
     .tabs button.drag{opacity:.4} .tabs button.dropto{outline:2px dashed #fff;outline-offset:1px}
     .body{padding:12px;overflow:auto;flex:1;background:var(--bg);scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
     .goal .st{font-size:var(--t-s);margin-top:2px}
+    /* 2.13: the ZGRay-style frame */
+    .th-zg .hd{background:linear-gradient(115deg,#21364a,#1b263d);padding:11px 12px;gap:8px}
+    .th-zg .hd .t{all:unset;font-weight:800;font-size:var(--t-m);color:var(--ink);white-space:nowrap}
+    .th-zg .hd img.ver{background:var(--acc);border-radius:10px;padding:2px;width:30px;height:32px}
+    .vtag{font:var(--t-s) ui-monospace,monospace;color:var(--mute)}
+    .tabs{display:flex;gap:0;padding:0 4px;border-bottom:1px solid var(--line)}
+    .th-zg .tabs{background:#152132}
+    .tabs button{flex:1 1 auto;font-size:var(--t-s);border-radius:0;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 3px 8px;color:var(--mute);overflow:visible;text-overflow:clip}
+    .tabs button:hover{background:#ffffff0d;color:var(--ink)}
+    .tabs button.on{background:transparent;color:var(--acc);border-bottom-color:var(--acc);box-shadow:none}
+    .stat{padding:9px 11px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
+    .stat .live{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:var(--t-s);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+    .stat b{display:block;font-size:var(--t-m)} .stat .dim{font-size:var(--t-s);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .sdot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 7px var(--acc)} .sdot.off{background:var(--faint);box-shadow:none} .sdot.err{background:var(--bad)}
+    .mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
+    .mets div{padding:7px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
+    .mets b{display:block;font-size:var(--t-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums} .mets span{display:block;font-size:var(--t-s);line-height:1.25;color:var(--mute);white-space:nowrap}
+    .tcats{display:flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
+    .tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:6px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
+    .tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+    .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 12px}
+    .tcard{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--card);color:var(--ink);font-size:var(--t-m);font-weight:600;min-height:22px}
+    .tcard:hover{border-color:var(--acc)} .tcard .ic{color:var(--acc);font-size:var(--t-m)} .tcard small{display:block;font-size:var(--t-s);color:var(--mute)}
+    .tcard.on{background:color-mix(in srgb,var(--acc) 18%,var(--card));border-color:var(--acc)}
+    .taskopts .btn[data-act^="plan-add"]:not([data-act="plan-add-item"]){display:none}
+    .dcbox{border:1px solid var(--line-2);border-radius:14px;padding:12px;background:var(--card)}
+    .dch{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap} .dch h2,.dch h3{all:unset;font-weight:800;font-size:var(--t-m)}
+    .dcok{font-size:var(--t-s);color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent);padding:1px 7px;border-radius:6px}
+    .dcs{margin:6px 0;font-size:var(--t-s)} .dcm{margin:8px 0}
+    .dcegg{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)} .dcegg img{image-rendering:pixelated;flex:none;background:var(--well);border-radius:10px}
+    .dcsh{color:var(--shiny);font-weight:700} .dcauto{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+    .dcpar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+    .dcp{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line-2);border-radius:10px;padding:8px;background:var(--well)} .dcp .dim{font-size:var(--t-s)}
+    .dcnext{margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:var(--well)} .dcnext .dim{font-size:var(--t-s);margin-top:4px}
+    .dcpair{display:grid;gap:6px;margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:color-mix(in srgb,var(--acc) 8%,var(--well))}
+    .dcpair div{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px} .dcpair .dim{font-size:var(--t-s)} .dcpair div > .dim:last-child{grid-column:2;text-align:right}
+    .dclist{margin-top:12px;border:1px solid var(--line-2);border-radius:10px;padding:8px 10px} .dclist summary{cursor:pointer;font-weight:700}
+    .dcg{margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--well)} .dcgh{display:flex;gap:8px;align-items:baseline;margin-bottom:4px}
+    .dcr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid var(--line);font-size:var(--t-s)}
+    .qhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px} .qhead h2{all:unset;display:block;font-size:var(--t-m);font-weight:800} .qhead p{margin:2px 0 0;color:var(--mute);font-size:var(--t-s)}
+    .qbtn{all:unset;cursor:pointer;flex:none;padding:7px 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s);font-weight:600} .qbtn:hover{border-color:var(--acc)}
+    .qnote{margin:0 0 9px;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--card);color:var(--mute);font-size:var(--t-s)}
+    .qlist{display:grid;gap:7px;list-style:none;margin:0;padding:0}
+    .qjob,.qempty{border:1px solid var(--line-2);border-radius:10px;padding:9px;background:var(--card)} .qempty{border-style:dashed;color:var(--mute);font-size:var(--t-s);padding:16px 12px}
+    .qjob.on{border-color:color-mix(in srgb,var(--acc) 70%,var(--line));background:color-mix(in srgb,var(--acc) 9%,var(--card))}
+    .qjh{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:7px} .qjh strong{font-size:var(--t-m);line-height:1.35;overflow-wrap:anywhere}
+    .qpos,.qst{padding:2px 6px;border-radius:5px;background:var(--line);font-size:var(--t-s);white-space:nowrap;font-variant-numeric:tabular-nums}
+    .qst.run{color:var(--acc);background:color-mix(in srgb,var(--acc) 18%,transparent)} .qst.wait{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+    .qd{margin:6px 0 0;color:var(--mute);font-size:var(--t-s);overflow-wrap:anywhere} .qx{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+    .qact{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px} .qact button{all:unset;cursor:pointer;padding:5px 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s)}
+    .qact button:hover:enabled{border-color:var(--acc)} .qact button:disabled{opacity:.4;cursor:default} .qact .rm{color:#f1b3bc}
+    .foot{padding:10px 12px 12px;border-top:1px solid var(--line);background:var(--bg);display:grid;gap:8px}
+    .fr{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .fb{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:11px 8px;border-radius:10px;font-weight:800;font-size:var(--t-m);border:1px solid var(--line-2);background:var(--well);color:var(--ink)}
+    .fb.go{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)} .fb.go2{border-color:var(--acc);color:var(--acc)}
+    .fb.stop{background:color-mix(in srgb,var(--bad) 14%,var(--well));border-color:color-mix(in srgb,var(--bad) 45%,var(--line));color:#ffc5cf}
+    .fb.lt{padding:7px 8px;font-weight:600;font-size:var(--t-s);color:var(--mute)} .fb:disabled{opacity:.4;cursor:default}
+    .pillq{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:999px;background:var(--line-2);color:var(--ink);font-size:var(--t-s)}
   `;
   let host, root, timer;
   const W_MIN = 340, W_MAX = 900, RAIL = 64;
@@ -3144,7 +3486,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       #team-mini{left:${w}px !important}`;
     if (host) host.style.setProperty('--w', w + 'px');
   }
-  const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['legends', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['blocs', 'Pokéblocks'], ['engine', 'Settings']];
+  const TABS = [['home', 'Tasks'], ['plan', 'Queue'], ['care', 'Day Care'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['legends', 'Sim'], ['engine', 'Settings']];
   // your tab order (drag to rearrange); tabs added in later versions go at the end
   const tabList = () => { const o = Array.isArray(prefs.tabOrder) ? prefs.tabOrder : [], byK = new Map(TABS); return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))]; };
   // drag with the mouse (pointer events - the browser's own drag-and-drop doesn't fire inside Mega's panel)
@@ -3171,7 +3513,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:91', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:162', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -3278,7 +3620,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
-      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:198', __e); } renderBody(true); return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:269', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { GoalTypes.setCarrier(g, e.target.value || null); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3324,7 +3666,9 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const act = t.dataset.act;
     // the Kinesis mirror (Activity, PC, Pokédex grid + shiny, Change Team, hatch, raid re-pick)
     if (act === 'team-edit') { Mirror.ui.tm.draft = null; Mirror.ui.tm.q = ''; prefs.tab = 'team'; savePrefs(); render(); return; }
-    if (act && act.startsWith('m-')) { Mirror.act(act, t, () => renderBody(true)).then((r) => { if (r === 'back') { prefs.tab = 'now'; savePrefs(); render(); } else renderBody(true); }); return; }
+    if (act === 'egg-auto') { DayCare.setAuto(!!t.checked); renderBody(true); return; }
+    if (act === 'stop-all') { Plan.setRunning(!Plan.running); renderBody(true); return; }
+    if (act && act.startsWith('m-')) { Mirror.act(act, t, () => renderBody(true)).then((r) => { if (r === 'back') { goTab('now'); savePrefs(); render(); } else renderBody(true); }); return; }
     if (act === 'toggle') { prefs.open = !prefs.open; if (!prefs.open) Mirror.markAway(); savePrefs(); render(); }
     if (act === 'bigger' || act === 'smaller') {
       const i = Math.max(0, Math.min(SCALES.length - 1, (prefs.scaleIdx ?? 2) + (act === 'bigger' ? 1 : -1)));
@@ -3333,11 +3677,16 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       prefs.width = Math.max(W_MIN, Math.min(W_MAX, Math.round(width() * scale() / old), Math.round(innerWidth * 0.42)));
       savePrefs(); render();
     }
-    if (act === 'tab') { prefs.tab = t.dataset.tab; savePrefs(); render(); if (prefs.tab === 'trades') Trades.refresh().then(() => renderBody(true)); }
+    if (act === 'tab') { goTab(t.dataset.tab); savePrefs(); render(); if (view() === 'trades') Trades.refresh().then(() => renderBody(true)); }
+    if (act === 'grp' && GROUPS[prefs.tab]) { prefs.grp = { ...(prefs.grp || {}), [prefs.tab]: t.dataset.k }; savePrefs(); renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); if (t.dataset.k === 'trades') Trades.refresh().then(() => renderBody(true)); return; }
+    if (act === 'task-cat') { Tasks.ui.cat = t.dataset.k; Tasks.ui.pick = (Tasks.LIST.find((x) => x.cat === t.dataset.k && x.k === Tasks.ui.pick) || null)?.k || null; Tasks.save(); renderBody(true); return; }
+    if (act === 'task-pick') { Tasks.ui.pick = Tasks.ui.pick === t.dataset.k ? null : t.dataset.k; Tasks.ui.msg = ''; Tasks.save(); renderBody(true); return; }
+    if (act === 'task-daily') { Tasks.ui.daily[t.dataset.k] = !!t.checked; Tasks.save(); renderBody(true); return; }
+    if (act === 'task-go') { Tasks.go(root, t.dataset.now === '1', (b) => b.click()); renderBody(true); return; }
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:257', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:335', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3371,11 +3720,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:291', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:369', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
-    if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
+    if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (view() !== 'dex') { goTab('dex'); savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'dexback') { dexUi.dexOpen = null; renderBody(true); }
     if (act === 'plan-add-item') { Plan.add('loot', { item: t.dataset.item, ch: +t.dataset.ch, place: t.dataset.place, need: +t.dataset.need || 1 }); renderBody(true); }
     if (act === 'dex-add-wild') { Plan.add('wild', { foe: +t.dataset.id, ch: +t.dataset.ch }); DexView.clear(); renderBody(true); }
@@ -3397,7 +3746,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:317', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:395', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3411,7 +3760,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:331', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:409', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3425,7 +3774,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:345', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:423', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3436,19 +3785,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:356', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:434', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:362', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:440', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:365', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:443', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:368', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:446', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3468,22 +3817,20 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 
   // theme: Classic (Alakazam 4.x's dark, the default) or Day; the header button switches them
   const THEMES = ['auto', 'day', 'night'];
-  const themeNow = () => { const t = prefs.theme || 'auto'; return t === 'day' ? 'day' : 'night'; }; // Auto = Classic (Alakazam 4.x's dark) since 2026-11-23
+  const themeNow = () => { const t = prefs.theme || 'auto'; return t === 'day' ? 'day' : 'night'; }; const themeCls = () => 'th-night th-zg'; // 2.13.5: one theme (the Day theme is gone) // Auto = Classic (Alakazam 4.x's dark) since 2026-11-23
   function render() {
     if (phoneSwap) return; // drawing for the phone right now: the PC panel keeps its own state
     const w = World.build();
     const wrap = root?.querySelector('.wrap');
-    wrap.classList.remove('th-day', 'th-night'); wrap.classList.add('th-' + themeNow());
+    wrap.classList.remove('th-day', 'th-night', 'th-zg'); wrap.classList.add(...themeCls().split(' '));
     const [cls, tip] = health(w);
     layout();
     if (!prefs.open) { wrap.innerHTML = `<div class="rail" data-act="toggle" title="Open Mega Alakazam v${esc(VERSION)}"><img src="${MEGA_ICON}" width="44" height="47" alt=""><span class="dot ${cls}" title="${esc(tip)}"></span><span class="open">›</span></div>`; return; }
     const z = scale();
     wrap.innerHTML = `<div class="panel" style="width:${Math.round(width() / z)}px;zoom:${z}"><div class="grip" title="Drag to resize"></div>
-      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">MEGA ALAKAZAM</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">New Update ${esc(Updater.available)}</button>` : ''}<button class="fold theme" data-act="theme" title="Theme: ${themeNow() === 'day' ? 'Day' : 'Classic (Alakazam 4.x)'} - click to change">${themeNow() === 'day' ? '☀' : '☾'}</button>
-        <button class="fold" data-act="smaller" title="Smaller text" ${prefs.scaleIdx === 0 ? 'disabled' : ''}>A−</button><button class="fold" data-act="bigger" title="Bigger text">A+</button>
-        <button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
+      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">Mega Alakazam</span><span class="vtag">${esc(VERSION)}</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">Update ${esc(Updater.available)}</button>` : ''}<button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
       <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}</button>`).join('')}</div>
-      <div class="body"></div></div>`;
+      <div class="body"></div><div class="foot"></div></div>`;
     const grip = root?.querySelector('.grip'), panel = root?.querySelector('.panel');
     grip.onpointerdown = (e) => {
       e.preventDefault(); grip.setPointerCapture(e.pointerId);
@@ -3491,11 +3838,45 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:411', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:412', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:487', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:488', __e); }
     renderBody(true, w);
   }
 
+  // the status card every tab starts with (ZGRay's layout): what runs now, and three numbers
+  const session = { at: Date.now(), money: null };
+  // the running card says where and the berry timers only; team and levels are on Now (2.13.11)
+  const brief = (t) => String(t || '').split(' · ').filter((x) => x && !/\d+\/100|\bcarriers?\b|Lv \d+|^\+\d+ more/.test(x)).join(' · ');
+  function statusHtml(w) {
+    const S = Engine.get('Game.S'), money = +(S?.money ?? NaN);
+    if (session.money == null && Number.isFinite(money)) session.money = money;
+    // the goal on the battle screen (Pokédex parents and the Underground run alongside it)
+    const act = Plan.goals.filter((g) => !g.done && ['running', 'ready'].includes(Plan.live(g.id)?.state));
+    const cur = act.find((g) => GoalTypes[g.type]?.uses === 'screen' && Plan.live(g.id)?.state === 'running') || act.find((g) => GoalTypes[g.type]?.uses === 'screen') || act[0] || null, L = cur ? Plan.live(cur.id) : null;
+    const also = act.filter((g) => g !== cur).length;
+    const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
+    const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:505', __e); }
+    // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
+    let since = null;
+    if (cur && Plan.running) {
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:509', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:510', __e); } }
+      since = r.at;
+    }
+    const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
+    return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
+      <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
+      <div class="dim">${esc(cur ? brief([L?.why, L?.line].filter(Boolean).join(' · ')) : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div></div>
+      <div class="mets"><div><b>${dex}</b><span>Pokédex</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : net < 0 ? '−' : '') + '₽' + Math.abs(Math.round(net)).toLocaleString()}</b><span>Money gained</span></div><div><b>${tm}</b><span>On this task</span></div></div>`;
+  }
+  function footer(w) {
+    const f = root?.querySelector('.foot'); if (!f) return;
+    const onTasks = view() === 'tasks', can = onTasks && w.ok && Tasks.canGo(root), n = Plan.goals.filter((g) => !g.done).length;
+    const html = `<div class="fr"><button class="fb go" data-act="task-go" data-now="1" ${can ? '' : 'disabled'} title="${onTasks ? 'Put this task at the top of the queue and run it' : 'Open Tasks to pick one'}">Start Now</button><button class="fb ${Plan.running ? 'stop' : 'go2'}" data-act="stop-all">${Plan.running ? 'Stop Mega' : 'Start Mega'}</button></div>
+      <div class="fr"><button class="fb lt" data-act="task-go" data-now="0" ${can ? '' : 'disabled'}>＋ Add to Queue</button><button class="fb lt" data-act="tab" data-tab="plan">Queue <span class="pillq">${n}</span></button></div>`;
+    if (f.dataset.html !== html) { f.innerHTML = html; f.dataset.html = html; }
+  }
   function renderBody(force, w = World.build()) {
     if (phoneSwap) return;
     const body = root?.querySelector('.body');
@@ -3503,12 +3884,17 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     // keep the search box focused while typing
     const focused = root.activeElement && root.activeElement.matches('input.q, select.sel');
     if (focused && !force) return;
-    const html = prefs.tab === 'act' ? Views.activity(esc) : prefs.tab === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'team' ? Views.teamEdit(esc) : prefs.tab === 'plan' ? Views.plan(w, planUi, esc) : prefs.tab === 'legends' ? Views.legends(w, legUi, esc) : prefs.tab === 'dex' ? Views.dex(w, prefs, esc, dexUi) : prefs.tab === 'engine' ? Views.engine(w, esc) : prefs.tab === 'fights' ? Views.fights(w, fightData, prefs, esc) : prefs.tab === 'trades' ? Views.trades(esc) : prefs.tab === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
-    const key = html + '|sub:' + (prefs.sub?.[prefs.tab] || ''); // a sub-tab pick changes the screen too
+    const vt = view();
+    const html = vt === 'care' ? Views.daycare(w, esc) : vt === 'now' ? Views.now(w, esc, fmtIn) : vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.queue(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
+    const top = (vt === 'plan' || vt === 'care' ? '' : statusHtml(w)) + (GROUPS[prefs.tab] ? `<div class="snav">${GROUPS[prefs.tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
+    const key = top + html + '|sub:' + (prefs.sub?.[vt] || ''); // a sub-tab pick changes the screen too
+    footer(w);
     if (body.dataset.html === key) return;
-    body.innerHTML = Icons.swap(Sub.apply(prefs.tab, html, prefs, esc)); body.dataset.html = key;
-    if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:428', __e); }
+    const st = body.scrollTop;
+    body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
+    if (vt === 'engine') foldCards(body);
+    try { footer(w); } catch (__e) { __h('60-ui:542', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:543', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3523,13 +3909,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:443', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:444', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:558', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:559', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
-  function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:449', __e); } } };
+  function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:564', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3938,10 +4324,10 @@ Views.trades = (esc) => {
     const TAG = { spare: ['ok', '✓ spare'], last: ['warn', 'your last'], busy: ['warn', 'in use'], none: ['dim', 'need it'] };
     if (T.length) o += `<div class="grid">${T.map((t) => { const [cls, txt] = TAG[t.best] || TAG.none; return `<div class="mon" data-act="tr-pick" data-id="${t.id}" data-shiny="${t.shiny ? 1 : ''}" style="cursor:pointer;${t.best === 'spare' ? 'border-color:var(--ok)' : ''}">
       <img src="${Engine.sprite(t.id)}" loading="lazy">${t.shiny ? '✨' : ''}${nm(t.id)}
-      <div style="font-size:12px">${(t.list || []).length} offer${(t.list || []).length === 1 ? '' : 's'}</div>
-      <div style="font-size:12px"><span class="${t.can ? 'ok' : 'dim'}">${t.can} can do</span> · <span class="dim">${(t.list || []).length - t.can} can't</span></div>
-      ${t.newGet ? '<div class="ok" style="font-size:12px;font-weight:800">NEW</div>' : t.newTo ? `<div class="ok" style="font-size:12px">→ ${nm(t.to)} NEW</div>` : ''}
-      <div class="${cls}" style="font-size:12px">${txt}</div></div>`; }).join('')}</div>`;
+      <div style="font-size:var(--t-s)">${(t.list || []).length} offer${(t.list || []).length === 1 ? '' : 's'}</div>
+      <div style="font-size:var(--t-s)"><span class="${t.can ? 'ok' : 'dim'}">${t.can} can do</span> · <span class="dim">${(t.list || []).length - t.can} can't</span></div>
+      ${t.newGet ? '<div class="ok" style="font-size:var(--t-s);font-weight:800">NEW</div>' : t.newTo ? `<div class="ok" style="font-size:var(--t-s)">→ ${nm(t.to)} NEW</div>` : ''}
+      <div class="${cls}" style="font-size:var(--t-s)">${txt}</div></div>`; }).join('')}</div>`;
     return o;
   }
   // one Pokémon: every offer
@@ -3985,7 +4371,7 @@ function eggForecast(dc, nm, at2) {
     h += berry.map((r) => line(r, `shiny <b>with a Belue Berry</b> used ${r.k === U.next ? 'now' : `right after egg #${r.k - 1} is laid`}${r.parent ? ` (from ${nm(r.parent)}${r.parentShiny ? ' ✨' : ''})` : ''}`)).join('');
     h += par.map((r) => line(r, `shiny only from a shiny parent (with a Belue Berry) - it would come from ${nm(r.parent)} as things are`)).join('');
     if (!now.length && !berry.length) h += `<div class="dim">None in the next 400 eggs with these parents.</div>`;
-    return h + `<div class="dim" style="font-size:12px;margin-top:4px">Exact, from the game's own egg numbers. The parent changes if you change who's in the Day Care; a full incubator holds up laying, so the times move.</div></div>`;
+    return h + `<div class="dim" style="font-size:var(--t-s);margin-top:4px">Exact, from the game's own egg numbers. The parent changes if you change who's in the Day Care; a full incubator holds up laying, so the times move.</div></div>`;
   } catch { return ''; }
 }
 // Best next rewards (Jimmy 2026-11-23, the Now overview): the easiest Elite legendary and Elite League tiers already
@@ -4029,10 +4415,10 @@ Views.now = (w, esc, fmtIn) => {
   // team check: who's fighting and the simulated chance (when the goal has one)
   const teamLine = (T) => {
     if (!T || (!T.uids?.length && !T.how)) return '';
-    if (!T.uids?.length) return `<div class="dim" style="margin-top:6px;font-size:13px">🛡️ ${esc(T.how)}</div>`;
+    if (!T.uids?.length) return `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">🛡️ ${esc(T.how)}</div>`;
     const names = T.uids.map((u) => { const m = Engine.read('Game.getMon', null, u); return m ? `${esc(Engine.get('Game.DEX')?.[m.id]?.name || '?')} ${m.level}` : null; }).filter(Boolean);
     const pct = T.win != null ? ` · <b class="${T.win >= 0.6 ? 'ok' : T.win >= 0.3 ? 'warn' : 'bad'}">${Math.round(T.win * 100)}%</b>` : '';
-    return `<div class="dim" style="margin-top:6px;font-size:13px">🛡️ Team: ${names.join(', ')}${pct}${T.how ? ` <span class="dim">(${esc(T.how)})</span>` : ''}</div>`;
+    return `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">🛡️ Team: ${names.join(', ')}${pct}${T.how ? ` <span class="dim">(${esc(T.how)})</span>` : ''}</div>`;
   };
 
   // ---- 1. status line + needs-you ----
@@ -4044,7 +4430,7 @@ Views.now = (w, esc, fmtIn) => {
   const miss = E.audit().missing || []; if (miss.length) problems.push(`${miss.length} game functions are missing after a game update - some goals may not work.`);
   try { const ug0 = w.dailies.underground; if (ug0?.finished) problems.push(`Underground: ${ug0.finished} expedition${ug0.finished === 1 ? '' : 's'} back - collect ${ug0.finished === 1 ? 'it' : 'them'}.`); } catch (__e) { __h('62-nowview:77', __e); }
   try { const rdy = (DayCare.info().eggs || []).filter((e) => e.ready).length; if (rdy) problems.push(`Day Care: ${rdy} egg${rdy === 1 ? '' : 's'} ready to hatch.`); } catch (__e) { __h('62-nowview:78', __e); }
-  const status = `<span style="float:right;font-size:13px;font-weight:700" class="${Plan.running ? 'ok' : 'warn'}">${Plan.running ? '● running' : '❚❚ paused'} · ${open.length} goal${open.length === 1 ? '' : 's'}</span>`;
+  const status = `<span style="float:right;font-size:var(--t-s);font-weight:700" class="${Plan.running ? 'ok' : 'warn'}">${Plan.running ? '● running' : '❚❚ paused'} · ${open.length} goal${open.length === 1 ? '' : 's'}</span>`;
   if (!Plan.running) h += `<button class="btn gold" data-act="plan-run" style="margin-bottom:10px">▶ Start Plan</button>`;
   if (problems.length) h += `<div class="card" style="border-color:var(--bad)"><h3>⚠️ Needs You</h3>${problems.map((p) => `<div class="warn" style="margin:4px 0">${p}</div>`).join('')}</div>`;
 
@@ -4061,35 +4447,35 @@ Views.now = (w, esc, fmtIn) => {
   const fight = foes.length ? `fighting ${foes.map((e) => `${nm(e.id)}${e.level ? ' Lv ' + e.level : ''}`).join(', ')}` : '';
   if (scrGoal) {
     const L = live(scrGoal), p = prog(scrGoal, L);
-    h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:13px;font-weight:700;letter-spacing:.04em">WORKING ON NOW</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">${pic(scrGoal, 64)}<div style="flex:1;min-width:0">
-      <div style="font-size:17px;font-weight:800">${esc(Plan.label(scrGoal))}</div>
-      ${p ? `<div style="font-size:22px;font-weight:800;margin-top:2px">${p.money ? '₽' : ''}${(+p.have).toLocaleString()} <span class="dim" style="font-size:15px">of ${p.money ? '₽' : ''}${(+p.need).toLocaleString()}${p.unit ? ' ' + esc(p.unit) : ''}</span></div>` : ''}
+    h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:var(--t-s);font-weight:700;letter-spacing:.04em">WORKING ON NOW</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">${pic(scrGoal, 64)}<div style="flex:1;min-width:0">
+      <div style="font-size:var(--t-m);font-weight:800">${esc(Plan.label(scrGoal))}</div>
+      ${p ? `<div style="font-size:22px;font-weight:800;margin-top:2px">${p.money ? '₽' : ''}${(+p.have).toLocaleString()} <span class="dim" style="font-size:var(--t-m)">of ${p.money ? '₽' : ''}${(+p.need).toLocaleString()}${p.unit ? ' ' + esc(p.unit) : ''}</span></div>` : ''}
       </div></div>${p ? bar(p.have / p.need) : ''}
       ${L.line ? `<div style="margin-top:8px">${esc(L.line)}</div>` : L.why ? `<div class="dim" style="margin-top:8px">${esc(L.why)}</div>` : ''}
       ${(() => { // Battle XP goal (Jimmy 2026-11-23): each Pokémon it levels - level, a bar to Lv 100, time left
         if (scrGoal.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(scrGoal.spot)) return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-        return `<div style="margin-top:8px" title="Time to Lv 100 at each one's XP rate over the last 20 min">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:12px;white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
+        return `<div style="margin-top:8px" title="Time to Lv 100 at each one's XP rate over the last 20 min">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
       })()}
       ${(() => { // Axsiom Plan / Giant Chasm: what this run brought in
         if (scrGoal.type !== 'discord' || !['axsiom', 'mix'].includes(scrGoal.spot)) return '';
         const T = (() => { try { return GoalTypes.runTake(scrGoal); } catch { return null; } })(); if (!T) return '';
         const hrs = Math.max(1 / 60, (Date.now() - T.since) / 3.6e6), per = T.money / hrs;
-        return `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line)"><div class="lbl">This run · ${hrs < 1 ? Math.round(hrs * 60) + ' min' : hrs.toFixed(1) + ' h'}</div><div style="margin-top:2px">₽ <b>${Math.round(T.money).toLocaleString()}</b> <span class="dim">(${Math.round(per).toLocaleString()}/h)</span></div><div style="margin-top:2px;font-size:13px">${T.berries.length ? T.berries.map((b) => `${esc(b.name)} <b>×${b.n}</b>`).join(' · ') : '<span class="dim">no berries yet</span>'}</div></div>`;
+        return `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line)"><div class="lbl">This run · ${hrs < 1 ? Math.round(hrs * 60) + ' min' : hrs.toFixed(1) + ' h'}</div><div style="margin-top:2px">₽ <b>${Math.round(T.money).toLocaleString()}</b> <span class="dim">(${Math.round(per).toLocaleString()}/h)</span></div><div style="margin-top:2px;font-size:var(--t-s)">${T.berries.length ? T.berries.map((b) => `${esc(b.name)} <b>×${b.n}</b>`).join(' · ') : '<span class="dim">no berries yet</span>'}</div></div>`;
       })()}
       ${teamLine(L.team)}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
   } else if (Plan.running && Plan.idle) {
     const I = Plan.idle, g = I.goal, lead = g?.uids?.[0] ? E.read('Game.getMon', null, g.uids[0]) : null;
-    h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:13px;font-weight:700;letter-spacing:.04em">WORKING ON NOW · IDLE</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+    h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:var(--t-s);font-weight:700;letter-spacing:.04em">WORKING ON NOW · IDLE</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">
       ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
-      <div style="flex:1;min-width:0"><div style="font-size:17px;font-weight:800">${g ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:var(--t-m);font-weight:800">${g ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</div>
       ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${RK(m.rank)}${m.shiny ? ' ✨' : ''} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
       ${I.line ? `<div class="dim" style="margin-top:8px">${esc(I.line)}</div>` : ''}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
   } else {
-    h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:13px;font-weight:700;letter-spacing:.04em">WORKING ON NOW</div><div style="margin-top:6px">${Plan.running ? (open.length ? 'Nothing can run right this minute - see Up Next for what each goal is waiting on.' : 'Nothing - your plan is empty. Add goals from the Pokédex, Legends or Plan tab.') : 'Nothing - the plan is paused.'}</div>
+    h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:var(--t-s);font-weight:700;letter-spacing:.04em">WORKING ON NOW</div><div style="margin-top:6px">${Plan.running ? (open.length ? 'Nothing can run right this minute - see Up Next for what each goal is waiting on.' : 'Nothing - your plan is empty. Add goals from the Pokédex, Legends or Plan tab.') : 'Nothing - the plan is paused.'}</div>
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
   }
 
@@ -4097,7 +4483,7 @@ Views.now = (w, esc, fmtIn) => {
   const d = w.dailies, ug = d.underground, wb = d.worldBoss;
   // compact tiles: the label and the first part of the value; hover (or long-press) for the whole line
   const tile = (k, v) => { const t = document.createElement('div'); t.innerHTML = v; const full = (t.textContent || '').replace(/\s+/g, ' ').trim(); const first = (t.firstChild && t.firstChild.nodeType === 1 && t.firstChild.tagName === 'DIV') ? t.firstChild.innerHTML : v.replace(/<div[\s\S]*$/, '');
-    return `<div title="${esc(k + ': ' + full)}" style="background:var(--well);border:1px solid var(--line);border-radius:10px;padding:5px 8px;min-width:0"><div class="lbl" style="font-size:11px">${k}</div><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${first}</div></div>`; };
+    return `<div title="${esc(k + ': ' + full)}" style="background:var(--well);border:1px solid var(--line);border-radius:10px;padding:5px 8px;min-width:0"><div class="lbl" style="font-size:var(--t-s)">${k}</div><div style="font-size:var(--t-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${first}</div></div>`; };
   h += `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px">`;
   if (ug) h += tile('Underground', `${ug.left} of ${ug.perDay} left · ${ug.running}/${ug.slotsMax} bays busy${ug.finished ? ` · <span class="warn">${ug.finished} ready to collect</span>` : ug.nextBack ? ` · back in ${fmtIn(ug.nextBack)}` : ''}`);
   if (d.candy) {
@@ -4146,7 +4532,7 @@ Views.now = (w, esc, fmtIn) => {
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
     let r = '';
-    if (R.tiers.length) r += `<div class="lbl" style="margin-top:2px">Easiest tiers</div>` + R.tiers.slice(0, 3).map((t) => `<div class="row" data-act="tab" data-tab="legends" style="cursor:pointer"><span class="k">${esc(t.what)} <span class="faint" style="font-size:12px">→ ${esc(t.reward)}</span></span><span class="v"><b class="${col(t.pct)}">${pc(t.pct)}</b></span></div>`).join('');
+    if (R.tiers.length) r += `<div class="lbl" style="margin-top:2px">Easiest tiers</div>` + R.tiers.slice(0, 3).map((t) => `<div class="row" data-act="tab" data-tab="legends" style="cursor:pointer"><span class="k">${esc(t.what)} <span class="faint" style="font-size:var(--t-s)">→ ${esc(t.reward)}</span></span><span class="v"><b class="${col(t.pct)}">${pc(t.pct)}</b></span></div>`).join('');
     else r += `<div class="dim">No tiers rated yet - open Simulate › Elite or › League and Mega rates them.</div>`;
     if (R.ready.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${R.ready.slice(0, 4).map((c) => `<b>${esc(c.name)}</b> <span class="dim">→ ${RK(c.next)} (${esc(c.label)})</span>`).join(' · ')}</div>`;
     if (R.shop.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${R.shop.map((x) => `${esc(x.label)} <span class="${x.ok ? 'ok' : 'dim'}">${x.price ? x.price.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(x.mons.slice(0, 2).join(', '))}</span>`).join(' · ')}</div>`;
@@ -4158,7 +4544,7 @@ Views.now = (w, esc, fmtIn) => {
     if (R.length) {
       const M = (x) => (x >= 1e6 ? (x / 1e6).toFixed(1) + ' M' : Math.round(x / 1e3) + ' k');
       const have = ['exp-candy-s', 'exp-candy-m', 'exp-candy-big', 'exp-candy-xl'].map((k) => [k, +E.read('Game.itemCount', 0, k) || 0]).filter(([, n]) => n);
-      h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${R.length}</span></h3><div class="dim" style="font-size:13px;margin-bottom:4px">Past ${((g.candyAt || GoalTypes.CANDY_AT) / 1e6).toFixed(1)} M XP per level, so battling is slow: feed these Exp. Candies. Discord tier-list picks first.</div>${R.slice(0, 8).map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(0,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${esc(Casing.names(E.get('Game.DEX')?.[r.id]?.name || '#' + r.id))}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><span>${r.tier ? '<span class="ok" style="font-size:12px">Discord pick</span>' : ''}</span><span class="dim" style="font-size:12px;white-space:nowrap">${M(r.left)} XP to 100</span></div>`).join('')}${R.length > 8 ? `<div class="dim" style="margin-top:4px">+ ${R.length - 8} more</div>` : ''}${have.length ? `<div class="dim" style="margin-top:6px;font-size:13px">You have: ${have.map(([k, n]) => `${esc(Casing.names(E.get('CONFIG')?.ITEMS?.[k]?.name || k))} ×${n}`).join(' · ')}</div>` : ''}</div>`;
+      h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${R.length}</span></h3><div class="dim" style="font-size:var(--t-s);margin-bottom:4px">Past ${((g.candyAt || GoalTypes.CANDY_AT) / 1e6).toFixed(1)} M XP per level, so battling is slow: feed these Exp. Candies. Discord tier-list picks first.</div>${R.slice(0, 8).map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(0,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${esc(Casing.names(E.get('Game.DEX')?.[r.id]?.name || '#' + r.id))}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><span>${r.tier ? '<span class="ok" style="font-size:var(--t-s)">Discord pick</span>' : ''}</span><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${M(r.left)} XP to 100</span></div>`).join('')}${R.length > 8 ? `<div class="dim" style="margin-top:4px">+ ${R.length - 8} more</div>` : ''}${have.length ? `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">You have: ${have.map(([k, n]) => `${esc(Casing.names(E.get('CONFIG')?.ITEMS?.[k]?.name || k))} ×${n}`).join(' · ')}</div>` : ''}</div>`;
     }
   }
 
@@ -4194,7 +4580,7 @@ Views.now = (w, esc, fmtIn) => {
     for (const g of next.slice(0, 3)) {
       const L = live(g), p = prog(g, L);
       const st = g.paused ? '❚❚ paused' : L.state === 'wait' ? `◐ ${esc(L.why || 'waiting')}` : L.state === 'queued' ? '○ after the one above' : esc(L.why || L.state || '');
-      h += `<div style="display:flex;gap:8px;align-items:center;margin:5px 0" title="${esc(Plan.label(g))}"><span style="flex:none">${pic(g, 28)}</span><div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(Plan.label(g))}</b>${p ? ` <span class="dim">· ${(+p.have).toLocaleString()}/${(+p.need).toLocaleString()}</span>` : ''} <span class="dim" style="font-size:13px">${st}</span></div></div>`;
+      h += `<div style="display:flex;gap:8px;align-items:center;margin:5px 0" title="${esc(Plan.label(g))}"><span style="flex:none">${pic(g, 28)}</span><div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(Plan.label(g))}</b>${p ? ` <span class="dim">· ${(+p.have).toLocaleString()}/${(+p.need).toLocaleString()}</span>` : ''} <span class="dim" style="font-size:var(--t-s)">${st}</span></div></div>`;
     }
     if (next.length > 3) h += `<div class="dim" data-act="tab" data-tab="plan" style="cursor:pointer">+ ${next.length - 3} more in the Plan tab ›</div>`;
     if (along) h += `<div class="lbl" style="margin-top:8px">Running alongside</div>${along}`;
@@ -4219,7 +4605,7 @@ Views.now = (w, esc, fmtIn) => {
   }
   const team = (S.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
   if (team.length) {
-    h += `<div class="card tmwrap"><h3>Team</h3><div class="tmgrid">${team.map((m) => `<div style="min-width:0"><img src="${E.sprite(m.id)}" width="48" height="48" style="image-rendering:pixelated;max-width:100%;height:auto"><div class="tmname" title="${nm(m.id)}">${nm(m.id)}</div><div class="dim" style="font-size:12px">Lv ${m.level}${S.buddy?.uid === m.uid ? ' ★' : ''}</div></div>`).join('')}</div><button class="btn" data-act="team-edit">✏️ Change Team</button></div>`;
+    h += `<div class="card tmwrap"><h3>Team</h3><div class="tmgrid">${team.map((m) => `<div style="min-width:0"><img src="${E.sprite(m.id)}" width="48" height="48" style="image-rendering:pixelated;max-width:100%;height:auto"><div class="tmname" title="${nm(m.id)}">${nm(m.id)}</div><div class="dim" style="font-size:var(--t-s)">Lv ${m.level}${S.buddy?.uid === m.uid ? ' ★' : ''}</div></div>`).join('')}</div><button class="btn" data-act="team-edit">✏️ Change Team</button></div>`;
   }
   return h;
 };
@@ -4263,7 +4649,7 @@ const TopBar = (() => {
       sep.style.display = 'flex'; sep.style.alignItems = 'center'; sep.style.overflow = 'hidden';
       el = document.createElement('button');
       el.id = ID; el.type = 'button';
-      el.style.cssText = 'display:block;min-width:0;max-width:100%;margin:0 10px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.28);color:inherit;font:inherit;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left';
+      el.style.cssText = 'display:block;min-width:0;max-width:100%;margin:0 10px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.28);color:inherit;font:inherit;font-size:var(--t-s);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left';
       el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { UI.openTab?.('plan'); } catch (__e) { __h('62-topbar:41', __e); } });
       sep.appendChild(el);
     }
@@ -4300,8 +4686,8 @@ Views.blocs = (esc) => {
   const MAX = +C.MAX || 25, pct = (x) => `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`;
   const rainbow = count('mystery-candy');
   let h = `<div class="card"><h3>Pokéblocks</h3>
-    <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:15px"><span>🌈 <b>${rainbow}</b> Rainbow</span>${T.ORDER.map((k) => `<span>${chip(k)}<b>${count(T.ITEM[k])}</b> ${COLOUR[k]} <span class="dim">(${STAT[k]})</span></span>`).join('')}</div>
-    <div class="dim" style="margin-top:8px;font-size:13px">A <b>Rainbow</b> reveals a Pokémon's tastes: one stat it dislikes (−20%, for good) and one it likes (+10%), both at random. Then each <b>coloured</b> Pokéblock raises its stat, up to +20% after ${MAX} (the first ones count most). All raises together stay under +20%, two stats at most. It refuses its disliked colour; another colour moves its liked stat. A new Rainbow starts over from scratch, and a trade wipes it. Boosts count in every fight.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:var(--t-m)"><span>🌈 <b>${rainbow}</b> Rainbow</span>${T.ORDER.map((k) => `<span>${chip(k)}<b>${count(T.ITEM[k])}</b> ${COLOUR[k]} <span class="dim">(${STAT[k]})</span></span>`).join('')}</div>
+    <div class="dim" style="margin-top:8px;font-size:var(--t-s)">A <b>Rainbow</b> reveals a Pokémon's tastes: one stat it dislikes (−20%, for good) and one it likes (+10%), both at random. Then each <b>coloured</b> Pokéblock raises its stat, up to +20% after ${MAX} (the first ones count most). All raises together stay under +20%, two stats at most. It refuses its disliked colour; another colour moves its liked stat. A new Rainbow starts over from scratch, and a trade wipes it. Boosts count in every fight.</div>
     <div class="note dim" style="margin-top:8px">Suggestions only - Mega never feeds Pokéblocks. Get more from the Pokéblock Boss (weekends: every colour + 5 Rainbows) or the Battle Tower counter (20 BP each, Rainbow 150 BP).</div></div>`;
 
   // today's Pokéblock Boss
@@ -4315,7 +4701,7 @@ Views.blocs = (esc) => {
       <div class="row"><span class="k">Status</span><span class="v">${why === 'played' ? '<span class="ok">✔ done today</span>' : why === 'locked' ? 'locked (beat the Unova League)' : Plan.hasType('bloc') ? 'Mega attacks it after the daily reset' : 'not in your plan'}</span></div>
       ${last ? `<div class="row"><span class="k">Last attack</span><span class="v">reached ${(() => { try { return esc(BB.stepName(last.step, last.taste)); } catch { return 'step ' + last.step; } })()} · ${last.got} Pokéblocks${last.rb ? ` + ${last.rb} Rainbow` : ''}</span></div>` : ''}
       <div class="row"><span class="k">Your record</span><span class="v">${(() => { try { const b = BB.best(); return b >= 0 ? esc(BB.stepName(b)) : '—'; } catch { return '—'; } })()}</span></div>
-      ${weekend ? '' : '<div class="dim" style="font-size:13px;margin-top:4px">Saturday and Sunday: Pokéblocks of every colour and 5 Rainbows.</div>'}</div>`;
+      ${weekend ? '' : '<div class="dim" style="font-size:var(--t-s);margin-top:4px">Saturday and Sunday: Pokéblocks of every colour and 5 Rainbows.</div>'}</div>`;
   }
 
   // who matters most: the Pokémon your saved teams use (legendary / roamer sims, raid pick, zone and event teams)
@@ -4343,7 +4729,7 @@ Views.blocs = (esc) => {
       else tip = `It likes ${liked.map((k) => STAT[k]).join(' & ') || '—'}. Feed it <b>${COLOUR[hs]}</b> to move its liked stat to ${STAT[hs]}, the one it attacks with.`;
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><img src="${E.sprite(m.id)}" width="40" height="40" style="image-rendering:pixelated;flex:none">
         <div style="flex:1;min-width:0"><b>${nm(m.id)}${m.shiny ? ' ✨' : ''}</b> <span class="dim">Lv ${m.level} · dislikes ${chip(t.h)}${STAT[t.h]}</span>
-        <div style="font-size:13px">${boosts || '<span class="dim">no boosts yet</span>'}</div><div style="font-size:13px">${tip}</div></div></div>`;
+        <div style="font-size:var(--t-s)">${boosts || '<span class="dim">no boosts yet</span>'}</div><div style="font-size:var(--t-s)">${tip}</div></div></div>`;
     }
     h += `</div>`;
   }
@@ -4358,9 +4744,9 @@ Views.blocs = (esc) => {
     const hs = hitStat(m), n = use.get(m.uid) || 0;
     h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b><img src="${E.sprite(m.id)}" width="40" height="40" style="image-rendering:pixelated;flex:none">
       <div style="flex:1;min-width:0"><b>${nm(m.id)}${m.shiny ? ' ✨' : ''}</b> <span class="dim">Lv ${m.level} · base ${bst(m)}${n ? ` · in ${n >= 6 ? 'many' : 'some'} of your teams` : ''}</span>
-      <div style="font-size:13px">Then feed ${chip(hs)}<b>${COLOUR[hs]}</b> (${STAT[hs]}, its attacking stat)${hs === 'atk' ? '' : ''}</div></div></div>`;
+      <div style="font-size:var(--t-s)">Then feed ${chip(hs)}<b>${COLOUR[hs]}</b> (${STAT[hs]}, its attacking stat)${hs === 'atk' ? '' : ''}</div></div></div>`;
   });
-  h += `<div class="dim" style="font-size:13px;margin-top:10px">1 in 5 draws makes its attacking stat the disliked one - check the Revealed list right after a Rainbow, and reroll that one if you have Rainbows to spare.</div></div>`;
+  h += `<div class="dim" style="font-size:var(--t-s);margin-top:10px">1 in 5 draws makes its attacking stat the disliked one - check the Revealed list right after a Rainbow, and reroll that one if you have Rainbows to spare.</div></div>`;
   return h;
 };
 
@@ -4519,7 +4905,7 @@ Views.elite = (esc, ui = {}) => {
       const shown = all ? rows : rows.slice(0, 10);
       h += `<div class="card"><h3>Easiest Next Tier</h3>${done < rows.length ? `<div class="dim">Simulating… ${done} of ${rows.length} done</div>` : ''}
         ${shown.map(({ r, s }, i) => { const k = `L${r.id}:${r.next}`; const note = !r.open ? ' · closed now' : !r.can ? ' · locked for now' : ''; const rw = r.reward === 'gem' ? `${esc(EliteInfo.gemLabel(r.gem))} gem` : 'frame';
-          return `<div data-act="elite-jump" data-id="${r.id}" style="display:flex;justify-content:space-between;gap:8px;margin-top:6px;cursor:pointer"><span>${i === 0 && s ? '⭐ ' : ''}<b>${nm(r.foe)}</b> tier ${r.next} <span class="dim" style="font-size:12px">→ ${rw}${note}</span></span><span>${s ? `<b style="color:${col(s.ko)}">${pctS(s.ko)}</b>` : runs.has(k) ? `<span class="dim">${runs.get(k)}%…</span>` : '<span class="dim">waiting…</span>'}</span></div>`; }).join('')}
+          return `<div data-act="elite-jump" data-id="${r.id}" style="display:flex;justify-content:space-between;gap:8px;margin-top:6px;cursor:pointer"><span>${i === 0 && s ? '⭐ ' : ''}<b>${nm(r.foe)}</b> tier ${r.next} <span class="dim" style="font-size:var(--t-s)">→ ${rw}${note}</span></span><span>${s ? `<b style="color:${col(s.ko)}">${pctS(s.ko)}</b>` : runs.has(k) ? `<span class="dim">${runs.get(k)}%…</span>` : '<span class="dim">waiting…</span>'}</span></div>`; }).join('')}
         ${rows.length > 10 ? `<button class="btn sm" data-act="elite-all" style="margin-top:8px">${all ? 'Show the Top 10' : `Show All ${rows.length}`}</button>` : ''}
         <div class="dim" style="margin-top:8px">The chance the best team Mega finds knocks it out (Elite rule: one Legendary per team). Sorted easiest first; tap one to open it below. Odds refresh every 3 h.</div></div>`;
     }
@@ -4533,7 +4919,7 @@ Views.elite = (esc, ui = {}) => {
     const pips = d.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? 'var(--ok)' : t === r.next ? 'var(--gold)' : 'var(--line)'}"></span>`).join('');
     h += `<div class="card"><div style="display:flex;gap:12px;align-items:center">
       <img src="${Engine.sprite(r.foe)}" width="56" height="56" style="image-rendering:pixelated;background:var(--well);border-radius:12px;flex:none">
-      <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:800">${nm(r.foe)}${r.foe !== r.id ? ` <span class="dim" style="font-size:13px">(this week's form)</span>` : ''}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:var(--t-m);font-weight:800">${nm(r.foe)}${r.foe !== r.id ? ` <span class="dim" style="font-size:var(--t-s)">(this week's form)</span>` : ''}</div>
       <div style="margin:4px 0">${pips} <span class="dim">${r.best}/${d.tiers.length}</span></div>
       ${r.next ? `<div>Next: <b>Tier ${r.next}</b> → ${r.reward === 'gem' ? `<span class="ok">${esc(EliteInfo.gemLabel(r.gem))} gem</span>` : 'a frame'}${r.open && r.can ? '' : ` <span class="warn">· ${r.open ? 'locked for now (recent loss)' : 'zone closed now'}</span>`}</div>` : '<div class="ok">All tiers beaten ✔</div>'}
       </div></div>
@@ -4563,8 +4949,8 @@ Views.gems = (esc) => {
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b>
         <img src="${Engine.sprite(c.m.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none">
         <div style="flex:1;min-width:0"><b>${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''}</b> <span class="ok">+${c.gain} stats</span> <span class="dim">(+${Math.round(c.pct * 100)}%)</span>
-        <div class="dim" style="font-size:13px">rank ${c.m.rank || 0} → ${c.next} · ${c.need} ${esc(c.label)} gem${c.need > 1 ? 's' : ''}${role(c) ? ' · ' + role(c) : ''}</div>
-        ${EliteInfo.canEvolve(c.m.id) ? `<div class="warn" style="font-size:13px">⚠ won't evolve any more once ranked</div>` : ''}</div></div>
+        <div class="dim" style="font-size:var(--t-s)">rank ${c.m.rank || 0} → ${c.next} · ${c.need} ${esc(c.label)} gem${c.need > 1 ? 's' : ''}${role(c) ? ' · ' + role(c) : ''}</div>
+        ${EliteInfo.canEvolve(c.m.id) ? `<div class="warn" style="font-size:var(--t-s)">⚠ won't evolve any more once ranked</div>` : ''}</div></div>
         <button class="btn${i === 0 ? ' gold' : ''}" data-act="gem-rank" data-uid="${c.m.uid}" data-key="${c.key}" data-rank="${c.m.rank || 0}" data-id="${c.m.id}" data-need="${c.need}" data-label="${esc(c.label)}" data-gain="${c.gain}" data-lv="${c.m.level}" data-ev="${EliteInfo.canEvolve(c.m.id) ? 1 : 0}">Rank Up (back to Lv 5)</button>
         <button class="btn" data-act="gem-open" data-uid="${c.m.uid}">Open in Game</button>`;
     });
@@ -4577,7 +4963,7 @@ Views.gems = (esc) => {
     const R = g.rows.filter((r) => tierOf(r.key) === t); if (!R.length) continue;
     const held = R.filter((r) => +r.have > 0), none = R.filter((r) => !(+r.have > 0));
     const line = (r) => { const c = r.top[0];
-      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:13px">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:12px">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
     if (held.length) h += `<div class="card" data-sec="all"><h3>${esc(EliteInfo.TIER[t])} gems <span class="dim" style="font-weight:600">· ${held.length}</span></h3>${held.map(line).join('')}</div>`;
     if (none.length) h += `<div class="card" data-sec="none"><h3>${esc(EliteInfo.TIER[t])} gems you don't have <span class="dim" style="font-weight:600">· ${none.length}</span></h3>${none.map(line).join('')}</div>`;
   }
@@ -4590,7 +4976,7 @@ Views.gems = (esc) => {
   Views.legends = (w, ui, esc) => {
     const mode = ui.mode || 'legendary';
     const MODES = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'Gyms & League']];
-    const bar = `<div style="display:grid;grid-template-columns:repeat(${MODES.length},1fr);gap:6px;margin-bottom:10px">${MODES.map(([k, l]) => `<button class="btn sm${mode === k ? ' gold' : ''}" data-act="sim-mode" data-mode="${k}" style="margin:0">${l}</button>`).join('')}</div>`;
+    const bar = `<div class="snav">${MODES.map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="sim-mode" data-mode="${k}">${l}</button>`).join('')}</div>`;
     if (!w.ok) return bar + '<div class="note">Waiting for the game engine.</div>';
     return bar + (mode === 'elite' ? Views.elite(esc, ui) : mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
   };
@@ -4711,11 +5097,11 @@ const GemFocus = (() => {
     let h = '';
     // 1. Focus Pokémon
     const ch = F.choices();
-    h += `<div class="card"><h3>🎯 Focus Pokémon</h3><select class="sel" data-act="gem-focus"><option value="">Pick one of your Pokémon…</option>${ch.map((c) => `<option value="${c.uid}" ${ui.focus === c.uid ? 'selected' : ''}>${c.pick ? '★ ' : ''}${esc(c.name)}${c.shiny ? ' ✨' : ''} · Lv ${c.lv} · rank ${c.rank}</option>`).join('')}</select><div class="dim" style="font-size:12px;margin-top:4px">★ = on the Discord's gem tier lists</div>`;
+    h += `<div class="card"><h3>🎯 Focus Pokémon</h3><select class="sel" data-act="gem-focus"><option value="">Pick one of your Pokémon…</option>${ch.map((c) => `<option value="${c.uid}" ${ui.focus === c.uid ? 'selected' : ''}>${c.pick ? '★ ' : ''}${esc(c.name)}${c.shiny ? ' ✨' : ''} · Lv ${c.lv} · rank ${c.rank}</option>`).join('')}</select><div class="dim" style="font-size:var(--t-s);margin-top:4px">★ = on the Discord's gem tier lists</div>`;
     const m = ui.focus ? Engine.read('Game.getMon', null, ui.focus) : null;
     if (m) {
       const s = F.status(m), o = F.shop() || { ids: [] };
-      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:10px">${sp(m.id, 56)}<div style="flex:1"><b style="font-size:16px">${esc(F.nameOf(m.id))}${m.shiny ? ' ✨' : ''}</b><div class="dim">Lv ${m.level} · rank ${s.rank} of ${s.max} · ${s.rank < s.max ? `${s.left} more gems to reach rank ${s.max}` : 'top rank'}</div></div></div>`;
+      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:10px">${sp(m.id, 56)}<div style="flex:1"><b style="font-size:var(--t-m)">${esc(F.nameOf(m.id))}${m.shiny ? ' ✨' : ''}</b><div class="dim">Lv ${m.level} · rank ${s.rank} of ${s.max} · ${s.rank < s.max ? `${s.left} more gems to reach rank ${s.max}` : 'top rank'}</div></div></div>`;
       if (!s.keys.length) h += `<div class="dim" style="margin-top:8px">This one can't take gems.</div>`;
       else {
         h += `<div style="margin-top:8px"><b>Takes:</b> ${s.keys.map((x) => `${esc(x.label)} <span class="${x.have ? 'ok' : 'dim'}">(you have ${x.have})</span>`).join(' or ')}</div>`;
@@ -4726,7 +5112,7 @@ const GemFocus = (() => {
         for (const x of s.keys) {
           const f = F.fuseFor(x.k);
           if (f?.can) h += `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px"><b>Fuse</b> ${f.per} ${esc(f.lowerLabel)} → 1 ${esc(x.label)} · you have ${f.have} (makes up to ${f.makes})${f.makes ? (() => { const short = s.rank < s.max ? Math.max(0, s.need - x.have) : 0, enough = Math.min(f.makes, short); return `<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="1" style="width:auto">Fuse 1</button>${enough > 1 && enough < f.makes ? `<button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="${enough}" style="width:auto">Fuse ${enough} (enough for rank ${s.next})</button>` : ''}${f.makes > 1 ? `<button class="btn sm" data-act="gem-fuse" data-key="${x.k}" data-n="${f.makes}" style="width:auto">Fuse All (${f.makes})</button>` : ''}</div>`; })() : ''}</div>`;
-          else if (x.tier >= 2) h += `<div class="dim" style="margin-top:6px;font-size:13px">${esc(x.label)}s can't be made by fusing - they come from the Underground (deeper floors) or the gem shop (${F.price(x.k) ?? '?'} shards).</div>`;
+          else if (x.tier >= 2) h += `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">${esc(x.label)}s can't be made by fusing - they come from the Underground (deeper floors) or the gem shop (${F.price(x.k) ?? '?'} shards).</div>`;
           if ((o.ids || []).includes(x.k)) h += `<div style="margin-top:6px"><span class="ok">In the shop today:</span> ${esc(x.label)} for ${F.price(x.k)} shards (you have ${F.shards()}) <button class="btn sm" data-act="gem-buy" data-key="${x.k}" ${F.shards() >= (F.price(x.k) || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`;
         }
         h += `<button class="btn sm" data-act="gem-open" data-uid="${m.uid}" style="margin-top:8px">Open in Game</button>`;
@@ -4739,7 +5125,7 @@ const GemFocus = (() => {
       const hits = new Map(F.shopHits().map((x) => [x.k, x]));
       h += `<div class="card"><h3>🛒 Gem Shop Today</h3><div class="dim">You have ${F.shards()} shards · changes ${new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</div>`;
       for (const k of o.ids || []) { const p = F.price(k), hit = hits.get(k); h += `<div class="row" style="align-items:center;margin-top:6px"><span>${esc(F.label(k))} · ${p} shards${hit ? ` <span class="ok">for ${esc(hit.mons.slice(0, 3).join(', '))}</span>` : ''}</span><button class="btn sm" data-act="gem-buy" data-key="${k}" style="width:auto;margin:0" ${F.shards() >= (p || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`; }
-      h += `<button class="btn sm" data-act="gem-reroll" style="margin-top:8px">New Offer (₽${(+o.cost || 0).toLocaleString()})</button><div class="dim" style="font-size:12px;margin-top:4px">Mega sends your phone a note when the shop has a gem one of the Discord picks needs and you can afford it. It never buys by itself.</div></div>`;
+      h += `<button class="btn sm" data-act="gem-reroll" style="margin-top:8px">New Offer (₽${(+o.cost || 0).toLocaleString()})</button><div class="dim" style="font-size:var(--t-s);margin-top:4px">Mega sends your phone a note when the shop has a gem one of the Discord picks needs and you can afford it. It never buys by itself.</div></div>`;
     }
     // 3. the Discord picks
     const W = F.watchRows();
@@ -4747,7 +5133,7 @@ const GemFocus = (() => {
       h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">From the Discord's gem tier lists: the Legendaries that gain most from gems, and the non-Legendaries for the 5 Elite slots (Elite allows one Legendary).</div>`;
       for (const r of W) {
         const st = r.rank >= r.max ? '<span class="ok">rank 5 ✓</span>' : r.why ? `<span class="dim">${esc(r.why)}</span>` : `<span class="ok">✓ ready for rank ${r.next}</span>`;
-        h += `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">${esc(r.tag)} · Lv ${r.m.level} · rank ${r.rank}</span><div style="font-size:13px">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
+        h += `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">${esc(r.tag)} · Lv ${r.m.level} · rank ${r.rank}</span><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
       }
       h += `</div>`;
     }
@@ -4798,7 +5184,7 @@ const LeagueInfo = (() => {
         const a = (g.team || []).map((x) => x[0]), b = (n.team || []).map((x) => x[0]), was = a.filter((x) => !b.includes(x)), is = b.filter((x) => !a.includes(x));
         return `${esc(g.leader)} uses ${is.map(nm).join(', ')} at night (${was.map(nm).join(', ')} by day)`;
       });
-      return `<div class="dim" style="font-size:13px;margin-top:4px">🌙 ${say.join(' · ')}. Right now: <b>${night ? 'night' : 'day'}</b> version. The version is set when you enter the League.</div>`;
+      return `<div class="dim" style="font-size:var(--t-s);margin-top:4px">🌙 ${say.join(' · ')}. Right now: <b>${night ? 'night' : 'day'}</b> version. The version is set when you enter the League.</div>`;
     } catch { return ''; }
   }
   // the next story gym: the frontier chapter's gym (with its team at the game's levels) and the cap
@@ -4831,7 +5217,7 @@ Views.league = (esc) => {
     } else if (s.gym) h += `<div><b>${esc(s.gym.leader || 'Gym Leader')}</b> · ${esc(s.chapter)}</div>`;
     if (s.gym) {
       h += `<div class="dim" style="margin-top:6px">${esc(Casing.title(s.gym.type || ''))} type · power ×${(+s.gym.power || 1).toFixed(2)}${s.cap ? ` · level cap ${s.cap}` : ''}${s.gym.byStarter ? ' · the leader depends on your starter' : ''}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.foes.map((f) => `<div style="text-align:center"><img src="${Engine.sprite(f.id)}" width="48" height="48" style="image-rendering:pixelated"><div style="font-size:12px">${nm(f.id)}</div><div class="dim" style="font-size:12px">Lv ${f.level}</div></div>`).join('')}</div>`;
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.foes.map((f) => `<div style="text-align:center"><img src="${Engine.sprite(f.id)}" width="48" height="48" style="image-rendering:pixelated"><div style="font-size:var(--t-s)">${nm(f.id)}</div><div class="dim" style="font-size:var(--t-s)">Lv ${f.level}</div></div>`).join('')}</div>`;
       const pctB = (x) => `<b class="${x >= 0.6 ? 'ok' : x >= 0.3 ? 'warn' : 'bad'}">${Math.round(x * 100)}%</b>`;
       if (s.win != null) h += `<div style="margin-top:10px">Your current team vs ${esc(s.gym.leader ? Casing.names(String(s.gym.leader)) : 'the leader')}: ${pctB(s.win)} <span class="dim">at today's levels: half fresh, half after the trainers since the last Pokémon Center (HP carries over)</span></div>`;
       // what Mega is doing about it, in its own words (the "Beat the League" goal)
@@ -4852,7 +5238,7 @@ Views.league = (esc) => {
           if (keep) h += `<div style="margin-top:6px"><b>Suggestion:</b> <span class="ok">keep your current team</span> <span class="dim">- nothing you could train or catch does better</span></div>`;
           else h += `<div style="margin-top:6px"><b>A better team:</b> ${P.plan.ready ? `${pct(P.plan.win)} with no training` : `${P.today != null ? `${pct(P.today)} as they are today → ` : ''}${pct(P.plan.win)} once trained to Lv ${P.cap || s.cap}`}</div>`;
           // the old helper's bars: current team, suggested team today, suggested team at the cap - and how far the levelling is
-          const bar = (label, x) => `<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="flex:0 0 44%;font-size:13px">${label}</span><div class="bar" style="flex:1;margin:0"><i style="width:${Math.round((x || 0) * 100)}%;background:${x >= 0.6 ? 'var(--ok)' : x >= 0.3 ? 'var(--warn)' : 'var(--bad)'}"></i></div><b style="width:38px;text-align:right;font-size:13px">${Math.round((x || 0) * 100)}%</b></div>`;
+          const bar = (label, x) => `<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="flex:0 0 44%;font-size:var(--t-s)">${label}</span><div class="bar" style="flex:1;margin:0"><i style="width:${Math.round((x || 0) * 100)}%;background:${x >= 0.6 ? 'var(--ok)' : x >= 0.3 ? 'var(--warn)' : 'var(--bad)'}"></i></div><b style="width:38px;text-align:right;font-size:var(--t-s)">${Math.round((x || 0) * 100)}%</b></div>`;
           if (P.plan.run && P.plan.run.survive != null) h += `<div class="dim" style="margin-top:4px">Run to the leader (suggested team): gets there ${pct(P.plan.run.survive)} of the time, with about ${pct(P.plan.run.arrive)} HP left</div>`;
           h += `<div style="margin-top:8px">${s.win != null ? bar('Your current team', s.win) : ''}${keep ? '' : bar('Suggested team (now)', P.plan.ready ? P.plan.win : (P.today ?? 0)) + bar(`Suggested team at Lv ${P.cap || s.cap}`, P.plan.win)}</div>`;
           const capM = (m) => { try { return +Engine.read('Game.capFor', 0, m) || P.cap || s.cap || 100; } catch { return P.cap || s.cap || 100; } };
@@ -4861,12 +5247,12 @@ Views.league = (esc) => {
           canTrain = atCap < planMons.length;
           if (planMons.length && atCap < planMons.length && (sg?.levelFirst || !keep)) {
             h += `<div style="margin-top:10px"><b>Training to Lv ${P.cap || s.cap}:</b> ${atCap} of ${planMons.length} there${sg?.levelFirst ? ' <span class="dim">- then Mega tries again</span>' : ''}</div><div class="bar" style="margin-top:4px"><i style="width:${Math.round(atCap / planMons.length * 100)}%"></i></div>`;
-            h += `<div class="dim" style="font-size:13px;margin-top:4px">${planMons.filter((m) => m.level < capM(m)).map((m) => `${nm(m.id)} ${m.level}/${capM(m)}`).join(' · ')}</div>`;
+            h += `<div class="dim" style="font-size:var(--t-s);margin-top:4px">${planMons.filter((m) => m.level < capM(m)).map((m) => `${nm(m.id)} ${m.level}/${capM(m)}`).join(' · ')}</div>`;
           }
           if (!keep) h += `<div class="grid" style="margin-top:8px">${P.plan.team.map((t) => {
             const own = t.kind === 'own' ? Engine.read('Game.getMon', null, t.uid) : null;
             const how = t.kind === 'catch' ? `catch ${nm(t.base)}<br><span class="dim">${esc(t.where || '')}</span>` : own && own.id !== t.id ? `your ${nm(own.id)} Lv ${own.level} → evolve` : own && s.cap && own.level < s.cap && !P.plan.ready ? `yours · level ${own.level} → ${s.cap}` : `<span class="ok">✓ ready${own ? ' · Lv ' + own.level : ''}</span>`;
-            return `<div class="mon"><img src="${Engine.sprite(t.id)}" alt="">${nm(t.id)}<br><span style="font-size:12px">${how}</span></div>`; }).join('')}</div>`;
+            return `<div class="mon"><img src="${Engine.sprite(t.id)}" alt="">${nm(t.id)}<br><span style="font-size:var(--t-s)">${how}</span></div>`; }).join('')}</div>`;
           // the gym after: what to catch for it while you're in these chapters
           const nx = (() => { try { return GymPlan.nextGym(s.ch); } catch { return null; } })(), NP = nx != null ? (() => { try { return GymPlan.saved[nx] || null; } catch { return null; } })() : null;
           if (NP) { const c = NP.plan.team.filter((t) => t.kind === 'catch'); h += `<div style="margin-top:8px"><b>Next: ${esc(NP.gym)}</b> · best possible ${pct(NP.plan.win)}${c.length ? ` · catch ${c.map((t) => `${nm(t.base)} <span class="dim">(${esc(t.where || '')})</span>`).join(', ')}` : ' · nothing new to catch'}</div>`; }
@@ -4879,7 +5265,7 @@ Views.league = (esc) => {
           <button class="btn" data-act="gymplan-run" data-ch="${s.ch}" ${B ? 'disabled' : ''}>${B ? 'Simulating…' : 'Simulate the Fight'}</button>
           ${sg ? `<button class="btn${sg.goFight ? '' : ' gold'}" data-act="gym-go" ${sg.goFight ? 'disabled' : ''}>${sg.goFight ? 'Fighting…' : 'Go Fight'}</button>` : ''}
           ${sg && canTrain ? `<button class="btn${sg.levelFirst ? '' : ' gold'}" data-act="gym-train">${sg.levelFirst ? 'Train These (training now)' : 'Train These'}</button>` : ''}</div>
-          <div class="dim" style="font-size:13px;margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself. Simulate the Fight changes who trains right away; Train These again sends the newest team in now.' : `Simulate the Fight checks every Pokémon you have. Go Fight: try the chapter and leader now.${canTrain ? ' Train These: level the planned team to the cap first.' : ' Everyone in the plan is at the level cap, so there is nothing to train.'}`}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
+          <div class="dim" style="font-size:var(--t-s);margin-top:4px">${sg?.goFight ? 'Going for the chapter and the leader now with the best team at today\'s levels. After 2 losses Mega goes back to leveling.' : sg?.levelFirst ? 'Leveling the planned team to the level cap, then Mega tries again by itself. Simulate the Fight changes who trains right away; Train These again sends the newest team in now.' : `Simulate the Fight checks every Pokémon you have. Go Fight: try the chapter and leader now.${canTrain ? ' Train These: level the planned team to the cap first.' : ' Everyone in the plan is at the level cap, so there is nothing to train.'}`}${sg && !on ? ' <span class="warn">The plan is paused - these start when it runs.</span>' : ''}</div></div>`;
       }
     }
     h += `</div>`;
@@ -4907,13 +5293,13 @@ Views.league = (esc) => {
     }
     for (const r of L) {
       const pips = r.tiers.map((t) => `<span style="display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:3px;background:${t <= r.best ? 'var(--ok)' : t === r.next ? 'var(--gold)' : 'var(--line)'}"></span>`).join('');
-      h += `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">${esc(r.name)} League</b><span>${pips} <span class="dim">${r.best}/5</span></span></div>
+      h += `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:var(--t-m)">${esc(r.name)} League</b><span>${pips} <span class="dim">${r.best}/5</span></span></div>
         ${r.pending.length ? `<div class="warn" style="margin-top:6px">⚠ Tier ${r.pending.join(', ')} won - pick your gem in the game!</div>` : ''}
         ${r.next ? `<div style="margin-top:6px">Next: <b>Tier ${r.next}</b> → <span class="ok">a Legendary gem</span> of your choice: ${r.types.map((t) => esc(LeagueInfo.cap(t))).join(', ')}${r.frame ? ' + a frame' : ''}</div>` : '<div class="ok" style="margin-top:6px">All tiers won ✔</div>'}
         ${r.next ? (() => { const s = EliteSim.leagueFresh(r.key, r.next), k = `${r.key}:${r.next}`; const nm = (u) => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, u).id].name); } catch { return '?'; } };
-          return s ? `<div style="margin-top:6px">Tier ${r.next} sim: <b style="color:${col(s.ko)}">${pctS(s.ko)}</b> to win all 5 <span class="dim">(${s.per.map((p) => `${esc(p.leader)} ${pctS(p.win)}`).join(' · ')})</span></div><div class="dim" style="font-size:13px;margin-top:2px">Team: ${s.uids.map((u) => esc(nm(u))).join(', ')}</div>`
+          return s ? `<div style="margin-top:6px">Tier ${r.next} sim: <b style="color:${col(s.ko)}">${pctS(s.ko)}</b> to win all 5 <span class="dim">(${s.per.map((p) => `${esc(p.leader)} ${pctS(p.win)}`).join(' · ')})</span></div><div class="dim" style="font-size:var(--t-s);margin-top:2px">Team: ${s.uids.map((u) => esc(nm(u))).join(', ')}</div>`
             : `<div class="dim" style="margin-top:6px">Tier ${r.next} sim: ${runs.has(k) ? `simulating ${runs.get(k)}%…` : 'waiting for its turn…'}</div>`; })() : ''}
-        <div class="dim" style="font-size:13px;margin-top:4px">${r.members.map((m) => `${esc(m.leader)}${m.champion ? ' (Champion)' : ''} · ${esc(LeagueInfo.cap(m.type || ''))}`).join(' · ')}</div>
+        <div class="dim" style="font-size:var(--t-s);margin-top:4px">${r.members.map((m) => `${esc(m.leader)}${m.champion ? ' (Champion)' : ''} · ${esc(LeagueInfo.cap(m.type || ''))}`).join(' · ')}</div>
         ${LeagueInfo.nightNote(r.key, esc)}
         ${r.next ? (() => { const inPlan = Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key);
           return `<button class="btn${inPlan ? '' : ' gold'}" data-act="league-add" data-reg="${r.key}" ${inPlan ? 'disabled' : ''}>${inPlan ? 'In Your Plan' : 'Add: Win Its Tiers'}</button>`; })() : ''}</div>`;
@@ -5472,7 +5858,7 @@ const Mirror = (() => {
     const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
     const ch = pts[pts.length - 1][1] - pts[0][1], hrs = (t1 - t0) / 3.6e6, rate = hrs > 0.3 ? ch / hrs : null, f = opt.fmt || ((v) => Math.round(v).toLocaleString());
     const eta = opt.need && rate > 0 && pts[pts.length - 1][1] < opt.need ? ` · done in about ${hm((opt.need - pts[pts.length - 1][1]) / rate * 3.6e6)}` : '';
-    return `<div class="card"><h3>${esc(title)}</h3><div style="display:flex;justify-content:space-between"><b style="font-size:19px">${f(pts[pts.length - 1][1])}${opt.need ? ` <span class="dim" style="font-size:14px">of ${f(opt.need)}</span>` : ''}</b><span class="${ch > 0 ? 'ok' : ch < 0 ? 'warn' : 'dim'}">${ch > 0 ? '+' : ''}${f(ch)}</span></div>
+    return `<div class="card"><h3>${esc(title)}</h3><div style="display:flex;justify-content:space-between"><b style="font-size:19px">${f(pts[pts.length - 1][1])}${opt.need ? ` <span class="dim" style="font-size:var(--t-m)">of ${f(opt.need)}</span>` : ''}</b><span class="${ch > 0 ? 'ok' : ch < 0 ? 'warn' : 'dim'}">${ch > 0 ? '+' : ''}${f(ch)}</span></div>
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:6px;background:var(--well);border-radius:12px">${opt.need ? `<line x1="${P}" x2="${W - P}" y1="${Y(opt.need)}" y2="${Y(opt.need)}" stroke="var(--gold-lo)" stroke-dasharray="4 4"/>` : ''}<path d="${d}" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round"/></svg>
       ${rate != null && ch ? `<div class="dim">${rate >= 0 ? '+' : ''}${Math.abs(rate) < 10 && !opt.fmt ? rate.toFixed(1).replace(/\.0$/, '') : f(rate)} per hour${eta}</div>` : ''}</div>`;
   }
@@ -5527,7 +5913,7 @@ const Mirror = (() => {
       ${chips([['all', 'All'], ['shiny', '✨ Shiny'], ['l100', 'Lv 100'], ['under100', 'Under 100'], ['ranked', '★ Ranked'], ['busy', 'Team / Away']], B.f, 'm-box-f')}
       <div style="display:flex;gap:8px"><select class="sel" data-msel="sort">${[['level', 'Sort: Level'], ['newest', 'Sort: Newest'], ['rank', 'Sort: Rank'], ['name', 'Sort: Name'], ['dex', 'Sort: Pokédex No.']].map(([k, l]) => `<option value="${k}" ${B.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <select class="sel" data-msel="type"><option value="">All types</option>${TYPES.map((t) => `<option value="${t}" ${B.type === t ? 'selected' : ''}>${cap1(t)}</option>`).join('')}</select></div>
-      <div class="grid">${list.slice(0, B.show).map(({ m, where, buddy }) => `<div class="mon" data-act="m-box-open" data-uid="${esc(m.uid)}" style="cursor:pointer;position:relative;${B.sel === m.uid ? 'border-color:var(--acc);box-shadow:0 0 0 2px var(--focus)' : ''}">${ic[where] ? `<span style="position:absolute;top:3px;right:5px;font-size:12px">${ic[where]}</span>` : ''}<img src="${E.sprite(m.id)}" loading="lazy">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${RK(m.rank)}${m.shiny ? ' ✨' : ''}${buddy ? ' 💛' : ''}</div></div>`).join('') || '<div class="dim">Nothing matches.</div>'}</div>
+      <div class="grid">${list.slice(0, B.show).map(({ m, where, buddy }) => `<div class="mon" data-act="m-box-open" data-uid="${esc(m.uid)}" style="cursor:pointer;position:relative;${B.sel === m.uid ? 'border-color:var(--acc);box-shadow:0 0 0 2px var(--focus)' : ''}">${ic[where] ? `<span style="position:absolute;top:3px;right:5px;font-size:var(--t-s)">${ic[where]}</span>` : ''}<img src="${E.sprite(m.id)}" loading="lazy">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${RK(m.rank)}${m.shiny ? ' ✨' : ''}${buddy ? ' 💛' : ''}</div></div>`).join('') || '<div class="dim">Nothing matches.</div>'}</div>
       ${list.length > B.show ? `<button class="btn" data-act="m-box-more">Show More (${list.length - B.show})</button>` : ''}</div>`;
     return h;
   }
@@ -5589,7 +5975,7 @@ const Mirror = (() => {
     else if (!sw.ways.length) h += `<div class="dim">No way for Mega to hunt this one yet: it isn't in the wild anywhere you can go, and you have no shiny from its family to breed.</div>`;
     else sw.ways.forEach((w, i) => { h += `<div style="${i ? 'border-top:1px solid #ffffff12;margin-top:10px;padding-top:10px' : ''}"><div class="dim" style="font-weight:700">${sw.ways.length > 1 ? (i ? 'OR' : 'FASTEST') + ' · ' : ''}${w.hours ? `ABOUT ${hm(w.hours * 3.6e6).toUpperCase()}` : ''}</div><div>${esc(Casing.names(w.text))}</div>
       ${w.way === 'raid' ? `<button class="btn" data-act="m-shiny-add" data-id="${id}" data-way="${i}">Use the Shiny Raid</button>` : `<button class="btn${i ? '' : ' gold'}" data-act="m-shiny-add" data-id="${id}" data-way="${i}">✨ Hunt Shiny</button>`}</div>`; });
-    if (!sw.owned && sw.ways.length && !hunt) h += `<div class="dim" style="font-size:13px;margin-top:8px">Times are rough averages - shinies are luck. Non-shiny catches and hatches stay in your PC (Mega never releases).</div>`;
+    if (!sw.owned && sw.ways.length && !hunt) h += `<div class="dim" style="font-size:var(--t-s);margin-top:8px">Times are rough averages - shinies are luck. Non-shiny catches and hatches stay in your PC (Mega never releases).</div>`;
     return h + `</div>`;
   }
   function shinyAdd(id, way) {
@@ -8888,7 +9274,9 @@ const Plan = (() => {
     uses: 'screen',
     finishOnPause: true, // pausing puts your loops, team and chapter back too
     label: (g) => `Discord Recommended: ${SPOTS[g.spot]?.title || g.spot} (${SPOTS[g.spot]?.where || '?'})`,
-    sprite: (g) => { const m = g.job?.uids?.[0] && E.read('Game.getMon', null, g.job.uids[0]); return m?.id || null; },
+    // the trainee on the team closest to Lv 100 (2.13.9 - Jimmy: the picture was one that had left the team at 100)
+    sprite: (g) => { const f = focusRow(g); if (f) return f.id; const m = g.job?.uids?.[0] && E.read('Game.getMon', null, g.job.uids[0]); return m?.id || null; },
+    progress: (g) => { const f = focusRow(g); return f ? { have: f.level, need: 100 } : null; },
     check(g) {
       const sp = spotOf(g.spot);
       if (!sp) return { state: 'wait', why: `can't find ${SPOTS[g.spot]?.where || 'that spot'} in this game version` };
@@ -8906,13 +9294,13 @@ const Plan = (() => {
         const xp = g.spot === 'xp';
         if (xp && g.candyAt == null) { g.candyAt = CANDY_AT; Plan.save(); }
         const pick = xp ? xpPick(g) : GoalTypes.idlePick();
-        if (xp) { try { tellCandy(g); } catch (__e) { __h('70-plan-23-discord:71', __e); } }
+        if (xp) { try { tellCandy(g); } catch (__e) { __h('70-plan-23-discord:73', __e); } }
         if (!pick.length && xp) {
-          if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:73', __e); } g.job = null; }
+          if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:75', __e); } g.job = null; }
           const n = candyReady(g).length;
           g.spot = 'candy'; g.restore = null; Plan.save();
           Log.add(`Battle XP: nobody left under ${(g.candyAt / 1e6).toFixed(1)} M XP per level - switching to ${SPOTS.candy.title} (${SPOTS.candy.where}). ${n} Pokémon ready for candy.`);
-          try { Notify.send('win', 'Battle XP done - on to Exp. Candies', `Everyone trainable is past ${(g.candyAt / 1e6).toFixed(1)} M XP per level. ${n} Pokémon are ready for candy; Mega now farms Exp. Candies at ${SPOTS.candy.where}.`); } catch (__e) { __h('70-plan-23-discord:77', __e); }
+          try { Notify.send('win', 'Battle XP done - on to Exp. Candies', `Everyone trainable is past ${(g.candyAt / 1e6).toFixed(1)} M XP per level. ${n} Pokémon are ready for candy; Mega now farms Exp. Candies at ${SPOTS.candy.where}.`); } catch (__e) { __h('70-plan-23-discord:79', __e); }
           return 'switching to Exp. Candies…';
         }
         if (!pick.length) return 'every Pokémon is at its level cap';
@@ -8926,24 +9314,24 @@ const Plan = (() => {
         g.job.force = force; g.job.candyAt = xp ? g.candyAt : null;
         if (sp.berry === 'xp' && g.spot === 'mix') Berries.keep('money', 'farming Giant Chasm');
         let kept = '';
-        for (const fam of SPOTS[g.spot]?.keep || []) { try { kept += Berries.keep(fam, `${SPOTS[g.spot].title}: ${fam} berry 24/7`); } catch (__e) { __h('70-plan-23-discord:91', __e); } }
+        for (const fam of SPOTS[g.spot]?.keep || []) { try { kept += Berries.keep(fam, `${SPOTS[g.spot].title}: ${fam} berry 24/7`); } catch (__e) { __h('70-plan-23-discord:93', __e); } }
         const line = await GoalTypes.level.step(g.job, ctx);
-        if (['xp', 'axsiom', 'mix'].includes(g.spot)) { try { sampleXp(g); } catch (__e) { __h('70-plan-23-discord:93', __e); } }
-        try { tallyRun(g); } catch (__e) { __h('70-plan-23-discord:94', __e); }
+        if (['xp', 'axsiom', 'mix'].includes(g.spot)) { try { sampleXp(g); } catch (__e) { __h('70-plan-23-discord:95', __e); } }
+        try { tallyRun(g); } catch (__e) { __h('70-plan-23-discord:96', __e); }
         return `${line}${g.job.nCarry === 1 ? ' · 1 carrier' : ''}${kept}`;
       }
       // sweep spots: your 6 fastest clearers of it, on a loop
       if (!g.restore) { g.restore = { team: [...(s.team || [])], chapter: a.chapter, loops: [...(a.loops || [])] }; Plan.save(); Log.add(`${discord.label(g)}: going to ${sp.where}. Your team, chapter and loops come back when it stops.`); }
-      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:99', __e); } return 'leaving the legendary zone…'; }
+      if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-23-discord:101', __e); } return 'leaving the legendary zone…'; }
       if (!sp.chs.includes(+a.chapter)) {
         if (fighting()) return 'waiting for this fight to end before moving…';
         if (E.call('Adventure.setChapter', sp.ch) === false) return `waiting: the game would not open ${sp.where}`;
         return `moving to ${sp.where}…`;
       }
       soloLoop(sp.key);
-      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:106', __e); }
+      try { XpChap.tick(+a.chapter); } catch (__e) { __h('70-plan-23-discord:108', __e); }
       if (g.carriersFor !== sp.ch || g.carriersV !== Sim.CARRIER_V) {
-        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:108', __e); }
+        let picks = []; try { picks = Sim.carriers(sp.ch, { n: 6 }).picks; } catch (__e) { __h('70-plan-23-discord:110', __e); }
         g.carriersFor = sp.ch; g.carriersV = Sim.CARRIER_V; g.carriers = picks.map((p) => p.m.uid); Plan.save();
         if (picks.length && setChapterTeam(g.carriers)) Log.add(`${discord.label(g)}: team ${picks.map((p) => name(p.m.id)).join(', ')} (fastest to clear it)`);
       }
@@ -8956,11 +9344,11 @@ const Plan = (() => {
       return `farming ${sp.where}${money}${candy}${berry}`;
     },
     finish(g) {
-      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:121', __e); } g.job = null; }
+      if (g.job) { try { GoalTypes.level.finish(g.job); } catch (__e) { __h('70-plan-23-discord:123', __e); } g.job = null; }
       const r = g.restore; if (!r) { Plan.save(); return; }
       if (r.loops) loopsBack(r.loops);
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:125', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-23-discord:127', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${discord.label(g)}: stopped - your team, chapter and loops are back`);
     },
@@ -8990,6 +9378,11 @@ const Plan = (() => {
       xpLog.set(u, L);
     }
   }
+  function focusRow(g) {
+    let R = []; try { R = trainRows(g); } catch { return null; }
+    const left = R.filter((r) => r.level < 100).sort((x, y) => y.pct - x.pct);
+    return left[0] || null;
+  }
   function trainRows(g) {
     if (g?.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(g.spot) || !g.job) return [];
     const carry = new Set(g.job.nCarry ? (g.job.carriers || []).slice(0, g.job.nCarry) : []);
@@ -9015,6 +9408,9 @@ const Plan = (() => {
     const earned = +(S().stats?.earned || 0), now = berryCounts();
     if (!g.run) { g.run = { at: Date.now(), e0: earned, got: {}, last: now }; Plan.save(); return; }
     let ch = false;
+    // money: add each rise of stats.earned (2.13.14 - the game keeps it per region, so a total minus the start went to 0)
+    if (g.run.eLast == null) { g.run.eLast = earned; g.run.money = g.run.money || 0; ch = true; }
+    else if (earned !== g.run.eLast) { if (earned > g.run.eLast) g.run.money = (g.run.money || 0) + (earned - g.run.eLast); g.run.eLast = earned; ch = true; }
     for (const [k, n] of Object.entries(now)) { const d = n - (g.run.last[k] ?? n); if (d > 0) { g.run.got[k] = (g.run.got[k] || 0) + d; ch = true; } }
     if (Object.keys(now).some((k) => now[k] !== g.run.last[k])) { g.run.last = now; ch = true; }
     if (ch) Plan.save();
@@ -9023,13 +9419,13 @@ const Plan = (() => {
   const berryName = (k) => String(k).replace(/^berry-/, '').replace(/-berry$/, '').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Berry';
   function runTake(g) {
     if (!g?.run) return null;
-    const money = Math.max(0, +(S().stats?.earned || 0) - (g.run.e0 || 0));
+    const money = g.run.money != null ? g.run.money : Math.max(0, +(S().stats?.earned || 0) - (g.run.e0 || 0));
     const berries = Object.entries(g.run.got || {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ key: k, name: berryName(k), n }));
     return { since: g.run.at, money, berries };
   }
   // ---- Ready for Candy ----
   const CANDY_AT = 5.5e6; // XP to the next level where battling stops paying (the chart author's ~5-6 M)
-  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:194', __e); } return o; };
+  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:204', __e); } return o; };
   const awaySet = () => new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
   const capFor = (m) => Math.min(100, +E.read('Game.capFor', 100, m) || 100);
   const slow = (m, at) => xpNeed(m, m.level) >= at;
@@ -9057,12 +9453,12 @@ const Plan = (() => {
     g.candyTold = [...told, ...fresh.map((r) => r.uid)].slice(-200); Plan.save();
     const nm = fresh.map((r) => name(r.id)).join(', ');
     Log.add(`Ready for candy: ${nm} (next level needs ${(fresh[0].next / 1e6).toFixed(1)} M XP)`);
-    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:222', __e); }
+    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:232', __e); }
   }
   // your carrier choice per spot, kept across goals (localStorage mega-discord-carrier: { spot: uid })
   const MEMO = 'mega-discord-carrier';
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
-  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:227', __e); } Plan.save(); }
+  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:237', __e); } Plan.save(); }
   Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, candyReady, CANDY_AT, runTake, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
@@ -9525,21 +9921,24 @@ const Updater = (() => {
     try {
       const code = await getFile('mega-alakazam.user.js', SCRIPT);
       if (code.length < 100_000 || !new RegExp('@version\\s+' + v.replace(/\./g, '\\.') + '\\s').test(code) || !code.includes('window.__MEGA_HOT_OK')) return false;
-      let used = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^mega-next-/.test(k)) used += k.length + (localStorage.getItem(k) || '').length; }
+      let used = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^mega-(next|prev)-/.test(k)) used += k.length + (localStorage.getItem(k) || '').length; }
       if (used + code.length > 1_800_000) { err = 'not enough room in the page storage to keep the update'; return false; }
+      // the copy kept for a roll-back only stays when there's room for it too (2.13.4: it blocked 2.13.1-2.13.3)
+      const keepPrev = used + 2 * code.length <= 1_800_000;
+      if (!keepPrev) { try { localStorage.removeItem('mega-prev-code'); localStorage.removeItem('mega-prev-ver'); } catch (__e) { __h('79-update:34', __e); } }
       // keep the version running now (if it came this way) so a bad update can go back to it
-      if (window.__MEGA_HOT === VERSION) { const cur = localStorage.getItem('mega-next-code'); if (cur && localStorage.getItem('mega-next-ver') === VERSION) { try { localStorage.setItem('mega-prev-code', cur); localStorage.setItem('mega-prev-ver', VERSION); } catch { localStorage.removeItem('mega-prev-code'); localStorage.removeItem('mega-prev-ver'); } } }
+      if (keepPrev && window.__MEGA_HOT === VERSION) { const cur = localStorage.getItem('mega-next-code'); if (cur && localStorage.getItem('mega-next-ver') === VERSION) { try { localStorage.setItem('mega-prev-code', cur); localStorage.setItem('mega-prev-ver', VERSION); } catch { localStorage.removeItem('mega-prev-code'); localStorage.removeItem('mega-prev-ver'); } } }
       localStorage.setItem('mega-next-code', code); localStorage.setItem('mega-next-ver', v);
       localStorage.setItem('mega-next-try', '0'); localStorage.removeItem('mega-next-bad');
       got = v; return true;
-    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:37', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
+    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:40', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
   }
   const parts = (v) => String(v).split('.').map((x) => +x || 0);
   const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   async function check() {
     try {
       const m = (await getFile('mega-alakazam.meta.js', META)).match(/@version\s+(\S+)/);
-      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:44', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:44', __e); } } } }
+      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:47', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:47', __e); } } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
   }
@@ -9549,7 +9948,7 @@ const Updater = (() => {
   // at most; after that it just shows the gold button. After a reload that worked, the log says so.
   const KEY = 'mega-upd-reload';
   const memo = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
-  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:54', __e); } };
+  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:57', __e); } };
   function safe() {
     try {
       const a = E.get('Game.S')?.adv || {};
@@ -9563,16 +9962,16 @@ const Updater = (() => {
     const m = memo(), r = m[v] || { tries: 0, at: 0 };
     if (r.tries >= 4 || Date.now() - r.at < 30 * 60_000 || !safe()) return;
     m[v] = { tries: r.tries + 1, at: Date.now() }; keep(m);
-    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:68', __e); }
-    try { E.call('Game.save'); } catch (__e) { __h('79-update:69', __e); }
-    try { Decisions.save(); } catch (__e) { __h('79-update:70', __e); }
+    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:71', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('79-update:72', __e); }
+    try { Decisions.save(); } catch (__e) { __h('79-update:73', __e); }
     setTimeout(() => location.reload(), 1500);
   }
   const autoOn = () => { try { return JSON.parse(localStorage.getItem('mega-upd-auto') ?? 'true'); } catch { return true; } };
-  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:74', __e); } }
+  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:77', __e); } }
   function afterLoad() {
     const m = memo(), mine = m[VERSION];
-    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:77', __e); } }
+    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:80', __e); } }
     // first run of this version: self-test once the game is up; a failure rolls back to the version before
     if (localStorage.getItem('mega-tested-ver') !== VERSION) setTimeout(firstTest, 90_000);
   }
@@ -9582,22 +9981,22 @@ const Updater = (() => {
     if (!r.failed) { localStorage.setItem('mega-tested-ver', VERSION); return; }
     const why = (r.results || []).filter((x) => !x.warn).slice(0, 2).map((x) => `${x.name}: ${x.detail}`).join(' | ');
     if (window.__MEGA_HOT !== VERSION) { // installed through Tampermonkey: nothing to go back to here - just tell you
-      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:87', __e); }
+      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:90', __e); }
       localStorage.setItem('mega-tested-ver', VERSION); return;
     }
     const pv = localStorage.getItem('mega-prev-ver'), pc = localStorage.getItem('mega-prev-code');
     localStorage.setItem('mega-next-bad', VERSION);
     if (pv && pc && pv !== VERSION) { localStorage.setItem('mega-next-code', pc); localStorage.setItem('mega-next-ver', pv); localStorage.setItem('mega-next-try', '0'); }
     else { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); }
-    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:94', __e); }
-    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:95', __e); }
+    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:97', __e); }
+    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:98', __e); }
     reloadNow('reloading into the version before');
   }
   const E = Engine;
   // After a reload the game waits on its title screen: press its own Continue button (only that one,
   // only on the title screen). "Two saves found" is never touched - it sends a Needs You alert instead.
   const contOn = () => { try { return JSON.parse(localStorage.getItem('mega-auto-continue') ?? 'true'); } catch { return true; } };
-  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:102', __e); } }
+  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:105', __e); } }
   function autoContinue() {
     const t0 = Date.now(); let pressed = false, warned = false;
     const tick = () => {
@@ -9605,15 +10004,15 @@ const Updater = (() => {
       try {
         const txt = document.body?.innerText || '';
         if (/two saves|deux sauvegardes/i.test(txt)) {
-          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:110', __e); } }
+          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:113', __e); } }
           return setTimeout(tick, 2000);
         }
         if (!pressed && contOn() && document.body?.classList.contains('titled')) {
           const b = [...document.querySelectorAll('.title-fx .ti-go')].find((x) => /^\s*(continue|continuer)\s*$/i.test(x.textContent || ''));
-          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:115', __e); } }
+          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:118', __e); } }
         }
         if (pressed && !document.body?.classList.contains('titled')) return;
-      } catch (__e) { __h('79-update:118', __e); }
+      } catch (__e) { __h('79-update:121', __e); }
       setTimeout(tick, 700);
     };
     setTimeout(tick, 1500);
@@ -9624,11 +10023,11 @@ const Updater = (() => {
   // (you pressed Update there), Mega reloads the game so the new version runs
   function install() {
     if (got && got === latest) { reloadNow(`reloading the game to run Mega ${latest}`); return; }
-    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:129', __e); }
+    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:132', __e); }
     const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back); reloadNow(`reloading the game to run Mega ${latest}`); };
     setTimeout(() => { document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); }, 800);
   }
-  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:133', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:133', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:133', __e); } setTimeout(() => location.reload(), 1500); }
+  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:136', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:136', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:136', __e); } setTimeout(() => location.reload(), 1500); }
   return { boot, check, install, reloadNow, setAuto, setContinue, get autoContinue() { return contOn() !== false; }, get downloaded() { return got; }, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
 })();
 
