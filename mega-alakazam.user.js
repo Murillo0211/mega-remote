@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.1
+// @version      2.13.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.1';
+const VERSION = '2.13.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3271,7 +3271,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .sdot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 7px var(--acc)} .sdot.off{background:var(--faint);box-shadow:none} .sdot.err{background:var(--bad)}
     .mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
     .mets div{padding:9px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
-    .mets b{display:block;font-size:17px;font-variant-numeric:tabular-nums} .mets span{font-size:11px;color:var(--mute)}
+    .mets b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums} .mets span{display:block;font-size:11px;line-height:1.25;color:var(--mute);white-space:nowrap}
     .tcats{display:flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
     .tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:8px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
     .tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
@@ -3675,7 +3675,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
       <div class="dim">${esc(cur ? [L?.why, L?.line].filter(Boolean).join(' · ') : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div></div>
-      <div class="mets"><div><b>${dex}</b><span>Pokédex caught</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : '') + '₽' + Math.round(net).toLocaleString()}</b><span>Money this session</span></div><div><b>${tm}</b><span>This session</span></div></div>`;
+      <div class="mets"><div><b>${dex}</b><span>Pokédex</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : net < 0 ? '−' : '') + '₽' + Math.abs(Math.round(net)).toLocaleString()}</b><span>Money gained</span></div><div><b>${tm}</b><span>This session</span></div></div>`;
   }
   function footer(w) {
     const f = root?.querySelector('.foot'); if (!f) return;
