@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.7
+// @version      2.13.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.7';
+const VERSION = '2.13.8';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2929,7 +2929,7 @@ const Sub = (() => {
     return (h ? h.textContent : '').replace(/[^\p{L}\p{N}\s&·'-]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   };
   const has = (tab) => !!SUBS[tab];
-  function apply(tab, html, prefs, esc = (s) => String(s)) {
+  function apply(tab, html, prefs, esc = (s) => String(s), opt = {}) { // opt.pick: show that section only, without the chip row
     const S = SUBS[tab]; if (!S || typeof html !== 'string' || typeof document === 'undefined') return html;
     const t = document.createElement('template'); t.innerHTML = html;
     const lead = [], groups = Object.fromEntries(S.map(([k]) => [k, []]));
@@ -2946,15 +2946,15 @@ const Sub = (() => {
       cur = hit ? hit[0] : catchAll; groups[cur].push(n);
     }
     const shown = S.filter(([k]) => groups[k].length);
-    if (shown.length < 2) return html; // nothing to split
-    let pick = prefs?.sub?.[tab];
+    if (shown.length < 2 && !opt.pick) return html; // nothing to split
+    let pick = opt.pick || prefs?.sub?.[tab];
     if (!groups[pick]?.length) pick = shown[0][0];
     const box = document.createElement('div');
     for (const n of lead) box.appendChild(n);
     const bar = `<div class="chips subtabs" style="position:sticky;top:-12px;z-index:3;background:var(--bg);margin:-4px -2px 8px;padding:6px 2px">${shown.map(([k, l]) => `<button class="chip${k === pick ? ' on' : ''}" data-act="subtab" data-tab="${tab}" data-k="${k}">${esc(l)} <span class="faint" style="font-weight:700">${groups[k].filter((n) => n.nodeType === 1 && n.classList.contains('card')).length}</span></button>`).join('')}</div>`;
     const sec = document.createElement('div');
     for (const n of groups[pick]) sec.appendChild(n);
-    return bar + box.innerHTML + sec.innerHTML;
+    return (opt.pick ? '' : bar) + box.innerHTML + sec.innerHTML;
   }
   return { apply, has, SUBS };
 })();
@@ -3068,7 +3068,7 @@ const UI = (() => {
   const PREFS_KEY = 'mega-alakazam-ui';
   const prefs = (() => { try { return { tab: 'tasks', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'tasks', open: true }; } })();
   // 2.13: seven tabs; some hold several of Mega's screens, switched by a row under the status card
-  const GROUPS = { home: [['tasks', 'Tasks'], ['now', 'Now'], ['act', 'Activity'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
+  const GROUPS = { home: [['now', 'Now'], ['tasks', 'Tasks'], ['care', 'Day Care'], ['act', 'Activity'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
   const groupOf = (k) => Object.keys(GROUPS).find((g) => GROUPS[g].some(([x]) => x === k)) || null;
   function goTab(k) { // any screen key (old or new) -> the tab that shows it
     const g = groupOf(k);
@@ -3700,13 +3700,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const focused = root.activeElement && root.activeElement.matches('input.q, select.sel');
     if (focused && !force) return;
     const vt = view();
-    const html = vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.plan(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
+    const html = vt === 'now' || vt === 'care' ? Views.now(w, esc, fmtIn) : vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.plan(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
     const top = statusHtml(w) + (GROUPS[prefs.tab] ? `<div class="snav">${GROUPS[prefs.tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
     const key = top + html + '|sub:' + (prefs.sub?.[vt] || ''); // a sub-tab pick changes the screen too
     footer(w);
     if (body.dataset.html === key) return;
     const st = body.scrollTop;
-    body.innerHTML = top + Icons.swap(Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
+    body.innerHTML = top + Icons.swap(vt === 'now' || vt === 'care' ? Sub.apply('now', html, prefs, esc, { pick: vt === 'care' ? 'care' : 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
     try { footer(w); } catch (__e) { __h('60-ui:505', __e); }
     try { Casing.apply(body); } catch (__e) { __h('60-ui:506', __e); }
