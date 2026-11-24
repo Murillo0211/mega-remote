@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.12.4
+// @version      2.13.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.12.4';
+const VERSION = '2.13.0';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2509,12 +2509,25 @@ Views.plan = (w, ui, esc) => {
         ${g.type === 'raid' ? `<button class="btn sm" style="margin-top:6px" data-act="m-raid-repick">🔄 Re-pick Raid Team</button>` : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button class="btn sm" style="margin-top:6px" data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try Anyway' : 'Try again'}</button>` : ''}</div>`;
   });
 
-  // add a goal - shown right under Start / Pause, above the list
+  // adding goals lives on the Tasks tab now (2.13); the queue keeps a shortcut there
   const goalsHtml = h; h = head;
+  h += `<button class="btn gold" data-act="tab" data-tab="tasks" style="margin:0 0 12px">＋ New task</button>`;
+  h += goalsHtml;
+  if (done.length) h += `<div class="card"><h3>Done</h3>${done.length > 25 ? `<div class="dim" style="margin-bottom:4px">The latest 25 of ${done.length}</div>` : ''}${done.slice().sort((a, b) => (+b.done || 0) - (+a.done || 0)).slice(0, 25).map((g) => `<div class="row"><span class="k">✔ ${esc(Plan.label(g))}</span><span class="v dim">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('')}<button class="btn sm" style="margin-top:6px" data-act="plan-clear">Clear done</button></div>`;
+
+  const lines = Log.lines.slice(ui.showLog ? -40 : -6).reverse();
+  h += `<div class="card"><h3>What Mega did</h3>${lines.length ? lines.map((l) => `<div class="row" style="justify-content:flex-start"><span class="k" style="white-space:nowrap;flex:none;width:78px">${new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span style="text-align:left">${esc(l.text)}</span></div>`).join('') : '<div class="dim">Nothing yet.</div>'}<button class="btn" data-act="log-more">${ui.showLog ? 'Show less' : 'Show more'}</button></div>`;
+  return h;
+};
+
+/* ---------------------------------------------------------------------------------------------
+ * The options for one kind of goal (what used to sit under "Add a goal" on the Plan tab); the Tasks
+ * tab shows it under the task you picked. Ends with one extra </div> (it closed the old card).
+ * ------------------------------------------------------------------------------------------- */
+Views.planAdd = (w, ui, esc) => {
+  let h = '';
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
-  h += `<div class="card"><h3>Add a goal</h3>
-    <select class="sel" data-act="add-type"><option value="legend" ${ui.addType !== 'under' ? 'selected' : ''}>Catch a legendary</option><option value="under" ${ui.addType === 'under' ? 'selected' : ''} ${Plan.hasType('under') ? 'disabled' : ''}>Underground (runs alongside)${Plan.hasType('under') ? ' - already in your plan' : ''}</option><option value="item" ${ui.addType === 'item' ? 'selected' : ''}>Find a rare item</option><option value="wboss" ${ui.addType === 'wboss' ? 'selected' : ''} ${Plan.hasType('wboss') ? 'disabled' : ''}>World Boss (every edition)</option><option value="region" ${ui.addType === 'region' ? 'selected' : ''}>Complete a region's Pokédex</option><option value="story" ${ui.addType === 'story' ? 'selected' : ''}>Beat a region's League</option><option value="league" ${ui.addType === 'league' ? 'selected' : ''}>Elite League: win its tiers (Legendary gems)</option><option value="money" ${ui.addType === 'money' ? 'selected' : ''} ${Plan.hasType('money') ? 'disabled' : ''}>Farm money${Plan.hasType('money') ? ' - already in your plan' : ''}</option><option value="raid" ${ui.addType === 'raid' ? 'selected' : ''} ${Plan.hasType('raid') ? 'disabled' : ''}>Shiny Raid every day${Plan.hasType('raid') ? ' - already in your plan' : ''}</option><option value="tower" ${ui.addType === 'tower' ? 'selected' : ''} ${Plan.hasType('tower') ? 'disabled' : ''}>Battle Tower every week${Plan.hasType('tower') ? ' - already in your plan' : ''}</option><option value="train" ${ui.addType === 'train' ? 'selected' : ''} ${Plan.hasType('train') ? 'disabled' : ''}>Level Pokémon (like idle)${Plan.hasType('train') ? ' - already in your plan' : ''}</option>${Object.entries(GoalTypes.discordSpots || {}).map(([k, v]) => `<option value="discord-${k}" ${ui.addType === 'discord-' + k ? 'selected' : ''}>Discord Recommended: ${v.title} (${v.where})</option>`).join('')}<option value="bloc" ${ui.addType === 'bloc' ? 'selected' : ''} ${Plan.hasType('bloc') ? 'disabled' : ''}>Pokéblock Boss every day${Plan.hasType('bloc') ? ' - already in your plan' : ''}</option><option value="candy" ${ui.addType === 'candy' ? 'selected' : ''} ${Plan.hasType('candy') ? 'disabled' : ''}>Candy Factory every day${Plan.hasType('candy') ? ' - already in your plan' : ''}</option><option value="" disabled>More coming: dailies, items</option></select>`;
   if (ui.addType === 'wboss') {
     h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
@@ -2561,7 +2574,7 @@ Views.plan = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:99', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:112', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -2591,11 +2604,6 @@ Views.plan = (w, ui, esc) => {
     <div class="note dim">Locked ones can go on the list too: they wait until you unlock them. A legendary with no team gets one from the simulator automatically.</div></div>`;
   }
 
-  h += goalsHtml;
-  if (done.length) h += `<div class="card"><h3>Done</h3>${done.length > 25 ? `<div class="dim" style="margin-bottom:4px">The latest 25 of ${done.length}</div>` : ''}${done.slice().sort((a, b) => (+b.done || 0) - (+a.done || 0)).slice(0, 25).map((g) => `<div class="row"><span class="k">✔ ${esc(Plan.label(g))}</span><span class="v dim">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></div>`).join('')}<button class="btn sm" style="margin-top:6px" data-act="plan-clear">Clear done</button></div>`;
-
-  const lines = Log.lines.slice(ui.showLog ? -40 : -6).reverse();
-  h += `<div class="card"><h3>What Mega did</h3>${lines.length ? lines.map((l) => `<div class="row" style="justify-content:flex-start"><span class="k" style="white-space:nowrap;flex:none;width:78px">${new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span style="text-align:left">${esc(l.text)}</span></div>`).join('') : '<div class="dim">Nothing yet.</div>'}<button class="btn" data-act="log-more">${ui.showLog ? 'Show less' : 'Show more'}</button></div>`;
   return h;
 };
 
@@ -2905,7 +2913,7 @@ const Sub = (() => {
   const SUBS = {
     now: [['main', 'Overview', null], ['care', 'Day Care', /day care/], ['more', 'Pokédex & Team', /^(pokédex|team|trades)$/]],
     act: [['hist', 'History', /^history/], ['goals', 'Goals', null], ['stats', 'Stats', /^(money|pokédex|pokedex|total levels|shinies|lv 100)/], ['log', 'Log', /^log\b/]],
-    plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['add', 'Add a Goal', /^add a goal/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
+    plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
     gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^(gems|strongest get stronger)$/], ['all', 'Held', null], ['none', 'Not Held', /^\0$/]],
     blocs: [['blocks', 'Pokéblocks', /^pokéblocks/], ['boss', 'Boss', /boss/], ['rev', 'Revealed', /^revealed/], ['rain', 'Rainbow', /rainbow/]],
     engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar/], ['health', 'Health', null]],
@@ -2947,14 +2955,123 @@ const Sub = (() => {
 })();
 
 /* ---------------------------------------------------------------------------------------------
+ * Tasks (2.13, Jimmy 2026-11-23: "simple, straightforward" - the ZGRay helper's layout with Mega's
+ * engine under it). Pick a group, pick a task card, set its options, then Start Now (it goes to the
+ * top of the queue and the plan runs) or Add to Queue. Every task is one of Mega's goal types; the
+ * options are the same ones the Plan tab's old "Add a goal" form had (Views.planAdd).
+ * ------------------------------------------------------------------------------------------- */
+const Tasks = (() => {
+  const CATS = [['adv', 'Adventure'], ['col', 'Collect & train'], ['evt', 'Separate events'], ['res', 'Resources']];
+  // k = the task, t = the goal type it adds (planAdd's addType), ic = icon, one = only one in the plan at a time
+  const LIST = [
+    { k: 'region', cat: 'adv', ic: 'book', name: 'Complete the Pokédex', t: 'region', hint: 'Catches everything a region is missing.' },
+    { k: 'money', cat: 'adv', ic: 'coin', name: 'Auto money', t: 'money', one: 1, hint: 'Farms the best-paying chapter up to a target.' },
+    { k: 'story', cat: 'adv', ic: 'globe', name: 'Advance the story', t: 'story', hint: 'Beats a region\'s chapters and League, for new regions.' },
+    { k: 'daily', cat: 'adv', ic: 'clock', name: 'Daily clears', t: 'daily', hint: 'Your dailies and weeklies, all at once.' },
+    { k: 'legend', cat: 'col', ic: 'star', name: 'Catch a legendary', t: 'legend', hint: 'Simulates a team and catches it.' },
+    { k: 'shiny', cat: 'col', ic: 'shiny', name: 'Shiny hunt', t: 'shiny', hint: 'Breeds or hunts the shiny you pick in the Pokédex.' },
+    { k: 'train', cat: 'col', ic: 'team', name: 'Level Pokémon', t: 'train', one: 1, hint: 'Levels your team, then your strongest in the PC.' },
+    { k: 'd-xp', cat: 'col', ic: 'trophy', name: 'Battle XP', t: 'discord-xp', hint: 'Discord guide: the Kanto League loop, candy when ready.' },
+    { k: 'd-axsiom', cat: 'col', ic: 'shiny', name: 'Axsiom Plan', t: 'discord-axsiom', hint: 'Giant Chasm with Shiny, Capture and Money berries.' },
+    { k: 'd-mix', cat: 'col', ic: 'candy', name: 'Money + XP + candies', t: 'discord-mix', hint: 'Discord guide: Giant Chasm.' },
+    { k: 'd-candy', cat: 'col', ic: 'candy', name: 'Exp. Candies', t: 'discord-candy', hint: 'Discord guide: Kanto Victory Road.' },
+    { k: 'league', cat: 'evt', ic: 'trophy', name: 'Elite League', t: 'league', hint: 'Win a region\'s tiers for Legendary gems.' },
+    { k: 'elite', cat: 'evt', ic: 'fight', name: 'Elite legendaries', t: 'elite', hint: 'Elite tiers of a legendary, from Sim.' },
+    { k: 'raid', cat: 'evt', ic: 'shiny', name: 'Shiny Raid', t: 'raid', one: 1, hint: 'Every day.' },
+    { k: 'candy', cat: 'evt', ic: 'candy', name: 'Candy Factory', t: 'candy', one: 1, hint: 'Every day.' },
+    { k: 'tower', cat: 'evt', ic: 'tower', name: 'Battle Tower', t: 'tower', one: 1, hint: 'Every week.' },
+    { k: 'bloc', cat: 'evt', ic: 'gift', name: 'Pokéblock Boss', t: 'bloc', one: 1, hint: 'Every day.' },
+    { k: 'wboss', cat: 'evt', ic: 'shield', name: 'World Boss', t: 'wboss', one: 1, hint: 'Every edition.' },
+    { k: 'under', cat: 'res', ic: 'pick', name: 'Underground', t: 'under', one: 1, hint: 'Runs alongside your other tasks.' },
+    { k: 'item', cat: 'res', ic: 'pin', name: 'Find a rare item', t: 'item', hint: 'Hunts an item stop until it drops.' },
+  ];
+  // Daily clears = these goal types, each added once
+  const DAILY = [['raid', 'Shiny Raid every day'], ['candy', 'Candy Factory every day'], ['bloc', 'Pokéblock Boss every day'], ['tower', 'Battle Tower every week'], ['wboss', 'World Boss every edition']];
+  const ui = { cat: 'adv', pick: null, daily: Object.fromEntries(DAILY.map(([k]) => [k, true])), msg: '' };
+  try { const p = JSON.parse(localStorage.getItem('mega-tasks-ui') || '{}'); if (p.cat) ui.cat = p.cat; if (p.pick) ui.pick = p.pick; if (p.daily) Object.assign(ui.daily, p.daily); } catch (__e) { __h('59-tasks:35', __e); }
+  const save = () => { try { localStorage.setItem('mega-tasks-ui', JSON.stringify({ cat: ui.cat, pick: ui.pick, daily: ui.daily })); } catch (__e) { __h('59-tasks:36', __e); } };
+  const task = (k) => LIST.find((x) => x.k === k) || null;
+  const inPlan = (type) => { try { return Plan.hasType(type); } catch { return false; } };
+
+  // the options under the picked task
+  function options(w, planUi, esc) {
+    const T = task(ui.pick); if (!T) return `<div class="note dim">Pick a task above to see its options.</div>`;
+    let h = `<div class="card taskopts" data-sec="lead"><h3>${esc(T.name)}</h3>`;
+    if (T.t === 'daily') {
+      h += DAILY.map(([k, l]) => `<label class="chk"><input type="checkbox" data-act="task-daily" data-k="${k}" ${ui.daily[k] ? 'checked' : ''} ${inPlan(k) ? 'disabled' : ''}>${esc(l)}${inPlan(k) ? ' <span class="dim">· already in your queue</span>' : ''}</label>`).join('')
+        + `<div class="note dim" style="margin-top:10px">Dailies go ahead of your other tasks when they're due, then hand the screen back.</div></div>`;
+      return h;
+    }
+    if (T.t === 'shiny') return h + `<div class="note dim">Shiny hunts start from a Pokémon's page in the Pokédex: open the one you want and press its shiny hunt button. Mega breeds it when you own a shiny of its family, otherwise it hunts the wild spot where it's most common.</div><button class="btn gold" data-act="tab" data-tab="dex">Open the Pokédex</button></div>`;
+    if (T.t === 'elite') return h + `<div class="note dim">Elite legendary tiers are added from Sim: it shows the easiest next tier with your simulated win %.</div><button class="btn gold" data-act="tab" data-tab="legends">Open Sim</button></div>`;
+    planUi.addType = T.t;
+    return h + Views.planAdd(w, planUi, esc);
+  }
+
+  function view(w, planUi, esc) {
+    if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
+    const cards = LIST.filter((x) => x.cat === ui.cat);
+    let h = `<div class="lbl" style="margin:2px 0 8px">Choose task</div>
+      <div class="tcats">${CATS.map(([k, l]) => `<button class="tcat${ui.cat === k ? ' on' : ''}" data-act="task-cat" data-k="${k}">${esc(l)}</button>`).join('')}</div>
+      <div class="tgrid">${cards.map((T) => {
+        const busy = T.one && inPlan(T.t);
+        return `<button class="tcard${ui.pick === T.k ? ' on' : ''}" data-act="task-pick" data-k="${T.k}" title="${esc(T.hint)}"><i class="ic ic-${T.ic}"></i><span>${esc(T.name)}${busy ? '<small>in your queue</small>' : ''}</span></button>`;
+      }).join('')}</div>`;
+    h += options(w, planUi, esc);
+    if (ui.msg) h += `<div class="note ok" style="margin-top:8px">${esc(ui.msg)}</div>`;
+    return h;
+  }
+  // footer buttons work on the picked task: the options' add button (the gold one when there are several)
+  function canGo(root) {
+    const T = task(ui.pick); if (!T) return false;
+    if (T.t === 'daily') return DAILY.some(([k]) => ui.daily[k] && !inPlan(k));
+    if (T.t === 'shiny' || T.t === 'elite') return false;
+    const b = addButton(root); return !!b && !b.disabled;
+  }
+  function addButton(root) {
+    const box = root?.querySelector('.taskopts'); if (!box) return null;
+    const all = [...box.querySelectorAll('[data-act^="plan-add"]')];
+    return all.find((b) => b.classList.contains('gold') && !b.disabled) || all.find((b) => !b.disabled) || all[0] || null;
+  }
+  // add the task; now = put what was added at the top and run the plan
+  function go(root, now, click) {
+    const T = task(ui.pick); if (!T) return;
+    const before = new Set(Plan.goals.map((g) => g.id));
+    if (T.t === 'daily') { for (const [k] of DAILY) if (ui.daily[k] && !inPlan(k)) Plan.add(k, {}); }
+    else { const b = addButton(root); if (!b || b.disabled) return; click(b); }
+    const added = Plan.goals.filter((g) => !before.has(g.id));
+    if (!added.length) { ui.msg = 'Nothing new was added (it may already be in your queue).'; return; }
+    if (now) {
+      for (const g of added.slice().reverse()) Plan.toTop(g.id);
+      if (!Plan.running) Plan.setRunning(true);
+      const a = Engine.get('Game.S')?.adv;
+      ui.msg = `${T.name}: started${a?.league || a?.zone ? ' - after the current run ends (Mega never switches mid-run)' : ''}.`;
+    } else ui.msg = `${T.name}: added to your queue (${added.length === 1 ? 'position ' + (Plan.goals.filter((g) => !g.done).indexOf(added[0]) + 1) : added.length + ' tasks'}).`;
+    Log.add(`task ${now ? 'started' : 'queued'}: ${added.map((g) => Plan.label(g)).join(', ')}`);
+    setTimeout(() => { ui.msg = ''; }, 15000);
+  }
+  return { ui, view, canGo, go, save, CATS, LIST, task };
+})();
+Views.tasks = (w, planUi, esc) => Tasks.view(w, planUi, esc);
+
+/* ---------------------------------------------------------------------------------------------
  * UI: the Mega Alakazam panel. Lives in a shadow root so neither the game's styles nor Alakazam
  * 4.x's can leak in or out. Docked as a full-height column on the left; the game is moved right by
  * the same width (and back when folded), so nothing of the game is covered.
  * ------------------------------------------------------------------------------------------- */
 const UI = (() => {
   const PREFS_KEY = 'mega-alakazam-ui';
-  const prefs = (() => { try { return { tab: 'now', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'now', open: true }; } })();
-  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:9', __e); } };
+  const prefs = (() => { try { return { tab: 'tasks', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'tasks', open: true }; } })();
+  // 2.13: seven tabs; some hold several of Mega's screens, switched by a row under the status card
+  const GROUPS = { live: [['now', 'Now'], ['act', 'Activity'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
+  const groupOf = (k) => Object.keys(GROUPS).find((g) => GROUPS[g].some(([x]) => x === k)) || null;
+  function goTab(k) { // any screen key (old or new) -> the tab that shows it
+    const g = groupOf(k);
+    if (g) { prefs.tab = g; prefs.grp = { ...(prefs.grp || {}), [g]: k }; } else prefs.tab = k;
+  }
+  const view = () => (GROUPS[prefs.tab] ? (prefs.grp?.[prefs.tab] && GROUPS[prefs.tab].some(([x]) => x === prefs.grp[prefs.tab]) ? prefs.grp[prefs.tab] : GROUPS[prefs.tab][0][0]) : prefs.tab);
+  if (!prefs.v213) { goTab(prefs.tab || 'tasks'); if (prefs.tab === 'now' || prefs.tab === 'live') prefs.tab = 'tasks'; delete prefs.tabOrder; prefs.v213 = 1; }
+  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:18', __e); } };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtIn = (t) => {
     if (!t) return '';
@@ -2997,6 +3114,16 @@ const UI = (() => {
   --ink:#2a231e; --mute:#6b6052; --faint:#998c78; --acc:#0f7a68; --acc-ink:#fff;
   --ok:#147a40; --warn:#9a5c06; --bad:#b4232c; --shiny:#b07d00; --focus:#0f7a6855;
   color-scheme:light;
+}
+
+/* 2.13 night for Mega's panel (Jimmy 2026-11-23: the ZGRay helper's look) - navy screen, mint accent.
+   Kinesis keeps th-night until it gets the same layout. */
+.wrap.th-zg {
+  --shell-hi:#21364a; --shell:#1d2c41; --shell-lo:#1b263d; --seam:#2c3b50; --on-shell:#e6edf8; --on-shell-dim:#93a8c2;
+  --gold:#79dcba; --gold-lo:#5fc9a4; --on-gold:#102d29;
+  --bg:#111a29; --card:#162233; --well:#0b1423; --line:#2b3b50; --line-2:#3b4e63;
+  --ink:#e6edf8; --mute:#93a8c2; --faint:#62758c; --acc:#79dcba; --acc-ink:#102d29; --focus:#79dcba55;
+  --ok:#79dcba; --warn:#e6be7a; --bad:#ff8a8a; --shiny:#ffd45e;
 }
 
 /* ---- text ---- */
@@ -3128,6 +3255,39 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .tabs button.drag{opacity:.4} .tabs button.dropto{outline:2px dashed #fff;outline-offset:1px}
     .body{padding:12px;overflow:auto;flex:1;background:var(--bg);scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
     .goal .st{font-size:var(--t-s);margin-top:2px}
+    /* 2.13: the ZGRay-style frame */
+    .th-zg .hd{background:linear-gradient(115deg,#21364a,#1b263d);padding:11px 12px;gap:8px}
+    .th-zg .hd .t{all:unset;font-weight:800;font-size:15px;color:var(--ink);white-space:nowrap}
+    .th-zg .hd img.ver{background:var(--acc);border-radius:10px;padding:2px;width:30px;height:32px}
+    .vtag{font:11px ui-monospace,monospace;color:var(--mute)}
+    .tabs{grid-template-columns:repeat(7,minmax(0,1fr));gap:0;padding:0 6px;border-bottom:1px solid var(--line)}
+    .th-zg .tabs{background:#152132}
+    .tabs button{border-radius:0;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 2px 8px;color:var(--mute)}
+    .tabs button:hover{background:#ffffff0d;color:var(--ink)}
+    .tabs button.on{background:transparent;color:var(--acc);border-bottom-color:var(--acc);box-shadow:none}
+    .stat{padding:11px 12px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
+    .stat .live{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+    .stat b{display:block;font-size:15px} .stat .dim{font-size:var(--t-s)}
+    .sdot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 7px var(--acc)} .sdot.off{background:var(--faint);box-shadow:none} .sdot.err{background:var(--bad)}
+    .mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
+    .mets div{padding:9px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
+    .mets b{display:block;font-size:17px;font-variant-numeric:tabular-nums} .mets span{font-size:11px;color:var(--mute)}
+    .tcats{display:flex;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
+    .tcat{all:unset;cursor:pointer;flex:1;text-align:center;padding:8px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
+    .tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+    .tcats.grp{margin-top:-2px}
+    .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
+    .tcard{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line-2);border-radius:10px;background:var(--card);color:var(--ink);font-size:var(--t-m);min-height:24px}
+    .tcard:hover{border-color:var(--acc)} .tcard .ic{color:var(--acc);font-size:16px} .tcard small{display:block;font-size:11px;color:var(--mute)}
+    .tcard.on{background:color-mix(in srgb,var(--acc) 18%,var(--card));border-color:var(--acc)}
+    .taskopts .btn[data-act^="plan-add"]:not([data-act="plan-add-item"]){display:none}
+    .foot{padding:10px 12px 12px;border-top:1px solid var(--line);background:var(--bg);display:grid;gap:8px}
+    .fr{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .fb{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:11px 8px;border-radius:10px;font-weight:800;font-size:var(--t-m);border:1px solid var(--line-2);background:var(--well);color:var(--ink)}
+    .fb.go{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)} .fb.go2{border-color:var(--acc);color:var(--acc)}
+    .fb.stop{background:color-mix(in srgb,var(--bad) 14%,var(--well));border-color:color-mix(in srgb,var(--bad) 45%,var(--line));color:#ffc5cf}
+    .fb.lt{padding:7px 8px;font-weight:600;font-size:var(--t-s);color:var(--mute)} .fb:disabled{opacity:.4;cursor:default}
+    .pillq{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:999px;background:var(--line-2);color:var(--ink);font-size:11px}
   `;
   let host, root, timer;
   const W_MIN = 340, W_MAX = 900, RAIL = 64;
@@ -3144,7 +3304,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       #team-mini{left:${w}px !important}`;
     if (host) host.style.setProperty('--w', w + 'px');
   }
-  const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['legends', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['blocs', 'Pokéblocks'], ['engine', 'Settings']];
+  const TABS = [['tasks', 'Tasks'], ['plan', 'Queue'], ['live', 'Live'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['legends', 'Sim'], ['engine', 'Settings']];
   // your tab order (drag to rearrange); tabs added in later versions go at the end
   const tabList = () => { const o = Array.isArray(prefs.tabOrder) ? prefs.tabOrder : [], byK = new Map(TABS); return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))]; };
   // drag with the mouse (pointer events - the browser's own drag-and-drop doesn't fire inside Mega's panel)
@@ -3171,7 +3331,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:91', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:133', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -3278,7 +3438,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
-      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:198', __e); } renderBody(true); return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:240', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { GoalTypes.setCarrier(g, e.target.value || null); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3324,7 +3484,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const act = t.dataset.act;
     // the Kinesis mirror (Activity, PC, Pokédex grid + shiny, Change Team, hatch, raid re-pick)
     if (act === 'team-edit') { Mirror.ui.tm.draft = null; Mirror.ui.tm.q = ''; prefs.tab = 'team'; savePrefs(); render(); return; }
-    if (act && act.startsWith('m-')) { Mirror.act(act, t, () => renderBody(true)).then((r) => { if (r === 'back') { prefs.tab = 'now'; savePrefs(); render(); } else renderBody(true); }); return; }
+    if (act === 'stop-all') { Plan.setRunning(!Plan.running); renderBody(true); return; }
+    if (act && act.startsWith('m-')) { Mirror.act(act, t, () => renderBody(true)).then((r) => { if (r === 'back') { goTab('now'); savePrefs(); render(); } else renderBody(true); }); return; }
     if (act === 'toggle') { prefs.open = !prefs.open; if (!prefs.open) Mirror.markAway(); savePrefs(); render(); }
     if (act === 'bigger' || act === 'smaller') {
       const i = Math.max(0, Math.min(SCALES.length - 1, (prefs.scaleIdx ?? 2) + (act === 'bigger' ? 1 : -1)));
@@ -3333,11 +3494,16 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       prefs.width = Math.max(W_MIN, Math.min(W_MAX, Math.round(width() * scale() / old), Math.round(innerWidth * 0.42)));
       savePrefs(); render();
     }
-    if (act === 'tab') { prefs.tab = t.dataset.tab; savePrefs(); render(); if (prefs.tab === 'trades') Trades.refresh().then(() => renderBody(true)); }
+    if (act === 'tab') { goTab(t.dataset.tab); savePrefs(); render(); if (view() === 'trades') Trades.refresh().then(() => renderBody(true)); }
+    if (act === 'grp' && GROUPS[prefs.tab]) { prefs.grp = { ...(prefs.grp || {}), [prefs.tab]: t.dataset.k }; savePrefs(); renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); if (t.dataset.k === 'trades') Trades.refresh().then(() => renderBody(true)); return; }
+    if (act === 'task-cat') { Tasks.ui.cat = t.dataset.k; Tasks.ui.pick = (Tasks.LIST.find((x) => x.cat === t.dataset.k && x.k === Tasks.ui.pick) || null)?.k || null; Tasks.save(); renderBody(true); return; }
+    if (act === 'task-pick') { Tasks.ui.pick = Tasks.ui.pick === t.dataset.k ? null : t.dataset.k; Tasks.ui.msg = ''; Tasks.save(); renderBody(true); return; }
+    if (act === 'task-daily') { Tasks.ui.daily[t.dataset.k] = !!t.checked; Tasks.save(); renderBody(true); return; }
+    if (act === 'task-go') { Tasks.go(root, t.dataset.now === '1', (b) => b.click()); renderBody(true); return; }
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:257', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:305', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3371,11 +3537,11 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:291', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:339', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
-    if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (prefs.tab !== 'dex') { prefs.tab = 'dex'; savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
+    if (act === 'dexinfo') { dexUi.dexOpen = +t.dataset.id; if (view() !== 'dex') { goTab('dex'); savePrefs(); render(); } else renderBody(true); root?.querySelector('.body')?.scrollTo?.(0, 0); }
     if (act === 'dexback') { dexUi.dexOpen = null; renderBody(true); }
     if (act === 'plan-add-item') { Plan.add('loot', { item: t.dataset.item, ch: +t.dataset.ch, place: t.dataset.place, need: +t.dataset.need || 1 }); renderBody(true); }
     if (act === 'dex-add-wild') { Plan.add('wild', { foe: +t.dataset.id, ch: +t.dataset.ch }); DexView.clear(); renderBody(true); }
@@ -3397,7 +3563,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:317', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:365', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3411,7 +3577,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:331', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:379', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3425,7 +3591,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:345', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:393', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3436,19 +3602,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:356', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:404', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:362', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:410', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:365', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:413', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:368', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:416', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3468,22 +3634,22 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 
   // theme: Classic (Alakazam 4.x's dark, the default) or Day; the header button switches them
   const THEMES = ['auto', 'day', 'night'];
-  const themeNow = () => { const t = prefs.theme || 'auto'; return t === 'day' ? 'day' : 'night'; }; // Auto = Classic (Alakazam 4.x's dark) since 2026-11-23
+  const themeNow = () => { const t = prefs.theme || 'auto'; return t === 'day' ? 'day' : 'night'; }; const themeCls = () => (themeNow() === 'day' ? 'th-day' : 'th-night th-zg'); // Auto = Classic (Alakazam 4.x's dark) since 2026-11-23
   function render() {
     if (phoneSwap) return; // drawing for the phone right now: the PC panel keeps its own state
     const w = World.build();
     const wrap = root?.querySelector('.wrap');
-    wrap.classList.remove('th-day', 'th-night'); wrap.classList.add('th-' + themeNow());
+    wrap.classList.remove('th-day', 'th-night', 'th-zg'); wrap.classList.add(...themeCls().split(' '));
     const [cls, tip] = health(w);
     layout();
     if (!prefs.open) { wrap.innerHTML = `<div class="rail" data-act="toggle" title="Open Mega Alakazam v${esc(VERSION)}"><img src="${MEGA_ICON}" width="44" height="47" alt=""><span class="dot ${cls}" title="${esc(tip)}"></span><span class="open">›</span></div>`; return; }
     const z = scale();
     wrap.innerHTML = `<div class="panel" style="width:${Math.round(width() / z)}px;zoom:${z}"><div class="grip" title="Drag to resize"></div>
-      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">MEGA ALAKAZAM</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">New Update ${esc(Updater.available)}</button>` : ''}<button class="fold theme" data-act="theme" title="Theme: ${themeNow() === 'day' ? 'Day' : 'Classic (Alakazam 4.x)'} - click to change">${themeNow() === 'day' ? '☀' : '☾'}</button>
+      <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">Mega Alakazam</span><span class="vtag">${esc(VERSION)}</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">New Update ${esc(Updater.available)}</button>` : ''}<button class="fold theme" data-act="theme" title="Theme: ${themeNow() === 'day' ? 'Day' : 'Night'} - click to change">${themeNow() === 'day' ? '☀' : '☾'}</button>
         <button class="fold" data-act="smaller" title="Smaller text" ${prefs.scaleIdx === 0 ? 'disabled' : ''}>A−</button><button class="fold" data-act="bigger" title="Bigger text">A+</button>
         <button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
       <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}</button>`).join('')}</div>
-      <div class="body"></div></div>`;
+      <div class="body"></div><div class="foot"></div></div>`;
     const grip = root?.querySelector('.grip'), panel = root?.querySelector('.panel');
     grip.onpointerdown = (e) => {
       e.preventDefault(); grip.setPointerCapture(e.pointerId);
@@ -3491,11 +3657,33 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:411', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:412', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:459', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:460', __e); }
     renderBody(true, w);
   }
 
+  // the status card every tab starts with (ZGRay's layout): what runs now, and three numbers
+  const session = { at: Date.now(), money: null };
+  function statusHtml(w) {
+    const S = Engine.get('Game.S'), money = +(S?.money ?? NaN);
+    if (session.money == null && Number.isFinite(money)) session.money = money;
+    const cur = Plan.goals.find((g) => !g.done && ['running', 'ready'].includes(Plan.live(g.id)?.state)) || null, L = cur ? Plan.live(cur.id) : null;
+    const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
+    const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.values(d).filter((x) => x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:472', __e); }
+    const t = Math.floor((Date.now() - session.at) / 1000), tm = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}`;
+    return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
+      <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
+      <div class="dim">${esc(cur ? [L?.why, L?.line].filter(Boolean).join(' · ') : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div></div>
+      <div class="mets"><div><b>${dex}</b><span>Pokédex caught</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : '') + '₽' + Math.round(net).toLocaleString()}</b><span>Money this session</span></div><div><b>${tm}</b><span>This session</span></div></div>`;
+  }
+  function footer(w) {
+    const f = root?.querySelector('.foot'); if (!f) return;
+    const onTasks = view() === 'tasks', can = onTasks && w.ok && Tasks.canGo(root), n = Plan.goals.filter((g) => !g.done).length;
+    const html = `<div class="fr"><button class="fb go" data-act="task-go" data-now="1" ${can ? '' : 'disabled'} title="${onTasks ? 'Put this task at the top of the queue and run it' : 'Open Tasks to pick one'}">Start Now</button><button class="fb ${Plan.running ? 'stop' : 'go2'}" data-act="stop-all">${Plan.running ? 'Stop Mega' : 'Start Mega'}</button></div>
+      <div class="fr"><button class="fb lt" data-act="task-go" data-now="0" ${can ? '' : 'disabled'}>＋ Add to Queue</button><button class="fb lt" data-act="tab" data-tab="plan">Queue <span class="pillq">${n}</span></button></div>`;
+    if (f.dataset.html !== html) { f.innerHTML = html; f.dataset.html = html; }
+  }
   function renderBody(force, w = World.build()) {
     if (phoneSwap) return;
     const body = root?.querySelector('.body');
@@ -3503,12 +3691,17 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     // keep the search box focused while typing
     const focused = root.activeElement && root.activeElement.matches('input.q, select.sel');
     if (focused && !force) return;
-    const html = prefs.tab === 'act' ? Views.activity(esc) : prefs.tab === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'team' ? Views.teamEdit(esc) : prefs.tab === 'plan' ? Views.plan(w, planUi, esc) : prefs.tab === 'legends' ? Views.legends(w, legUi, esc) : prefs.tab === 'dex' ? Views.dex(w, prefs, esc, dexUi) : prefs.tab === 'engine' ? Views.engine(w, esc) : prefs.tab === 'fights' ? Views.fights(w, fightData, prefs, esc) : prefs.tab === 'trades' ? Views.trades(esc) : prefs.tab === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : prefs.tab === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
-    const key = html + '|sub:' + (prefs.sub?.[prefs.tab] || ''); // a sub-tab pick changes the screen too
+    const vt = view();
+    const html = vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.plan(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
+    const top = statusHtml(w) + (GROUPS[prefs.tab] ? `<div class="tcats grp">${GROUPS[prefs.tab].map(([k, l]) => `<button class="tcat${vt === k ? ' on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
+    const key = top + html + '|sub:' + (prefs.sub?.[vt] || ''); // a sub-tab pick changes the screen too
+    footer(w);
     if (body.dataset.html === key) return;
-    body.innerHTML = Icons.swap(Sub.apply(prefs.tab, html, prefs, esc)); body.dataset.html = key;
-    if (prefs.tab === 'engine') foldCards(body);
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:428', __e); }
+    const st = body.scrollTop;
+    body.innerHTML = top + Icons.swap(Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
+    if (vt === 'engine') foldCards(body);
+    try { footer(w); } catch (__e) { __h('60-ui:502', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:503', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3523,13 +3716,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:443', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:444', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:518', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:519', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
-  function openTab(tab) { prefs.open = true; prefs.tab = tab; savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:449', __e); } } };
+  function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:524', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
