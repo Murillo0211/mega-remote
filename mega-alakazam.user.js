@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.2
+// @version      2.13.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.2';
+const VERSION = '2.13.3';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2961,7 +2961,7 @@ const Sub = (() => {
  * options are the same ones the Plan tab's old "Add a goal" form had (Views.planAdd).
  * ------------------------------------------------------------------------------------------- */
 const Tasks = (() => {
-  const CATS = [['adv', 'Adventure'], ['col', 'Collect & train'], ['evt', 'Separate events'], ['res', 'Resources']];
+  const CATS = [['adv', 'Adventure'], ['col', 'Collect'], ['evt', 'Events'], ['res', 'Resources']];
   // k = the task, t = the goal type it adds (planAdd's addType), ic = icon, one = only one in the plan at a time
   const LIST = [
     { k: 'region', cat: 'adv', ic: 'book', name: 'Complete the Pokédex', t: 'region', hint: 'Catches everything a region is missing.' },
@@ -3667,14 +3667,17 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   function statusHtml(w) {
     const S = Engine.get('Game.S'), money = +(S?.money ?? NaN);
     if (session.money == null && Number.isFinite(money)) session.money = money;
-    const cur = Plan.goals.find((g) => !g.done && ['running', 'ready'].includes(Plan.live(g.id)?.state)) || null, L = cur ? Plan.live(cur.id) : null;
+    // the goal on the battle screen (Pokédex parents and the Underground run alongside it)
+    const act = Plan.goals.filter((g) => !g.done && ['running', 'ready'].includes(Plan.live(g.id)?.state));
+    const cur = act.find((g) => GoalTypes[g.type]?.uses === 'screen' && Plan.live(g.id)?.state === 'running') || act.find((g) => GoalTypes[g.type]?.uses === 'screen') || act[0] || null, L = cur ? Plan.live(cur.id) : null;
+    const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:472', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:475', __e); }
     const t = Math.floor((Date.now() - session.at) / 1000), tm = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}`;
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
-      <div class="dim">${esc(cur ? [L?.why, L?.line].filter(Boolean).join(' · ') : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div></div>
+      <div class="dim">${esc(cur ? [L?.why, L?.line, also ? `+${also} more alongside` : ''].filter(Boolean).join(' · ') : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div></div>
       <div class="mets"><div><b>${dex}</b><span>Pokédex</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : net < 0 ? '−' : '') + '₽' + Math.abs(Math.round(net)).toLocaleString()}</b><span>Money gained</span></div><div><b>${tm}</b><span>This session</span></div></div>`;
   }
   function footer(w) {
@@ -3700,8 +3703,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:502', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:503', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:505', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:506', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3716,13 +3719,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:518', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:519', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:521', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:522', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:524', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:527', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
