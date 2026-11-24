@@ -1308,11 +1308,20 @@ const Recorder = (() => {
     try {
       const list = (await all()).sort((a, b) => a.at - b.at);
       const S = E.get('Game.S') || {};
+      // 2.15.7: the 15,000 Trainers raid was scored from the Shiny Raid's counter, which never moves in it,
+      // so every fight said 'wipe' (the boss's last HP is rarely sampled: the game clears the fight first).
+      // The event counts one try per KO: when a region's event-raid fights are no more than its tries,
+      // every one of them was a KO.
+      try {
+        const F = E.get('Fete15'), from = Date.parse('2026-11-20T00:00:00Z');
+        for (const [reg, p] of Object.entries(S.fete15?.pick || {})) {
+          const fs = list.filter((f) => f.raid && f.at > from && +f.foeId === +p.id && !f.raidDate && f.outcome === 'wipe');
+          const all = list.filter((f) => f.raid && f.at > from && +f.foeId === +p.id);
+          if (fs.length && all.length <= (+F.tries(reg) || 0)) for (const f of fs) { f.outcome = 'ko'; f.raidReg = reg; f.raidDate = 'fete15'; f.migrated = (f.migrated ? f.migrated + '; ' : '') + 'event raid wipe->ko (counted from its own tries)'; await put(f); }
+        }
+      } catch (e) { console.warn('[Mega Alakazam] migrate fete15', e); }
       for (let i = 0; i < list.length; i++) {
         const f = list[i];
-        // 2.15.7: the 15,000 Trainers raid was scored from the wrong counter - a raid "wipe" whose boss
-        // reached 0 HP was a KO (only fights from the event's week, Nov 2026)
-        if (f.raid && f.outcome === 'wipe' && f.endBoss === 0 && !f.fete15fix && f.at > Date.parse('2026-11-23T00:00:00Z')) { f.outcome = 'ko'; f.fete15fix = 1; f.migrated = (f.migrated ? f.migrated + '; ' : '') + 'event raid wipe->ko (boss at 0)'; await put(f); continue; }
         if (f.v >= 3) continue;
         if (f.v === 2 || f.migrated) {
           // 0.2.5 scored a capture as 'left': the last fight before the foe is in the Pokédex was the catch
