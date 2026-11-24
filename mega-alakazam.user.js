@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.12.2
+// @version      2.12.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.12.2';
+const VERSION = '2.12.3';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2549,7 +2549,7 @@ Views.plan = (w, ui, esc) => {
     <div class="note dim">Exactly what the plan does when it has nothing to do - levels your team first, then your strongest in the PC, in the chapter with the best XP per hour - but as a goal in your list: goals above it go first, goals below wait. It never finishes by itself; remove or pause it when you're done.</div></div>`;
   } else if (String(ui.addType).startsWith('discord-')) {
     const k = ui.addType.slice(8), v = (GoalTypes.discordSpots || {})[k] || {};
-    const WHY = { money: 'The most money of every loop with an endgame team: Mega sends your 6 fastest clearers, so laps are quick.', xp: 'The whole Kanto Pokémon League (Elite Four and Champion) as one loop. Every team member gets each win\'s XP even if it never fights: one carrier that sweeps it (two if the simulation says one alone is slower) and the rest leveling - your team first, then your strongest in the PC.', axsiom: 'Axsiom\'s run: Giant Chasm with ONE carrier (his are rank V) and the other five leveling, with the Shiny berry on all the time plus Money and XP berries. Giant Chasm can drop Shiny berries, so the Shiny berry keeps itself going. Mega simulates the whole chapter to check one carrier clears it.', mix: 'The best mix of money, battle XP and Exp. Candies: Mega levels your Pokémon there with carriers, with a Lansat Berry for the money too.', candy: 'The most Exp. Candy drops (random, so it shifts run to run): your 6 fastest clearers on a loop. The goal shows how many candies came in.' }[k] || '';
+    const WHY = { money: 'The most money of every loop with an endgame team: Mega sends your 6 fastest clearers, so laps are quick.', xp: 'The whole Kanto Pokémon League (Elite Four and Champion) as one loop. Every team member gets each win\'s XP even if it never fights: one carrier that sweeps it (two if the simulation says one alone is slower) and the rest leveling - your team first, then your strongest in the PC.', axsiom: 'Axsiom\'s run: Giant Chasm with ONE carrier (his are rank V) and the other five leveling, with the Shiny berry on all the time plus a catch berry (Golden Razz, then Razz - a shiny gets one ball), Money and XP berries. Giant Chasm can drop Shiny berries, so the Shiny berry keeps itself going. Mega simulates the whole chapter to check one carrier clears it.', mix: 'The best mix of money, battle XP and Exp. Candies: Mega levels your Pokémon there with carriers, with a Lansat Berry for the money too.', candy: 'The most Exp. Candy drops (random, so it shifts run to run): your 6 fastest clearers on a loop. The goal shows how many candies came in.' }[k] || '';
     h += `<button class="btn" data-act="plan-add-discord" data-spot="${k}">Add to plan</button>
     <div class="note dim">From the Discord's Auto-Replay Farming Guide (made on game v0.5.091 - later versions changed XP and money for older regions, so Mega's own measuring may disagree). ${WHY} While it runs, ${esc(v.where || 'the spot')} is your only loop (the game goes on to the next looped chapter after each one); your team, chapter and loops come back when you pause or remove it. It never finishes by itself.</div></div>`;
   } else if (ui.addType === 'bloc') {
@@ -8856,7 +8856,7 @@ const Plan = (() => {
     mix: { title: 'Money + battle XP + candies', where: 'Giant Chasm', kind: 'level', find: () => findCh((c) => (c.reg || 'kanto') === 'unova' && eng(c) === 'Giant Chasm'), berry: 'xp' },
     // Axsiom's run (Jimmy 2026-11-23, from the Discord): Giant Chasm with ONE carrier (his are rank V), the rest leveling,
     // and the Shiny berry on 24/7 with Money and XP - Giant Chasm can drop Shiny berries, so it keeps itself going
-    axsiom: { title: 'Axsiom Plan', where: 'Giant Chasm', kind: 'level', find: () => findCh((c) => (c.reg || 'kanto') === 'unova' && eng(c) === 'Giant Chasm'), berry: 'xp', keep: ['shiny', 'money'] },
+    axsiom: { title: 'Axsiom Plan', where: 'Giant Chasm', kind: 'level', find: () => findCh((c) => (c.reg || 'kanto') === 'unova' && eng(c) === 'Giant Chasm'), berry: 'xp', keep: ['shiny', 'capture', 'money'] }, // capture: a shiny gets one ball - Golden Razz x1.5 / Razz x1.25 (Jimmy 2026-11-23)
     candy: { title: 'Exp. Candies', where: 'Kanto Victory Road', kind: 'sweep', find: () => findCh((c) => (c.reg || 'kanto') === 'kanto' && eng(c) === 'Victory Road') },
   };
   // where a spot is: its first chapter, every chapter of it (a League is several), and the game's loop key for it
