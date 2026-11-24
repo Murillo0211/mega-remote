@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.9
+// @version      2.13.10
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.9';
+const VERSION = '2.13.10';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3681,11 +3681,18 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
     let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:476', __e); }
-    const t = Math.floor((Date.now() - session.at) / 1000), tm = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}`;
+    // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
+    let since = null;
+    if (cur && Plan.running) {
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:480', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:481', __e); } }
+      since = r.at;
+    }
+    const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
       <div class="dim">${esc(cur ? [L?.why, L?.line, also ? `+${also} more alongside` : ''].filter(Boolean).join(' · ') : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div></div>
-      <div class="mets"><div><b>${dex}</b><span>Pokédex</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : net < 0 ? '−' : '') + '₽' + Math.abs(Math.round(net)).toLocaleString()}</b><span>Money gained</span></div><div><b>${tm}</b><span>This session</span></div></div>`;
+      <div class="mets"><div><b>${dex}</b><span>Pokédex</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : net < 0 ? '−' : '') + '₽' + Math.abs(Math.round(net)).toLocaleString()}</b><span>Money gained</span></div><div><b>${tm}</b><span>On this task</span></div></div>`;
   }
   function footer(w) {
     const f = root?.querySelector('.foot'); if (!f) return;
@@ -3710,8 +3717,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' || vt === 'care' ? Sub.apply('now', html, prefs, esc, { pick: vt === 'care' ? 'care' : 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:506', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:507', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:513', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:514', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3726,13 +3733,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:522', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:523', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:529', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:530', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:528', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:535', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
