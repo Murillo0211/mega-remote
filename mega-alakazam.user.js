@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.6
+// @version      2.13.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.6';
+const VERSION = '2.13.7';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3274,7 +3274,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .tabs button.on{background:transparent;color:var(--acc);border-bottom-color:var(--acc);box-shadow:none}
     .stat{padding:9px 11px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
     .stat .live{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
-    .stat b{display:block;font-size:14px} .stat .dim{font-size:var(--t-s)}
+    .stat b{display:block;font-size:14px} .stat .dim{font-size:var(--t-s);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .sdot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 7px var(--acc)} .sdot.off{background:var(--faint);box-shadow:none} .sdot.err{background:var(--bad)}
     .mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
     .mets div{padding:7px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
