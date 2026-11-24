@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.12
+// @version      2.13.13
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.12';
+const VERSION = '2.13.13';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2344,6 +2344,83 @@ const DayCare = (() => {
 })();
 
 /* ---------------------------------------------------------------------------------------------
+ * Day Care tab (2.13.13, Jimmy 2026-11-23: "make it look exactly like ZG, with all that info in place,
+ * easier to read"): the incubator with three numbers and its eggs, the parents as numbered cards,
+ * the natural-egg timer, the shiny egg forecast, and the shiny egg list grouped by parent and berry.
+ * Everything comes from DayCare (the save) and EggPredict (the game's own egg math, exact).
+ * ------------------------------------------------------------------------------------------- */
+Views.daycare = (w, esc) => {
+  if (!w.ok) return `<div class="note">Waiting for the game engine.</div>`;
+  const E = Engine, S = E.get('Game.S') || {}, P = S.pension || {}, C = E.get('CONFIG')?.PENSION || {};
+  const nm = (id) => esc(Casing.names(E.get('Game.DEX')?.[id]?.name || '#' + id));
+  const eggOf = (id) => { const L = C.LAYS || {}; if (L[id] != null) return +L[id]; let f = []; try { f = E.get('Game').familyOf(+id) || []; } catch (__e) { __h('57-dcview:11', __e); } return +(f[0] ?? id); };
+  const at = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  const dc = DayCare.info(), mine = (() => { try { return EggPredict.eggs(); } catch { return []; } })();
+  const per = (+C.EGG_MIN || 240) * 60_000;
+  const shinyHeld = mine.filter((e) => e.shiny).length, ready = dc.eggs.filter((e) => e.ready).length, hatched = +(S.stats?.hatched ?? 0);
+  const mons = (P.mons || []).map((x) => x?.mon || x).filter(Boolean);
+  let layers = []; try { layers = (E.read('Game.pensionLayers', []) || []).map((x) => x.mon || x); } catch (__e) { __h('57-dcview:17', __e); }
+  const slotOf = (id, shiny) => { const i = mons.findIndex((m) => +m.id === +id && !!m.shiny === !!shiny); return i >= 0 ? i + 1 : null; };
+  const rateTxt = (r) => { const n = Math.round(1 / r); return `1/${n}`; };
+
+  // ---- incubator ----
+  let h = `<div class="dcbox"><div class="dch"><h2>Incubator</h2><span class="dcok">Exact · the game's own egg math</span></div>
+    <div class="dim dcs">Taken ${dc.used}/${dc.max || +C.INCUBATOR || 4}${dc.full ? ' · full - hatch one to make room' : ''}</div>
+    <div class="mets dcm"><div><b>${shinyHeld}</b><span>Shiny eggs held</span></div><div><b>${ready}</b><span>Ready to claim</span></div><div><b>${hatched.toLocaleString()}</b><span>Total hatched</span></div></div>`;
+  if (!dc.eggs.length) h += `<div class="dcs">No eggs in the incubator.</div>`;
+  for (const e of dc.eggs) {
+    const sh = mine.find((x) => x.uid === e.uid)?.shiny, pct = e.ready ? 1 : 1 - e.left / Math.max(1, e.hatchAt - e.laidAt);
+    h += `<div class="dcegg"><img src="${E.sprite(e.id)}" width="40" height="40" style="${e.ready ? '' : 'filter:grayscale(1);opacity:.55'}"><div class="grow"><b>${nm(e.id)}</b> ${sh ? '<span class="dcsh">✦ Shiny</span>' : '<span class="dim">Normal</span>'}
+      <div class="dim">${e.ready ? '<span class="ok">Ready to hatch</span>' : `${DayCare.left(e.left)} left · hatches ${at(e.hatchAt)}`}</div>${e.ready ? '' : `<div class="bar"><i style="width:${Math.round(pct * 100)}%"></i></div>`}</div>
+      ${e.ready ? `<button class="qbtn" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">Hatch</button>` : ''}</div>`;
+  }
+  if (ready > 1) h += `<button class="qbtn" style="margin-top:8px" data-act="m-egg-hatch" data-uid="">Hatch all ready (${ready})</button>`;
+
+  // ---- parents ----
+  h += `<div class="dch" style="margin-top:14px"><h3>Day Care parents</h3><span class="dim">${mons.length} in Day Care · ${layers.length} can be drawn</span></div>`;
+  if (!mons.length) h += `<div class="dcs dim">No Pokémon in the Day Care.</div>`;
+  else h += `<div class="dcpar">${mons.map((m, i) => {
+    const lays = layers.some((l) => +l.id === +m.id && !!l.shiny === !!m.shiny), ditto = +m.id === 132;
+    return `<div class="dcp"><span class="qpos">${i + 1}</span><div class="grow"><b>${m.shiny ? '✦ ' : ''}${nm(m.id)}</b><div class="dim">${ditto ? 'Needed for natural eggs' : lays ? `Produces ${nm(eggOf(m.id))}` : 'Can\'t lay here'}</div></div></div>`;
+  }).join('')}</div>`;
+  if (dc.laying) {
+    const goal = +P.eggGoal || per, prog = +P.egg || 0;
+    h += `<div class="dcs"><div class="dch"><span>Natural egg progress</span><b>${dc.full ? 'waiting for a free slot' : dc.nextEgg != null ? `next egg in ${DayCare.left(dc.nextEgg)}` : ''}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(prog / goal * 100))}%"></i></div></div>`;
+  }
+
+  // ---- forecast ----
+  let U = null; try { U = EggPredict.upcoming(400); } catch (__e) { __h('57-dcview:47', __e); }
+  h += `<div class="dch" style="margin-top:14px"><h3>Shiny egg forecast</h3>${U ? '<span class="dcok">Exact for these parents</span>' : ''}</div>`;
+  if (!U || !U.layers.length) { h += `<div class="dcs dim">Nobody in the Day Care can lay an egg right now.</div></div>`; return h; }
+  const when = (a) => (dc.nextEgg != null ? at(Date.now() + dc.nextEgg + a * per) : '');
+  // the next egg itself
+  const nextPar = U.layers.length ? U.layers[Math.floor(EggPredict.roll(U.next, 1) * U.layers.length)] : null;
+  const nextRow = U.rows.find((r) => r.k === U.next);
+  const nextShiny = !!nextRow?.now;
+  const firstNat = U.rows.find((r) => r.now), firstBerry = U.rows.find((r) => r.berry && !r.now);
+  h += `<div class="dcnext"><b>Next natural egg #${U.next} · ${nextPar ? nm(eggOf(nextPar.id)) : '?'} · ${nextShiny ? '<span class="dcsh">✦ shiny</span>' : 'normal'}${nextPar ? ` · parent slot ${slotOf(nextPar.id, nextPar.shiny) || '?'}` : ''}</b>
+    <div class="dim">${U.berryOn ? 'A Belue Berry is active for it. ' : ''}${firstNat ? `Natural egg ${firstNat.ahead === 0 ? 'next' : firstNat.ahead + 1} is shiny (${nm(eggOf(firstNat.parent))}, #${firstNat.k})` : 'No natural shiny in the next 400 eggs'}</div></div>
+    <div class="dcpair"><div><span class="dim">Next natural shiny egg</span><b>${firstNat ? `Egg ${firstNat.ahead + 1} · ${nm(eggOf(firstNat.parent))} (#${firstNat.k})` : '—'}</b>${firstNat && when(firstNat.ahead) ? `<span class="dim">about ${when(firstNat.ahead)}</span>` : ''}</div>
+      <div><span class="dim">Next shiny-with-berry egg</span><b>${firstBerry ? `Egg ${firstBerry.ahead + 1} · ${nm(eggOf(firstBerry.parent))} (#${firstBerry.k})` : '—'}</b>${firstBerry && when(firstBerry.ahead) ? `<span class="dim">about ${when(firstBerry.ahead)}</span>` : ''}</div></div>`;
+
+  // ---- shiny egg list, grouped by the parent drawn and whether it needs the berry ----
+  const base = EggPredict.rate(0, 0), par = EggPredict.rate(2, 0);
+  const groups = [
+    ['Shiny parent · natural shiny', rateTxt(par), (r) => r.parentShiny && r.now],
+    ['Shiny parent · shiny only with a berry', `${rateTxt(par)} → ${rateTxt(par * 2)}`, (r) => r.parentShiny && r.berry && !r.now],
+    ['Normal parent · natural shiny', rateTxt(base), (r) => !r.parentShiny && r.now],
+    ['Normal parent · shiny only with a berry', `${rateTxt(base)} → ${rateTxt(base * 2)}`, (r) => !r.parentShiny && r.berry && !r.now],
+  ];
+  h += `<details class="dclist" open><summary>Shiny egg list</summary><div class="dim dcs">Grouped by the parent actually drawn. A berry-only shiny egg needs a Belue Berry fed before that egg is laid.</div>`;
+  for (const [t, rt, f] of groups) {
+    const rows = U.rows.filter(f).slice(0, 4); if (!rows.length) continue;
+    h += `<div class="dcg"><div class="dcgh"><b>${t}</b><span class="dim">${rt}</span></div>${rows.map((r) => `<div class="dcr"><b>${r.ahead === 0 ? 'next egg' : r.ahead + ' eggs from now'}</b><span>slot ${slotOf(r.parent, r.parentShiny) || '?'} ${nm(r.parent)} → ${nm(eggOf(r.parent))}</span><span class="dcok">#${r.k}</span></div>`).join('')}</div>`;
+  }
+  h += `</details><div class="dim dcs">Distance counts natural eggs laid${dc.nextEgg != null ? `; one about every ${Math.round(per / 3_600_000)} h` : ''}. Changing or reordering parents, using a Belue Berry or gift eggs taking numbers will recalculate it.</div></div>`;
+  return h;
+};
+
+/* ---------------------------------------------------------------------------------------------
  * EggPredict: which Day Care eggs will hatch shiny. Read from the game's own code (v0.5.11):
  *  - every egg gets a number when it's laid (pension.laid, counting up: egg k)
  *  - shiny = hash("<trainer since>:<trainer id>|egg|k|0") < rate, the game's own 53-bit hash
@@ -3102,7 +3179,7 @@ const UI = (() => {
   const PREFS_KEY = 'mega-alakazam-ui';
   const prefs = (() => { try { return { tab: 'tasks', open: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { tab: 'tasks', open: true }; } })();
   // 2.13: seven tabs; some hold several of Mega's screens, switched by a row under the status card
-  const GROUPS = { home: [['now', 'Now'], ['tasks', 'Tasks'], ['care', 'Day Care'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
+  const GROUPS = { home: [['now', 'Now'], ['tasks', 'Tasks'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
   const groupOf = (k) => Object.keys(GROUPS).find((g) => GROUPS[g].some(([x]) => x === k)) || null;
   function goTab(k) { // any screen key (old or new) -> the tab that shows it
     const g = groupOf(k);
@@ -3112,8 +3189,9 @@ const UI = (() => {
   if (!prefs.v213) { goTab(prefs.tab || 'tasks'); delete prefs.tabOrder; prefs.v213 = 1; }
   // 2.13.6: Tasks and Live are one tab (Tasks · Now · Activity · Fights)
   if (prefs.grp?.home === 'act') prefs.grp.home = 'now';
+  if (prefs.grp?.home === 'care') { prefs.grp.home = 'now'; if (prefs.tab === 'home') prefs.tab = 'care'; delete prefs.tabOrder; }
   if (!prefs.v2136) { if (prefs.tab === 'live') goTab(prefs.grp?.live || 'now'); else if (prefs.tab === 'tasks') goTab('tasks'); delete prefs.tabOrder; prefs.v2136 = 1; }
-  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:21', __e); } };
+  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (__e) { __h('60-ui:22', __e); } };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtIn = (t) => {
     if (!t) return '';
@@ -3324,6 +3402,20 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .tcard:hover{border-color:var(--acc)} .tcard .ic{color:var(--acc);font-size:var(--t-m)} .tcard small{display:block;font-size:var(--t-s);color:var(--mute)}
     .tcard.on{background:color-mix(in srgb,var(--acc) 18%,var(--card));border-color:var(--acc)}
     .taskopts .btn[data-act^="plan-add"]:not([data-act="plan-add-item"]){display:none}
+    .dcbox{border:1px solid var(--line-2);border-radius:14px;padding:12px;background:var(--card)}
+    .dch{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap} .dch h2,.dch h3{all:unset;font-weight:800;font-size:var(--t-m)}
+    .dcok{font-size:var(--t-s);color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent);padding:1px 7px;border-radius:6px}
+    .dcs{margin:6px 0;font-size:var(--t-s)} .dcm{margin:8px 0}
+    .dcegg{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)} .dcegg img{image-rendering:pixelated;flex:none;background:var(--well);border-radius:10px}
+    .dcsh{color:var(--shiny);font-weight:700}
+    .dcpar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+    .dcp{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line-2);border-radius:10px;padding:8px;background:var(--well)} .dcp .dim{font-size:var(--t-s)}
+    .dcnext{margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:var(--well)} .dcnext .dim{font-size:var(--t-s);margin-top:4px}
+    .dcpair{display:grid;gap:6px;margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:color-mix(in srgb,var(--acc) 8%,var(--well))}
+    .dcpair div{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px} .dcpair .dim{font-size:var(--t-s)} .dcpair div > .dim:last-child{grid-column:2;text-align:right}
+    .dclist{margin-top:12px;border:1px solid var(--line-2);border-radius:10px;padding:8px 10px} .dclist summary{cursor:pointer;font-weight:700}
+    .dcg{margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--well)} .dcgh{display:flex;gap:8px;align-items:baseline;margin-bottom:4px}
+    .dcr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid var(--line);font-size:var(--t-s)}
     .qhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px} .qhead h2{all:unset;display:block;font-size:var(--t-m);font-weight:800} .qhead p{margin:2px 0 0;color:var(--mute);font-size:var(--t-s)}
     .qbtn{all:unset;cursor:pointer;flex:none;padding:7px 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s);font-weight:600} .qbtn:hover{border-color:var(--acc)}
     .qnote{margin:0 0 9px;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--card);color:var(--mute);font-size:var(--t-s)}
@@ -3359,7 +3451,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       #team-mini{left:${w}px !important}`;
     if (host) host.style.setProperty('--w', w + 'px');
   }
-  const TABS = [['home', 'Tasks'], ['plan', 'Queue'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['legends', 'Sim'], ['engine', 'Settings']];
+  const TABS = [['home', 'Tasks'], ['plan', 'Queue'], ['care', 'Day Care'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['legends', 'Sim'], ['engine', 'Settings']];
   // your tab order (drag to rearrange); tabs added in later versions go at the end
   const tabList = () => { const o = Array.isArray(prefs.tabOrder) ? prefs.tabOrder : [], byK = new Map(TABS); return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))]; };
   // drag with the mouse (pointer events - the browser's own drag-and-drop doesn't fire inside Mega's panel)
@@ -3386,7 +3478,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
         const t = at(ev); if (!t || !bar.contains(t) || t.dataset.tab === was.key) return;
         const keys = tabList().map(([k]) => k), from = was.key, to = t.dataset.tab, i = keys.indexOf(from), jo = keys.indexOf(to);
         keys.splice(i, 1); keys.splice(keys.indexOf(to) + (jo > i ? 1 : 0), 0, from); // lands where the target was
-        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:148', __e); }
+        prefs.tabOrder = keys; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:163', __e); }
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     });
@@ -3493,7 +3585,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (e.target.matches('select[data-act="add-type"]')) { planUi.addType = e.target.value || 'legend'; renderBody(true); return; }
       if (e.target.matches('select[data-act="add-from"]')) { planUi.addFrom = e.target.value === 'auto' ? 'auto' : +e.target.value || 1; return; }
       if (e.target.matches('select[data-act="add-aim"]')) { planUi.addAim = e.target.value === 'loot' ? 'loot' : 'deep'; return; }
-      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:255', __e); } renderBody(true); return; }
+      if (e.target.matches('select[data-act="gem-focus"]')) { Views.gemUi = { ...(Views.gemUi || {}), focus: e.target.value }; try { localStorage.setItem('mega-gem-focus', e.target.value); } catch (__e) { __h('60-ui:270', __e); } renderBody(true); return; }
       if (e.target.matches('select[data-act="disc-carrier"]')) {
         const g = Plan.goals.find((x) => x.id === e.target.dataset.id);
         if (g) { GoalTypes.setCarrier(g, e.target.value || null); Log.add(`${Plan.label(g)}: carrier ${g.carrier ? (() => { try { return Casing.names(Engine.get('Game.DEX')[Engine.read('Game.getMon', {}, g.carrier)?.id].name); } catch { return 'that Pokémon'; } })() : 'picked by Mega'}`); }
@@ -3558,7 +3650,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:320', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:335', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3592,7 +3684,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:354', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:369', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
@@ -3618,7 +3710,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:380', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:395', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3632,7 +3724,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:394', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:409', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3646,7 +3738,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:408', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:423', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3657,19 +3749,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:419', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:434', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:425', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:440', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:428', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:443', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:431', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:446', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3710,8 +3802,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:472', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:473', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:487', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:488', __e); }
     renderBody(true, w);
   }
 
@@ -3728,12 +3820,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:490', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:505', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:494', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:495', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:509', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:510', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -3757,16 +3849,16 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const focused = root.activeElement && root.activeElement.matches('input.q, select.sel');
     if (focused && !force) return;
     const vt = view();
-    const html = vt === 'now' || vt === 'care' ? Views.now(w, esc, fmtIn) : vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.queue(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
-    const top = (vt === 'plan' ? '' : statusHtml(w)) + (GROUPS[prefs.tab] ? `<div class="snav">${GROUPS[prefs.tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
+    const html = vt === 'care' ? Views.daycare(w, esc) : vt === 'now' ? Views.now(w, esc, fmtIn) : vt === 'tasks' ? Views.tasks(w, planUi, esc) : vt === 'act' ? Views.activity(esc) : vt === 'box' ? (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'team' ? Views.teamEdit(esc) : vt === 'plan' ? Views.queue(w, planUi, esc) : vt === 'legends' ? Views.legends(w, legUi, esc) : vt === 'dex' ? Views.dex(w, prefs, esc, dexUi) : vt === 'engine' ? Views.engine(w, esc) : vt === 'fights' ? Views.fights(w, fightData, prefs, esc) : vt === 'trades' ? Views.trades(esc) : vt === 'gems' ? (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>') : vt === 'blocs' ? (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>') : Views.now(w, esc, fmtIn);
+    const top = (vt === 'plan' || vt === 'care' ? '' : statusHtml(w)) + (GROUPS[prefs.tab] ? `<div class="snav">${GROUPS[prefs.tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-act="grp" data-k="${k}">${l}</button>`).join('')}</div>` : '');
     const key = top + html + '|sub:' + (prefs.sub?.[vt] || ''); // a sub-tab pick changes the screen too
     footer(w);
     if (body.dataset.html === key) return;
     const st = body.scrollTop;
-    body.innerHTML = top + Icons.swap(vt === 'now' || vt === 'care' ? Sub.apply('now', html, prefs, esc, { pick: vt === 'care' ? 'care' : 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
+    body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:527', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:528', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:542', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:543', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3781,13 +3873,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:543', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:544', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:558', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:559', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:549', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:564', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
