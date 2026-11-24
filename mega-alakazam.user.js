@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.13.13
+// @version      2.13.14
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.13.13';
+const VERSION = '2.13.14';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2320,27 +2320,38 @@ const DayCare = (() => {
   function check() {
     if (!E.ready()) return;
     const d = info(), ready = d.eggs.filter((e) => e.ready && !told.includes(e.uid));
+    // auto-collect (2.13.14, Jimmy's switch on the Day Care tab): hatch ready eggs by itself, never inside a
+    // Legendary zone, league, tower or raid (the game's own hatch call, like the Hatch button)
+    if (ready.length && autoOn()) {
+      const a = E.get('Game.S')?.adv || {};
+      if (!(a.zone || a.league || a.tower || a.raid || a.event)) {
+        const r = hatch(); Log.add(`Day Care auto-collect: ${r}`);
+        if (/^hatched/.test(r)) { try { Notify.send('egg', `Day Care: ${r}`, 'Auto-collect hatched it - it is in your PC'); } catch (__e) { __h('57-daycare:34', __e); } told = [...told, ...ready.map((e) => e.uid)]; try { localStorage.setItem(DONE, JSON.stringify(told)); } catch (__e) { __h('57-daycare:34', __e); } return; }
+      }
+    }
     if (ready.length) {
       const n = ready.map((e) => name(e.id) + (e.shinyParent ? ' ✨' : ''));
       Notify.send('egg', ready.length === 1 ? `${n[0]} egg is ready to hatch` : `${ready.length} eggs are ready to hatch`, ready.length === 1 ? 'Open the Day Care to hatch it' : n.join(', '));
     }
     const live = new Set(d.eggs.map((e) => e.uid));
     told = [...told.filter((u) => live.has(u)), ...ready.map((e) => e.uid)];
-    try { localStorage.setItem(DONE, JSON.stringify(told)); } catch (__e) { __h('57-daycare:34', __e); }
+    try { localStorage.setItem(DONE, JSON.stringify(told)); } catch (__e) { __h('57-daycare:43', __e); }
   }
+  const autoOn = () => { try { return localStorage.getItem('mega-egg-auto') === '1'; } catch { return false; } };
+  const setAuto = (on) => { try { localStorage.setItem('mega-egg-auto', on ? '1' : '0'); } catch (__e) { __h('57-daycare:46', __e); } Log.add(`Day Care auto-collect ${on ? 'on' : 'off'}`); if (on) try { check(); } catch (__e) { __h('57-daycare:46', __e); } };
   let timer = null;
-  function boot() { if (timer) return; timer = setInterval(() => { try { check(); } catch (__e) { __h('57-daycare:37', __e); } }, 30_000); }
+  function boot() { if (timer) return; timer = setInterval(() => { try { check(); } catch (__e) { __h('57-daycare:48', __e); } }, 30_000); }
   const left = (ms) => { const m = Math.ceil(ms / 60_000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`; };
   // hatch ready eggs (one by uid, or every ready one) - for a tap in Mega or Kinesis
   function hatch(uid) {
     const eggs = (E.get('Game.S')?.pension?.eggs || []).filter((e) => (uid ? e.uid === uid : true) && E.read('Game.eggReady', false, e));
     if (!eggs.length) return 'no egg is ready yet';
     const got = [];
-    for (const e of eggs) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('57-daycare:44', __e); } if (r) got.push(name(e.id)); }
-    try { E.call('Game.save'); } catch (__e) { __h('57-daycare:45', __e); } try { E.call('App.refresh'); } catch (__e) { __h('57-daycare:45', __e); }
+    for (const e of eggs) { let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('57-daycare:55', __e); } if (r) got.push(name(e.id)); }
+    try { E.call('Game.save'); } catch (__e) { __h('57-daycare:56', __e); } try { E.call('App.refresh'); } catch (__e) { __h('57-daycare:56', __e); }
     return got.length ? `hatched ${got.join(', ')}` : 'the game didn\'t hatch it - open the Day Care';
   }
-  return { info, boot, left, name, hatch };
+  return { info, boot, left, name, hatch, autoOn, setAuto };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -2375,6 +2386,7 @@ Views.daycare = (w, esc) => {
       ${e.ready ? `<button class="qbtn" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">Hatch</button>` : ''}</div>`;
   }
   if (ready > 1) h += `<button class="qbtn" style="margin-top:8px" data-act="m-egg-hatch" data-uid="">Hatch all ready (${ready})</button>`;
+  h += `<label class="chk dcauto"><input type="checkbox" data-act="egg-auto" ${DayCare.autoOn() ? 'checked' : ''}>Auto-collect ready eggs</label><div class="dim dcs">Hatches eggs as soon as they're ready (checked every 30 seconds), but never during a Legendary zone, league, tower or raid. You get a phone alert for each one it hatches.</div>`;
 
   // ---- parents ----
   h += `<div class="dch" style="margin-top:14px"><h3>Day Care parents</h3><span class="dim">${mons.length} in Day Care · ${layers.length} can be drawn</span></div>`;
@@ -2389,7 +2401,7 @@ Views.daycare = (w, esc) => {
   }
 
   // ---- forecast ----
-  let U = null; try { U = EggPredict.upcoming(400); } catch (__e) { __h('57-dcview:47', __e); }
+  let U = null; try { U = EggPredict.upcoming(400); } catch (__e) { __h('57-dcview:48', __e); }
   h += `<div class="dch" style="margin-top:14px"><h3>Shiny egg forecast</h3>${U ? '<span class="dcok">Exact for these parents</span>' : ''}</div>`;
   if (!U || !U.layers.length) { h += `<div class="dcs dim">Nobody in the Day Care can lay an egg right now.</div></div>`; return h; }
   const when = (a) => (dc.nextEgg != null ? at(Date.now() + dc.nextEgg + a * per) : '');
@@ -3351,6 +3363,27 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .ic-gift{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8h18v4H3zm1 5h7v9H4zm9 0h7v9h-7zM11 8h2v14h-2zm-4.5-6C8.6 2 10.8 4.6 12 7c1.2-2.4 3.4-5 5.5-5A2.5 2.5 0 0 1 20 4.5C20 6.4 17 7 12 7 7 7 4 6.4 4 4.5A2.5 2.5 0 0 1 6.5 2z'/%3E%3C/svg%3E")}
 .ic-ghost{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a8 8 0 0 0-8 8v12l2.7-2 2.6 2 2.7-2 2.7 2 2.6-2L20 22V10a8 8 0 0 0-8-8zM9 8.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E")}
 
+/* ---- 2.13.14: Mega's panel in the ZGRay style - one look for every tab (Jimmy 2026-11-23: "format, font size,
+   all flow the same and feel the same"). Boxes: 1px border, 12px corners, bold title in the regular size;
+   buttons: compact, mint for the main one; section switches: underlined text, like the Tasks row. ---- */
+.wrap.th-zg .card{border-color:var(--line-2);border-radius:12px;padding:11px 12px;margin:0 0 10px;box-shadow:none}
+.wrap.th-zg .card h3,.wrap.th-zg h3.card-title{font-size:var(--t-m);font-weight:800;letter-spacing:0;text-transform:none;color:var(--ink);border-bottom:0;padding:0;margin:0 0 6px}
+.wrap.th-zg .card h3 .dim,.wrap.th-zg .card h3 span{font-size:var(--t-s);font-weight:600}
+.wrap.th-zg .lbl{font-size:var(--t-s);letter-spacing:.06em}
+.wrap.th-zg .note{border-color:var(--line-2);border-radius:8px;color:var(--mute);background:var(--card)}
+.wrap.th-zg .btn{min-height:34px;padding:7px 12px;font:600 var(--t-s)/18px var(--font);border-radius:9px;box-shadow:none;background:var(--well)}
+.wrap.th-zg .btn.gold{background:var(--acc);border-color:var(--acc);color:var(--acc-ink);font-weight:800}
+.wrap.th-zg .btn.sm{min-height:30px;padding:5px 9px;font-size:var(--t-s)}
+.wrap.th-zg .btn.danger{color:#f1b3bc}
+.wrap.th-zg input.q,.wrap.th-zg select.sel{font-size:var(--t-m);border-radius:9px;padding:7px 10px}
+.wrap.th-zg .row{padding:6px 0}
+.wrap.th-zg .chip{font-size:var(--t-s);padding:4px 10px}
+.wrap.th-zg .chips.subtabs{display:flex;flex-wrap:wrap;gap:4px 16px;border-bottom:1px solid var(--line);padding:0 2px !important;margin:0 0 10px !important;background:var(--bg)}
+.wrap.th-zg .chips.subtabs .chip{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px}
+.wrap.th-zg .chips.subtabs .chip:hover{color:var(--ink)}
+.wrap.th-zg .chips.subtabs .chip.on{color:var(--ink);border-bottom-color:var(--acc);background:transparent}
+.wrap.th-zg table{font-size:var(--t-s)}
+
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
       background:linear-gradient(180deg,var(--shell),var(--shell-lo));border-right:3px solid var(--seam)}
@@ -3407,7 +3440,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .dcok{font-size:var(--t-s);color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent);padding:1px 7px;border-radius:6px}
     .dcs{margin:6px 0;font-size:var(--t-s)} .dcm{margin:8px 0}
     .dcegg{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)} .dcegg img{image-rendering:pixelated;flex:none;background:var(--well);border-radius:10px}
-    .dcsh{color:var(--shiny);font-weight:700}
+    .dcsh{color:var(--shiny);font-weight:700} .dcauto{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
     .dcpar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
     .dcp{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line-2);border-radius:10px;padding:8px;background:var(--well)} .dcp .dim{font-size:var(--t-s)}
     .dcnext{margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:var(--well)} .dcnext .dim{font-size:var(--t-s);margin-top:4px}
@@ -3631,6 +3664,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const act = t.dataset.act;
     // the Kinesis mirror (Activity, PC, Pokédex grid + shiny, Change Team, hatch, raid re-pick)
     if (act === 'team-edit') { Mirror.ui.tm.draft = null; Mirror.ui.tm.q = ''; prefs.tab = 'team'; savePrefs(); render(); return; }
+    if (act === 'egg-auto') { DayCare.setAuto(!!t.checked); renderBody(true); return; }
     if (act === 'stop-all') { Plan.setRunning(!Plan.running); renderBody(true); return; }
     if (act && act.startsWith('m-')) { Mirror.act(act, t, () => renderBody(true)).then((r) => { if (r === 'back') { goTab('now'); savePrefs(); render(); } else renderBody(true); }); return; }
     if (act === 'toggle') { prefs.open = !prefs.open; if (!prefs.open) Mirror.markAway(); savePrefs(); render(); }
@@ -3650,7 +3684,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
     if (act === 'gem-open') { EliteInfo.msg = 'Opening in the game…'; renderBody(true); EliteInfo.openMon(t.dataset.uid).then((m) => { EliteInfo.msg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { EliteInfo.msg = ''; }, 30_000); }); }
-    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:335', __e); } return; }
+    if (act === 'subtab' && t.dataset.tab) { prefs.sub = { ...(prefs.sub || {}), [t.dataset.tab]: t.dataset.k }; savePrefs(); renderBody(true); try { const b = root?.querySelector('.body'); if (b && !phoneSwap) b.scrollTop = 0; } catch (__e) { __h('60-ui:336', __e); } return; }
     if (act === 'elite-jump' && t.dataset.id) { legUi.elitePick = +t.dataset.id; prefs.elitePick = legUi.elitePick; savePrefs(); renderBody(true); return; }
     if (act === 'elite-all') { legUi.eliteAll = !legUi.eliteAll; renderBody(true); return; }
     if (act === 'elite-sim' || act === 'league-sim') {
@@ -3684,7 +3718,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:369', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:370', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
@@ -3710,7 +3744,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:395', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:396', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -3724,7 +3758,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:409', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:410', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -3738,7 +3772,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:423', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:424', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -3749,19 +3783,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:434', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:435', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:440', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:441', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:443', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:444', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:446', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:447', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -3802,8 +3836,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:487', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:488', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:488', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:489', __e); }
     renderBody(true, w);
   }
 
@@ -3820,12 +3854,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:505', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:506', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:509', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:510', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:510', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:511', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -3857,8 +3891,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:542', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:543', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:543', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:544', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -3873,13 +3907,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:558', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:559', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:559', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:560', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:564', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:565', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
