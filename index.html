@@ -237,7 +237,9 @@ html.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%
   header{display:flex;align-items:center;gap:10px;margin-bottom:0;padding:10px 12px;border-radius:14px 14px 0 0;color:var(--ink);background:linear-gradient(115deg,#21364a,#1b263d);border:1px solid var(--line-2);border-bottom:0}
   header .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:900;background:#00000030;border:1px solid #ffffff30}
   header .t{flex:1;min-width:0} header .t b{display:block;font-size:var(--t-m);font-weight:800} header .t span{font-size:var(--t-s);color:var(--mute)}
-  #gmwrap{margin:0 -8px} .gmbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;padding:8px 10px;background:#152132;border:1px solid var(--line-2);border-radius:12px;margin:0 6px 6px} .gmbar b{white-space:nowrap} .gmbar .dim{flex:1;min-width:0;font-size:var(--t-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #gmf{display:block;width:100%;height:calc(100dvh - 150px);border:0;border-radius:12px;background:#0f1522} body.gm .tabs{display:none} .gmb{white-space:nowrap}
+  body.gm{padding:env(safe-area-inset-top) 0 0!important;zoom:1!important;overflow:hidden} body.gm header,body.gm .tabs,body.gm #slowbar{display:none!important} body.gm #main{margin:0;padding:0}
+  #gmwrap{display:flex;flex-direction:column;height:calc(100dvh - env(safe-area-inset-top))} .gmbar{flex:none;display:flex;align-items:center;gap:8px;padding:4px 10px;background:#152132;border-bottom:1px solid var(--line-2);font-size:var(--t-s)} .gmbar b{white-space:nowrap} .gmbar .dim{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .gmbar .zbtn{padding:4px 12px} #gmf{flex:1;display:block;width:100%;border:0;background:#0f1522}
+  .gmsheet{position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 90px);z-index:50;background:var(--card);border:1px solid var(--line-2);border-radius:14px;padding:10px;box-shadow:0 10px 40px #000a} .gmsheet b{display:block;margin:0 4px 8px} .gmsheet button{display:block;width:100%;margin:0 0 6px} .gmb{white-space:nowrap}
   .tabs{display:flex;gap:0;margin-bottom:12px;padding:0 4px;border-radius:0 0 14px 14px;background:#152132;border:1px solid var(--line-2);overflow-x:auto;scrollbar-width:none}
   .tabs button{all:unset;flex:1 0 auto;text-align:center;padding:10px 6px 9px;font-weight:600;font-size:var(--t-s);color:var(--mute);border-bottom:2px solid transparent;white-space:nowrap}
   .tabs button.on{color:var(--acc);border-bottom-color:var(--acc)}
@@ -1197,13 +1199,13 @@ const GM = { on: false, f: 0, h: '', busy: false, css: null, at: 0, fast: 0, err
 const GM_CSS = `[data-gmx]{opacity:.35!important;filter:grayscale(1)!important}
 .gm-hit{outline:3px solid #79dcba!important;outline-offset:-2px!important}`;
 const SPEND = /\bbuy\b|acheter|purchase|fuse|fusionner|reroll|₽\s*[\d.,]+|[\d.,]+\s*₽|\$\s*\d|coins?\b|jetons?/i;
-function gmOpen() { GM.on = true; GM.f = 0; GM.h = ''; GM.css = null; GM.err = ''; document.body.classList.add('gm'); render(); gmCss(); }
-function gmClose() { GM.on = false; document.body.classList.remove('gm'); cmd('gm.off', {}, 'Leave Game Mode', null, true); toast('Mega is back in charge'); render(); }
+function gmOpen() { GM.on = true; GM.f = 0; GM.h = ''; GM.css = null; GM.err = ''; document.body.classList.add('gm'); document.body.style.zoom = 1; render(); gmCss(); }
+function gmClose() { GM.on = false; document.body.classList.remove('gm'); applyZoom(); $('#gmwrap')?.remove(); cmd('gm.off', {}, 'Leave Game Mode', null, true); toast('Mega is back in charge'); render(); }
 function gmShow() {
   $('#tabs').innerHTML = '';
   if ($('#gmwrap')) return;
   $('#main').className = '';
-  $('#main').innerHTML = `<div id="gmwrap"><div class="gmbar"><b>🎮 Game Mode</b><span class="dim" id="gmst">connecting to the game…</span><button class="zbtn" data-x="gmx">Exit</button></div><iframe id="gmf" title="The game"></iframe></div>`;
+  $('#main').innerHTML = `<div id="gmwrap"><div class="gmbar"><b>🎮 Game Mode</b><span class="dim" id="gmst">connecting to the game…</span><button class="zbtn" data-x="gmx">Exit</button></div><div id="gmsheet"></div><iframe id="gmf" title="The game"></iframe></div>`;
 }
 function gmCss() { cmd('gm.css', {}, 'Game Mode', (r, d) => { if (!d || !GM.on) return; GM.css = d; gmDoc(); GM.h = ''; gmPull(true); }, true); }
 function gmDoc() {
@@ -1234,8 +1236,38 @@ function gmPull(now) {
 function gmApply(d) {
   const f = $('#gmf'), doc = f?.contentDocument; if (!doc?.body) return;
   const y = doc.scrollingElement?.scrollTop || 0;
-  doc.body.innerHTML = d.html; GM.f = d.f; GM.h = d.h; GM.pendingFrame = null;
+  const t = doc.createElement('body'); t.innerHTML = d.html;
+  if (!doc.body.firstChild) doc.body.innerHTML = d.html; else gmMorph(doc.body, t);
+  GM.f = d.f; GM.h = d.h; GM.pendingFrame = null;
   if (doc.scrollingElement) doc.scrollingElement.scrollTop = y;
+}
+// change only what changed, so pictures and the game's animations don't restart (that was the flicker)
+function gmMorph(a, b) {
+  if (a.nodeType === 1 && b.nodeType === 1) {
+    for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+    for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.ownerDocument.activeElement !== a && 'value' in b) { if (a.value !== b.value) a.value = b.value; }
+  }
+  const ac = [...a.childNodes], bc = [...b.childNodes];
+  for (let i = 0; i < bc.length; i += 1) {
+    const x = ac[i], y = bc[i];
+    if (!x) { a.appendChild(y); continue; }
+    if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { a.replaceChild(y, x); continue; }
+    if (x.nodeType === 3) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; continue; }
+    if (x.nodeType === 1) gmMorph(x, y);
+  }
+  for (let i = bc.length; i < ac.length; i += 1) ac[i].remove();
+}
+// Activities / Social: on the Mac (wide screen) they open in the side menu, so the phone layout's pop-up never appears -
+// Kinesis shows that group's buttons itself; each still presses the real one on the Mac
+function gmGroup(grp) {
+  const box = $('#gmsheet'); if (!box) return;
+  const btns = [...grp.querySelectorAll('button[data-gm]')].filter((b) => !b.classList.contains('nav-grp-h'));
+  const title = (grp.querySelector('.nav-grp-h')?.textContent || '').trim();
+  box.innerHTML = `<div class="gmsheet"><b>${esc(title)}</b>${btns.map((b) => `<button class="btn" data-x="gmgo" data-i="${b.dataset.gm}">${esc((b.textContent || '').trim())}</button>`).join('')}<button class="btn" data-x="gmsheetx">Close</button></div>`;
+}
+function gmPress(i, label) {
+  cmd('gm.tap', { f: GM.f, i: +i }, 'Tap', (r) => { if (/^error/.test(r || '')) toast('⚠ ' + r.replace(/^error:?\s*/, '')); GM.h = ''; GM.fast = Date.now() + 4000; gmPull(true); }, true);
 }
 function gmTap(e) {
   const el = e.target.closest?.('[data-gm]'); if (!el) return;
@@ -1243,6 +1275,7 @@ function gmTap(e) {
   if (el.closest('[data-gmx]')) { e.preventDefault(); e.stopPropagation(); toast('That one stays on the Mac (save choice, release or a password)'); return; }
   if (/^(INPUT|SELECT|TEXTAREA|OPTION)$/.test(tag) && !/^(checkbox|radio|button|submit)$/i.test(el.type || '')) return; // typed / picked: sent on change
   e.preventDefault(); e.stopPropagation();
+  { const h = el.closest('.nav-grp-h'), g = h?.closest('.nav-grp'); if (g) { gmGroup(g); return; } }
   const box = el.closest('button,[role=button],[data-gmp]') || el, label = (box.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
   const go = () => {
     box.classList.add('gm-hit'); setTimeout(() => box.classList.remove('gm-hit'), 400);
@@ -1306,6 +1339,8 @@ document.addEventListener('click', async (e) => {
   const x = t.dataset.x;
   if (x === 'gm') { if (GM.on) gmClose(); else gmOpen(); return; }
   if (x === 'gmx') { gmClose(); return; }
+  if (x === 'gmgo') { $('#gmsheet').innerHTML = ''; gmPress(t.dataset.i); return; }
+  if (x === 'gmsheetx') { $('#gmsheet').innerHTML = ''; return; }
   if (x === 'gmz') { GM.zoom = Math.max(0.35, Math.min(1.2, +(GM.zoom + 0.08 * +t.dataset.v).toFixed(2))); store.set('mr-gmzoom', GM.zoom); const d = $('#gmf')?.contentDocument; if (d) { d.documentElement.style.setProperty('--gmz', GM.zoom); setTimeout(() => { const f = $('#gmf'); if (f) f.style.height = Math.max(400, d.documentElement.scrollHeight) + 'px'; }, 100); } return; }
   if (x === 'grp') { grp = { ...grp, [tab]: t.dataset.v }; store.set('mr-grp', grp); window.scrollTo(0, 0); render(); return; }
   if (x === 'sub') { ui.sub = { ...(ui.sub || {}), [t.dataset.t]: t.dataset.v }; store.set('mr-sub', ui.sub); render(); window.scrollTo(0, 0); return; }
