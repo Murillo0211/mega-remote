@@ -237,6 +237,7 @@ html.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%
   header{display:flex;align-items:center;gap:10px;margin-bottom:0;padding:10px 12px;border-radius:14px 14px 0 0;color:var(--ink);background:linear-gradient(115deg,#21364a,#1b263d);border:1px solid var(--line-2);border-bottom:0}
   header .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:900;background:#00000030;border:1px solid #ffffff30}
   header .t{flex:1;min-width:0} header .t b{display:block;font-size:var(--t-m);font-weight:800} header .t span{font-size:var(--t-s);color:var(--mute)}
+  #gmwrap{margin:0 -8px} .gmbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;padding:8px 10px;background:#152132;border:1px solid var(--line-2);border-radius:12px;margin:0 6px 6px} .gmbar b{white-space:nowrap} .gmbar .dim{flex:1;min-width:0;font-size:var(--t-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #gmf{display:block;width:100%;height:calc(100dvh - 150px);border:0;border-radius:12px;background:#0f1522} body.gm .tabs{display:none} .gmb{white-space:nowrap}
   .tabs{display:flex;gap:0;margin-bottom:12px;padding:0 4px;border-radius:0 0 14px 14px;background:#152132;border:1px solid var(--line-2);overflow-x:auto;scrollbar-width:none}
   .tabs button{all:unset;flex:1 0 auto;text-align:center;padding:10px 6px 9px;font-weight:600;font-size:var(--t-s);color:var(--mute);border-bottom:2px solid transparent;white-space:nowrap}
   .tabs button.on{color:var(--acc);border-bottom-color:var(--acc)}
@@ -275,7 +276,7 @@ html.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%
 </style>
 </head>
 <body>
-<header><img class="logo" src="icon-192.png" alt="" style="padding:0;object-fit:cover"><div class="t"><b>Kinesis</b><span id="sub">connecting…</span></div><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button></header>
+<header><img class="logo" src="icon-192.png" alt="" style="padding:0;object-fit:cover"><div class="t"><b>Kinesis</b><span id="sub">connecting…</span></div><button class="zbtn gmb" data-x="gm" title="Game Mode: play the game from here">🎮 Game</button><button class="zbtn" data-x="refresh" title="Ask your PC for an update now">⟳</button></header>
 <div class="tabs" id="tabs"></div>
 <main id="main"></main>
 <div class="toast" id="toast" style="opacity:0;pointer-events:none"></div>
@@ -1186,9 +1187,81 @@ function applyTheme() {
   const el = document.documentElement; if (!el.classList.contains('th-zg')) { el.classList.remove('th-day'); el.classList.add('th-night', 'th-zg'); }
   const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = '#111a29';
 }
+
+/* ---- Game Mode (2.15, Jimmy 2026-11-23): the game's own screen, copied from the Mac (no battle arena); a tap here
+   presses the same thing there. Mega steps aside while it's open and picks up again when you leave (or 45 s after
+   the phone stops asking). "Two saves found", releasing and password / PIN boxes stay on the Mac. ---- */
+const GM = { on: false, f: 0, h: '', busy: false, css: null, at: 0, fast: 0, err: '', zoom: store.get('mr-gmzoom', 0.62) };
+// the game is laid out for a wide screen: stack its columns, keep its look
+// the game has its own phone layout (640 px and below): it shows here as it would on a phone; only these two extras
+const GM_CSS = `[data-gmx]{opacity:.35!important;filter:grayscale(1)!important}
+.gm-hit{outline:3px solid #79dcba!important;outline-offset:-2px!important}`;
+const SPEND = /\bbuy\b|acheter|purchase|fuse|fusionner|reroll|₽\s*[\d.,]+|[\d.,]+\s*₽|\$\s*\d|coins?\b|jetons?/i;
+function gmOpen() { GM.on = true; GM.f = 0; GM.h = ''; GM.css = null; GM.err = ''; document.body.classList.add('gm'); render(); gmCss(); }
+function gmClose() { GM.on = false; document.body.classList.remove('gm'); cmd('gm.off', {}, 'Leave Game Mode', null, true); toast('Mega is back in charge'); render(); }
+function gmShow() {
+  $('#tabs').innerHTML = '';
+  if ($('#gmwrap')) return;
+  $('#main').className = '';
+  $('#main').innerHTML = `<div id="gmwrap"><div class="gmbar"><b>🎮 Game Mode</b><span class="dim" id="gmst">connecting to the game…</span><button class="zbtn" data-x="gmx">Exit</button></div><iframe id="gmf" title="The game"></iframe></div>`;
+}
+function gmCss() { cmd('gm.css', {}, 'Game Mode', (r, d) => { if (!d || !GM.on) return; GM.css = d; gmDoc(); GM.h = ''; gmPull(true); }, true); }
+function gmDoc() {
+  const f = $('#gmf'), c = GM.css; if (!f || !c) return;
+  const d = f.contentDocument; d.open();
+  d.write(`<!DOCTYPE html><html class="${c.html}" style="${c.hstyle}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="https://pokecatch-online.app/">${c.links.map((h) => `<link rel="stylesheet" href="${h.replace(/"/g, '&quot;')}">`).join('')}<style>${c.text.replace(/<\/style/gi, '')}</style><style>${GM_CSS}</style></head><body class="${c.body}"></body></html>`);
+  d.close();
+  d.addEventListener('click', gmTap, true);
+  d.addEventListener('change', gmChange, true);
+  d.addEventListener('submit', (e) => e.preventDefault(), true);
+}
+function gmPull(now) {
+  if (!GM.on || GM.busy || !GM.css) return;
+  GM.busy = true; const t0 = Date.now();
+  cmd('gm.frame', { h: GM.h }, 'Game Mode', (r, d) => {
+    GM.busy = false; if (!GM.on) return;
+    if (/^error/.test(r || '')) { GM.err = r; $('#gmst') && ($('#gmst').textContent = '⚠ ' + r); return; }
+    GM.at = Date.now();
+    const st = $('#gmst'); if (st) st.textContent = `live from your Mac · ${((Date.now() - t0) / 1000).toFixed(1)} s · Mega is stepping aside`;
+    if (!d || d.same) { if (d?.f) GM.f = d.f; return; }
+    const doc = $('#gmf')?.contentDocument; if (!doc?.body) return;
+    // don't wipe a box you're typing in
+    const ae = doc.activeElement; if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) { GM.pendingFrame = d; return; }
+    gmApply(d);
+  }, true);
+  setTimeout(() => { if (GM.busy && Date.now() - t0 > 8000) GM.busy = false; }, 8500);
+}
+function gmApply(d) {
+  const f = $('#gmf'), doc = f?.contentDocument; if (!doc?.body) return;
+  const y = doc.scrollingElement?.scrollTop || 0;
+  doc.body.innerHTML = d.html; GM.f = d.f; GM.h = d.h; GM.pendingFrame = null;
+  if (doc.scrollingElement) doc.scrollingElement.scrollTop = y;
+}
+function gmTap(e) {
+  const el = e.target.closest?.('[data-gm]'); if (!el) return;
+  const tag = el.tagName;
+  if (el.closest('[data-gmx]')) { e.preventDefault(); e.stopPropagation(); toast('That one stays on the Mac (save choice, release or a password)'); return; }
+  if (/^(INPUT|SELECT|TEXTAREA|OPTION)$/.test(tag) && !/^(checkbox|radio|button|submit)$/i.test(el.type || '')) return; // typed / picked: sent on change
+  e.preventDefault(); e.stopPropagation();
+  const box = el.closest('button,[role=button],[data-gmp]') || el, label = (box.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  const go = () => {
+    box.classList.add('gm-hit'); setTimeout(() => box.classList.remove('gm-hit'), 400);
+    cmd('gm.tap', { f: GM.f, i: +el.dataset.gm }, 'Tap', (r) => { if (/^error/.test(r || '')) toast('⚠ ' + r.replace(/^error:?\s*/, '')); GM.h = ''; GM.fast = Date.now() + 4000; gmPull(true); }, true);
+  };
+  if (SPEND.test(label) && label.length < 60) askConfirm(`${label} - on your game?`).then((ok) => { if (ok) go(); }); else go();
+}
+function gmChange(e) {
+  const el = e.target.closest?.('[data-gm]'); if (!el || el.closest('[data-gmx]')) return;
+  const v = /^(checkbox|radio)$/i.test(el.type || '') ? el.checked : el.value;
+  cmd('gm.set', { f: GM.f, i: +el.dataset.gm, v }, 'Type', (r) => { if (/^error/.test(r || '')) toast('⚠ ' + r.replace(/^error:?\s*/, '')); GM.h = ''; gmPull(true); if (GM.pendingFrame) gmApply(GM.pendingFrame); }, true);
+}
+// a frame every ~1.2 s (every ~0.6 s just after a tap); the CSS again if it never came
+setInterval(() => { if (!GM.on || document.hidden) return; if (!GM.css) { if (Date.now() - (GM.cssAt || 0) > 6000) { GM.cssAt = Date.now(); gmCss(); } return; } const gap = Date.now() < GM.fast ? 600 : 1200; if (Date.now() - (GM.last || 0) >= gap) { GM.last = Date.now(); gmPull(); } }, 200);
+
 function render() {
   applyTheme();
   setSub();
+  if (GM.on) { gmShow(); return; }
   $('#tabs').innerHTML = pair ? tabList().map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('') : '';
   if (!pair && RELAY) { $('#main').innerHTML = `<div class="card"><h3>Waiting for Mega</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and tick <b>Use Mega Relay on this PC</b>. This page pairs itself a few seconds later.</div></div>`; return; }
   if (!pair) { $('#main').innerHTML = `<div class="card"><h3>Pair This Phone</h3><div>On your PC, open Mega Alakazam → <b>Settings</b> → <b>📱 Kinesis (Phone App)</b> and press <b>Send Setup Link to My Phone</b>. Tap the alert in the ntfy app - it opens this page already paired.</div>
@@ -1231,6 +1304,9 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'gm') { if (GM.on) gmClose(); else gmOpen(); return; }
+  if (x === 'gmx') { gmClose(); return; }
+  if (x === 'gmz') { GM.zoom = Math.max(0.35, Math.min(1.2, +(GM.zoom + 0.08 * +t.dataset.v).toFixed(2))); store.set('mr-gmzoom', GM.zoom); const d = $('#gmf')?.contentDocument; if (d) { d.documentElement.style.setProperty('--gmz', GM.zoom); setTimeout(() => { const f = $('#gmf'); if (f) f.style.height = Math.max(400, d.documentElement.scrollHeight) + 'px'; }, 100); } return; }
   if (x === 'grp') { grp = { ...grp, [tab]: t.dataset.v }; store.set('mr-grp', grp); window.scrollTo(0, 0); render(); return; }
   if (x === 'sub') { ui.sub = { ...(ui.sub || {}), [t.dataset.t]: t.dataset.v }; store.set('mr-sub', ui.sub); render(); window.scrollTo(0, 0); return; }
   if (x === 'trOpen') { openTrades(+t.dataset.v, t.dataset.sh === '1'); return; }
