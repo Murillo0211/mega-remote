@@ -46,6 +46,17 @@ html.th-day {
   color-scheme:light;
 }
 
+/* 2.13 night for Mega's panel (Jimmy 2026-11-23: the ZGRay helper's look) - navy screen, mint accent.
+   Kinesis keeps th-night until it gets the same layout. */
+html.th-zg {
+  --shell-hi:#21364a; --shell:#1d2c41; --shell-lo:#1b263d; --seam:#2c3b50; --on-shell:#e6edf8; --on-shell-dim:#93a8c2;
+  --gold:#79dcba; --gold-lo:#5fc9a4; --on-gold:#102d29;
+  --t-xs:12px; --t-s:12px; --t-m:14px; --t-l:14px; --t-xl:20px; /* two text sizes: regular and small */
+  --bg:#111a29; --card:#162233; --well:#0b1423; --line:#2b3b50; --line-2:#3b4e63;
+  --ink:#e6edf8; --mute:#93a8c2; --faint:#62758c; --acc:#79dcba; --acc-ink:#102d29; --focus:#79dcba55;
+  --ok:#79dcba; --warn:#e6be7a; --bad:#ff8a8a; --shiny:#ffd45e;
+}
+
 /* ---- text ---- */
 .dim{color:var(--mute)} .faint{color:var(--faint)} .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
 .lbl{font-size:var(--t-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
@@ -150,20 +161,86 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .ic-gift{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8h18v4H3zm1 5h7v9H4zm9 0h7v9h-7zM11 8h2v14h-2zm-4.5-6C8.6 2 10.8 4.6 12 7c1.2-2.4 3.4-5 5.5-5A2.5 2.5 0 0 1 20 4.5C20 6.4 17 7 12 7 7 7 4 6.4 4 4.5A2.5 2.5 0 0 1 6.5 2z'/%3E%3C/svg%3E")}
 .ic-ghost{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a8 8 0 0 0-8 8v12l2.7-2 2.6 2 2.7-2 2.7 2 2.6-2L20 22V10a8 8 0 0 0-8-8zM9 8.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E")}
 
+/* ---- 2.13.14: Mega's panel in the ZGRay style - one look for every tab (Jimmy 2026-11-23: "format, font size,
+   all flow the same and feel the same"). Boxes: 1px border, 12px corners, bold title in the regular size;
+   buttons: compact, mint for the main one; section switches: underlined text, like the Tasks row. ---- */
+html.th-zg .card{border-color:var(--line-2);border-radius:12px;padding:11px 12px;margin:0 0 10px;box-shadow:none}
+html.th-zg .card h3,html.th-zg h3.card-title{font-size:var(--t-m);font-weight:800;letter-spacing:0;text-transform:none;color:var(--ink);border-bottom:0;padding:0;margin:0 0 6px}
+html.th-zg .card h3 .dim,html.th-zg .card h3 span{font-size:var(--t-s);font-weight:600}
+html.th-zg .lbl{font-size:var(--t-s);letter-spacing:.06em}
+html.th-zg .note{border-color:var(--line-2);border-radius:8px;color:var(--mute);background:var(--card)}
+html.th-zg .btn{min-height:34px;padding:7px 12px;font:600 var(--t-s)/18px var(--font);border-radius:9px;box-shadow:none;background:var(--well)}
+html.th-zg .btn.gold{background:var(--acc);border-color:var(--acc);color:var(--acc-ink);font-weight:800}
+html.th-zg .btn.sm{min-height:30px;padding:5px 9px;font-size:var(--t-s)}
+html.th-zg .btn.danger{color:#f1b3bc}
+html.th-zg input.q,html.th-zg select.sel{font-size:var(--t-m);border-radius:9px;padding:7px 10px}
+html.th-zg .row{padding:6px 0}
+html.th-zg .chip{font-size:var(--t-s);padding:4px 10px}
+html.th-zg .chips.subtabs{display:flex;flex-wrap:wrap;gap:4px 16px;border-bottom:1px solid var(--line);padding:0 2px !important;margin:0 0 10px !important;background:var(--bg)}
+html.th-zg .chips.subtabs .chip{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px}
+html.th-zg .chips.subtabs .chip:hover{color:var(--ink)}
+html.th-zg .chips.subtabs .chip.on{color:var(--ink);border-bottom-color:var(--acc);background:transparent}
+html.th-zg table{font-size:var(--t-s)}
+/* section switches (Tasks row, Sim modes): underlined text - shared so Kinesis gets it too */
+.snav{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0 2px 10px;border-bottom:1px solid var(--line)} .snav button{all:unset;cursor:pointer;padding:5px 1px 7px;font-size:var(--t-s);font-weight:600;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px} .snav button:hover{color:var(--ink)} .snav button.on{color:var(--ink);border-bottom-color:var(--acc)}
+html.th-zg .chip.on{color:var(--ink);background:color-mix(in srgb,var(--acc) 22%,transparent);border-color:color-mix(in srgb,var(--acc) 55%,transparent)}
+
+/* ---- 2.14: the ZGRay-style blocks (status card, task cards, queue, Day Care) - shared so Kinesis draws Mega's screens the same ---- */
+.stat{padding:9px 11px;border:1px solid var(--line-2);background:var(--well);border-radius:12px;margin:0 0 8px;overflow-wrap:anywhere}
+.stat .live{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:var(--t-s);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+.stat b{display:block;font-size:var(--t-m)} .stat .dim{font-size:var(--t-s);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 7px var(--acc)} .sdot.off{background:var(--faint);box-shadow:none} .sdot.err{background:var(--bad)}
+.mets{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 12px}
+.mets div{padding:7px 6px;text-align:center;border-left:1px solid var(--line)} .mets div:first-child{border-left:0}
+.mets b{display:block;font-size:var(--t-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums} .mets span{display:block;font-size:var(--t-s);line-height:1.25;color:var(--mute);white-space:nowrap}
+.tcats{display:flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 10px;background:var(--well);border:1px solid var(--line);border-radius:12px}
+.tcat{all:unset;cursor:pointer;flex:1 1 auto;text-align:center;padding:6px 4px;border-radius:9px;font-size:var(--t-s);color:var(--mute);white-space:nowrap}
+.tcat:hover{color:var(--ink)} .tcat.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+.tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 12px}
+.tcard{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--card);color:var(--ink);font-size:var(--t-m);font-weight:600;min-height:22px}
+.tcard:hover{border-color:var(--acc)} .tcard .ic{color:var(--acc);font-size:var(--t-m)} .tcard small{display:block;font-size:var(--t-s);color:var(--mute)}
+.tcard.on{background:color-mix(in srgb,var(--acc) 18%,var(--card));border-color:var(--acc)}
+.taskopts .btn[data-act^="plan-add"]:not([data-act="plan-add-item"]){display:none}
+.dcbox{border:1px solid var(--line-2);border-radius:14px;padding:12px;background:var(--card)}
+.dch{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap} .dch h2,.dch h3{all:unset;font-weight:800;font-size:var(--t-m)}
+.dcok{font-size:var(--t-s);color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent);padding:1px 7px;border-radius:6px}
+.dcs{margin:6px 0;font-size:var(--t-s)} .dcm{margin:8px 0}
+.dcegg{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)} .dcegg img{image-rendering:pixelated;flex:none;background:var(--well);border-radius:10px}
+.dcsh{color:var(--shiny);font-weight:700} .dcauto{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.dcpar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+.dcp{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line-2);border-radius:10px;padding:8px;background:var(--well)} .dcp .dim{font-size:var(--t-s)}
+.dcnext{margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:var(--well)} .dcnext .dim{font-size:var(--t-s);margin-top:4px}
+.dcpair{display:grid;gap:6px;margin-top:8px;padding:10px;border-left:3px solid var(--acc);border-radius:8px;background:color-mix(in srgb,var(--acc) 8%,var(--well))}
+.dcpair div{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px} .dcpair .dim{font-size:var(--t-s)} .dcpair div > .dim:last-child{grid-column:2;text-align:right}
+.dclist{margin-top:12px;border:1px solid var(--line-2);border-radius:10px;padding:8px 10px} .dclist summary{cursor:pointer;font-weight:700}
+.dcg{margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--well)} .dcgh{display:flex;gap:8px;align-items:baseline;margin-bottom:4px}
+.dcr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid var(--line);font-size:var(--t-s)}
+.qhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px} .qhead h2{all:unset;display:block;font-size:var(--t-m);font-weight:800} .qhead p{margin:2px 0 0;color:var(--mute);font-size:var(--t-s)}
+.qbtn{all:unset;cursor:pointer;flex:none;padding:7px 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s);font-weight:600} .qbtn:hover{border-color:var(--acc)}
+.qnote{margin:0 0 9px;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--card);color:var(--mute);font-size:var(--t-s)}
+.qlist{display:grid;gap:7px;list-style:none;margin:0;padding:0}
+.qjob,.qempty{border:1px solid var(--line-2);border-radius:10px;padding:9px;background:var(--card)} .qempty{border-style:dashed;color:var(--mute);font-size:var(--t-s);padding:16px 12px}
+.qjob.on{border-color:color-mix(in srgb,var(--acc) 70%,var(--line));background:color-mix(in srgb,var(--acc) 9%,var(--card))}
+.qjh{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:7px} .qjh strong{font-size:var(--t-m);line-height:1.35;overflow-wrap:anywhere}
+.qpos,.qst{padding:2px 6px;border-radius:5px;background:var(--line);font-size:var(--t-s);white-space:nowrap;font-variant-numeric:tabular-nums}
+.qst.run{color:var(--acc);background:color-mix(in srgb,var(--acc) 18%,transparent)} .qst.wait{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.qd{margin:6px 0 0;color:var(--mute);font-size:var(--t-s);overflow-wrap:anywhere} .qx{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+.qact{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px} .qact button{all:unset;cursor:pointer;padding:5px 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s)}
+.qact button:hover:enabled{border-color:var(--acc)} .qact button:disabled{opacity:.4;cursor:default} .qact .rm{color:#f1b3bc}
+
 /* FIELD:END */
   /* ---- Kinesis's own frame: the phone shell, tabs, toast, sheets; everything else is the shared design ---- */
   html{--t-m:16px}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font:var(--t-m)/1.45 var(--font)}
   body{padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 24px)}
-  header{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 10px;border-radius:16px;color:var(--on-shell);
-    background:linear-gradient(180deg,var(--shell-hi),var(--shell-lo));border:3px solid var(--seam);box-shadow:inset 0 1px 0 #ffffff40,0 3px 0 var(--seam)}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:0;padding:10px 12px;border-radius:14px 14px 0 0;color:var(--ink);background:linear-gradient(115deg,#21364a,#1b263d);border:1px solid var(--line-2);border-bottom:0}
   header .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:900;background:#00000030;border:1px solid #ffffff30}
-  header .t{flex:1;min-width:0} header .t b{display:block;font-size:15px;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 1px 0 #0005} header .t span{font-size:var(--t-s);color:var(--on-shell-dim)}
-  .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px;padding:6px;border-radius:14px;background:var(--shell-lo);border:3px solid var(--seam)}
-  .tabs button{all:unset;text-align:center;padding:9px 2px;border-radius:9px;font-weight:700;font-size:14px;color:var(--on-shell-dim);background:#00000026;border:1px solid #ffffff1f}
-  .tabs button.on{background:linear-gradient(90deg,var(--gold),#ffd978);color:var(--on-gold);border-color:var(--gold);box-shadow:none}
-  .zbtn{border:1px solid #ffffff30;border-radius:10px;background:#00000030;color:var(--on-shell);font:800 15px var(--font);padding:7px 10px}
+  header .t{flex:1;min-width:0} header .t b{display:block;font-size:var(--t-m);font-weight:800} header .t span{font-size:var(--t-s);color:var(--mute)}
+  .tabs{display:flex;gap:0;margin-bottom:12px;padding:0 4px;border-radius:0 0 14px 14px;background:#152132;border:1px solid var(--line-2);overflow-x:auto;scrollbar-width:none}
+  .tabs button{all:unset;flex:1 0 auto;text-align:center;padding:10px 6px 9px;font-weight:600;font-size:var(--t-s);color:var(--mute);border-bottom:2px solid transparent;white-space:nowrap}
+  .tabs button.on{color:var(--acc);border-bottom-color:var(--acc)}
+  .zbtn{border:1px solid var(--line-2);border-radius:9px;background:var(--well);color:var(--ink);font:800 15px var(--font);padding:7px 10px}
   h3{margin:0 0 8px;font-size:var(--t-l)}
   .sheet h3{all:unset;display:block;font-size:var(--t-l);font-weight:800;color:var(--ink);margin:0 0 var(--s2)}
   select,input[type=text],input[type=search]{all:unset;box-sizing:border-box;display:block;width:100%;font:var(--t-m)/20px var(--font);color:var(--ink);background:var(--well);border:1px solid var(--line-2);border-radius:var(--r-m);padding:11px var(--s3);margin-top:var(--s2)}
@@ -187,7 +264,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   /* iPhone Duo unfolded (and any wide screen): tabs in one row, cards in two columns, PC box with its details beside it */
   @media (min-width: 600px) {
     body{padding-left:16px;padding-right:16px}
-    .tabs{grid-template-columns:repeat(10,1fr)}.tabs button{font-size:13px;padding:8px 2px}
+    .tabs button{font-size:var(--t-s)}
     #main.cols{column-count:2;column-gap:12px}
     #main.cols>.card{break-inside:avoid;-webkit-column-break-inside:avoid;display:inline-block;width:100%}
     .boxgrid{grid-template-columns:repeat(auto-fill,minmax(68px,1fr))}
@@ -424,9 +501,16 @@ function tabList() {
   const o = (snap?.tabs || []).map((k) => MEGA_TAB[k] || k), byK = new Map(TABS);
   return [...o.filter((k) => byK.has(k)).map((k) => [k, byK.get(k)]), ...TABS.filter(([k]) => !o.includes(k))];
 }
-const TABS = [['now', 'Now'], ['act', 'Activity'], ['plan', 'Plan'], ['box', 'PC'], ['dex', 'Pokédex'], ['sim', 'Simulate'], ['fights', 'Fights'], ['trades', 'Trades'], ['gems', 'Gems'], ['blocs', 'Pokéblocks'], ['set', 'Settings']];
-let tab = store.get('mr-tab', 'now');
+const TABS = [['home', 'Tasks'], ['plan', 'Queue'], ['care', 'Day Care'], ['dexg', 'Pokédex'], ['rank', 'Rank Up'], ['sim', 'Sim'], ['set', 'Settings']];
+const GROUPS = { home: [['now', 'Now'], ['tasks', 'Tasks'], ['fights', 'Fights']], dexg: [['dex', 'Pokédex'], ['box', 'PC'], ['trades', 'Trades']], rank: [['gems', 'Gems'], ['blocs', 'Pokéblocks']] };
+const groupOf = (k) => Object.keys(GROUPS).find((g) => GROUPS[g].some(([x]) => x === k)) || null;
+let grp = store.get('mr-grp', {});
+// any screen key (Mega's or Kinesis's, old or new) -> its tab and section
+function goTab(k) { k = MEGA_TAB[k] || k; if (k === 'act') k = 'now'; const g = groupOf(k); if (g) { tab = g; grp = { ...grp, [g]: k }; store.set('mr-grp', grp); } else tab = TABS.some(([x]) => x === k) || k === 'team' ? k : 'home'; store.set('mr-tab', tab); }
+const view = () => (GROUPS[tab] ? (GROUPS[tab].some(([x]) => x === grp[tab]) ? grp[tab] : GROUPS[tab][0][0]) : tab);
+let tab = store.get('mr-tab', 'home');
 const ui = { sub: store.get('mr-sub', {}), simMode: store.get('mr-sm', 'legendary'), elite: null, league: null, eliteRes: {}, items: null, dex: null, dexInfo: null, dexQ: '', dexHits: null, sims: null, simPick: null, simRes: {}, asMax: false, addType: 'legend', addVal: '' };
+if (!TABS.some(([x]) => x === tab) && tab !== 'team') goTab(tab);
 function setSub() {
   const el = $('#sub'); if (!pair) { el.textContent = 'not paired'; return; }
   if (relayErr && Date.now() - relayErr < 20000) { el.innerHTML = `<span class="bad">● can't reach ${RELAY ? 'your PC' : 'ntfy'}</span> - retrying`; return; }
@@ -582,7 +666,7 @@ const KSUBS = {
   now: [['main', 'Overview', null], ['care', 'Day Care', /day care/], ['more', 'Pokédex & Team', /^(pokédex|team|trades)$/]],
   plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['add', 'Add a Goal', /^add a goal/], ['done', 'Done', /^done/], ['log', 'Log', /^log$/]],
 };
-function subApply(tab, html) {
+function subApply(tab, html, force) {
   const S = KSUBS[tab]; if (!S) return html;
   const t = document.createElement('template'); t.innerHTML = html;
   const lead = [], groups = Object.fromEntries(S.map(([k]) => [k, []])), all = (S.find((x) => !x[2]) || S[0])[0];
@@ -595,8 +679,9 @@ function subApply(tab, html) {
     const h = n.querySelector(':scope > h3, :scope > div > h3'), ti = (h ? h.textContent : '').replace(/[^\p{L}\p{N}\s&·'-]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
     const hit = S.find(([, , re]) => re && re.test(ti)); cur = hit ? hit[0] : all; groups[cur].push(n);
   }
-  const shown = S.filter(([k]) => groups[k].length); if (shown.length < 2) return html;
-  let pick = (ui.sub || {})[tab]; if (!groups[pick]?.length) pick = shown[0][0];
+  const shown = S.filter(([k]) => groups[k].length); if (shown.length < 2 && !force) return html;
+  let pick = force || (ui.sub || {})[tab]; if (!groups[pick]?.length) pick = shown[0]?.[0];
+  if (force) { const b = document.createElement('div'); for (const n of [...lead, ...(groups[pick] || [])]) b.appendChild(n); return b.innerHTML; }
   const box = document.createElement('div'); for (const n of lead) box.appendChild(n);
   const sec = document.createElement('div'); for (const n of groups[pick]) sec.appendChild(n);
   return `<div class="chips subtabs" style="grid-column:1/-1;margin:0 0 4px">${shown.map(([k, l]) => `<button class="chip${k === pick ? ' on' : ''}" data-x="sub" data-t="${tab}" data-v="${k}">${esc(l)} <span class="faint" style="font-weight:700">${groups[k].filter((n) => n.nodeType === 1 && n.classList.contains('card')).length}</span></button>`).join('')}</div>` + box.innerHTML + sec.innerHTML;
@@ -604,8 +689,8 @@ function subApply(tab, html) {
 function vNow() {
   const s = snap; let h = '';
   { const since = store.get('mr-away', 0); if (since && Date.now() - since > 10 * 60000) { const n = act.log.filter((l) => l[0] > since).length; h += `<div class="card" style="border-color:var(--acc);padding:12px 14px"><div class="flex"><span style="font-size:22px">🕒</span><div class="grow"><b>Away ${hm(Date.now() - since)}</b><div class="dim">${n ? n + ' things happened' : 'see what changed'}</div></div><button class="btn gold" style="width:auto;margin:0;padding:10px 14px" data-tab="act">See What Happened</button></div></div>`; } }
-  h += `<div class="card"><div class="flex"><span style="font-size:26px">${s.run ? '🟢' : '⏸️'}</span><div class="grow"><b style="font-size:18px">${s.run ? 'Plan running' : 'Plan paused'}</b><div class="dim">${s.goals.length} goal${s.goals.length === 1 ? '' : 's'} left · Mega ${esc(s.ver)}</div></div></div>
-    <button class="btn ${s.run ? '' : 'gold'}" data-c="plan.run" data-a='{"on":${!s.run}}' data-l="${s.run ? 'Pause plan' : 'Start plan'}">${s.run ? '❚❚ Pause Plan' : '▶ Start Plan'}</button></div>`;
+  // 2.14: the status card above says running / stopped; Start is here only when it's stopped (Stop is under Tasks)
+  if (!s.run) h += `<button class="btn gold" style="margin:0 0 10px" data-c="plan.run" data-a='{"on":true}' data-l="Start Mega">▶ Start Mega</button>`;
   if (s.upd) h += `<div class="card" style="border-color:var(--gold-lo)"><div class="flex"><span style="font-size:22px">⬆</span><div class="grow"><b>New Update ${esc(s.upd)}</b><div class="dim">This PC runs ${esc(s.ver || '?')}. Mega reloads the game by itself at a safe moment once Tampermonkey has it - or reload now.</div></div></div><button class="btn gold" data-c="game.reload" data-l="Reload the game">⟳ Reload Game</button></div>`;
   const probs = []; if (s.old) probs.push('Alakazam 4.x is switched on, so the plan can\'t act.');
   for (const g of s.goals) if (/error|could not|refused|zone 3 times|did not|stuck|too strong/i.test(g.y + ' ' + g.n)) probs.push(`${esc(g.l)}: ${esc(g.y || g.n)}`);
@@ -933,7 +1018,7 @@ const foldKey = (tab, h3) => tab + '|' + h3.textContent.trim().slice(0, 40);
 function mvFolds() { for (const h of document.querySelectorAll('.mv .card > h3')) if (MV_FOLD.has(foldKey(h.closest('.mv').dataset.mvtab, h))) h.parentElement.classList.add('folded'); }
 function mvTab(tab) { return `<div class="dim" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 2px 8px;font-size:13px"><span>Live from your PC${MV.at[tab] ? ' · ' + (Date.now() - MV.at[tab] < 60_000 ? 'just now' : Math.round((Date.now() - MV.at[tab]) / 60_000) + ' min ago') : ''}</span><button class="btn sm" style="width:auto;flex:none;padding:0 14px" data-x="mvReload" data-t="${tab}" aria-label="Refresh">⟳</button></div>` + mvBox(tab); }
 // keep the open screen fresh: every 20 s, and every 3 s for a minute after a tap (sim progress, a run starting)
-setInterval(() => { const t = { box: 'box', act: 'act', dex: 'dex', sim: 'legends', gems: 'gems', blocs: 'blocs', fights: 'fights', set: 'engine' }[tab] || (tab === 'sim' ? 'league' : null); if (!t || document.hidden) return;
+setInterval(() => { const t = { box: 'box', dex: 'dex', sim: 'legends', gems: 'gems', blocs: 'blocs', fights: 'fights', set: 'engine', tasks: 'tasks', plan: 'queue', care: 'care' }[view()] || null; if (!t || document.hidden) return;
   const fast = Date.now() < (MV.fastUntil || 0); if (Date.now() - (MV.at[t] || 0) > (fast ? 3000 : 20000)) mvLoad(t); }, 1000);
 let mvTyping = null;
 document.addEventListener('input', (e) => { const el = e.target.closest('.mv input'); if (!el || el.type === 'checkbox') return; clearTimeout(mvTyping); mvTyping = setTimeout(() => mvSend(el, 'input'), 450); }, true);
@@ -942,7 +1027,7 @@ function mvSend(el, kind) {
   const box = el.closest('.mv'); if (!box) return;
   const tab = box.dataset.mvtab, data = { ...el.dataset };
   if (data.act === 'fold-card') { el.closest('.card')?.classList.toggle('folded'); return; }
-  if (data.act === 'tab' && data.tab) { tab = MEGA_TAB[data.tab] || data.tab; store.set('mr-tab', tab); window.scrollTo(0, 0); render(); return; } // a link to another of Mega's screens
+  if (data.act === 'tab' && data.tab) { goTab(data.tab); window.scrollTo(0, 0); render(); return; } // a link to another of Mega's screens
   if (data.act === 'gem-rank') { gemSheet({ i: data.id, n: data.need, lb: data.label, r: data.rank, g: data.gain, lv: data.lv, ev: data.ev, u: data.uid, k: data.key }); return; }
   MV.fastUntil = Date.now() + 60_000;
   cmd('ui.act', { tab, data, kind, checked: !!el.checked, value: el.value ?? '', tag: el.tagName.toLowerCase() }, el.textContent.trim().slice(0, 40) || data.act, (r, d) => { if (d && d.html != null) { MV.html[tab] = d.html; MV.at[tab] = Date.now(); render(); } });
@@ -1026,7 +1111,7 @@ function loadAct(user) {
   cmd('log.all', { since: lastLog }, 'Load the log', (r, data) => { if (Array.isArray(data)) { act.log = [...act.log, ...data].slice(-1000); store.set('mr-log', act.log); render(); } }, !user);
   cmd('hist', { since: Date.now() - 7 * 86400000 }, 'Load history', (r, data) => { if (data?.rows) { act.hist = data; render(); } }, true);
 }
-setInterval(() => { if (pair && !document.hidden && (tab === 'act' || tab === 'now')) loadAct(false); }, 60000);
+setInterval(() => { if (pair && !document.hidden && view() === 'now') loadAct(false); }, 60000);
 const FILTERS = [['all', 'All'], ['raid', 'Raid'], ['under', 'Underground'], ['legend', 'Legends'], ['phone', 'Phone'], ['err', 'Problems']];
 const FRX = { raid: /raid/i, under: /underground|floor|gem|plate|geode/i, legend: /legend|zone|caught|catch|elite|league/i, phone: /^phone/i, err: /error|could not|refused|failed|stuck|lost/i };
 function chart(title, pts, opt = {}) { // pts: [[t, v]] - a small line chart with min/max, change and rate
@@ -1091,9 +1176,9 @@ function vAct() {
 }
 // theme: follows Mega (Auto / Day / Night); Auto = day 7 AM - 7 PM on this phone's clock
 function applyTheme() {
-  const t = snap?.theme || 'auto', m = t === 'day' ? 'day' : 'night'; // Auto = Classic (Alakazam 4.x's dark)
-  const el = document.documentElement; if (!el.classList.contains('th-' + m)) { el.classList.remove('th-day', 'th-night'); el.classList.add('th-' + m); }
-  const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = '#161a28';
+  // 2.14: one theme, the same as Mega's panel (navy and mint)
+  const el = document.documentElement; if (!el.classList.contains('th-zg')) { el.classList.remove('th-day'); el.classList.add('th-night', 'th-zg'); }
+  const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = '#111a29';
 }
 function render() {
   applyTheme();
@@ -1105,12 +1190,16 @@ function render() {
     <div class="dim" style="margin-top:10px">Once paired, bookmark this page or Share → Add to Home Screen: the pairing is saved in the link.</div></div>`; return; }
   if (!snap) { $('#main').innerHTML = `<div class="card">Waiting for the first update from your PC… (Mega must be running with Phone Remote switched on)</div>${tab === 'set' ? vSet() : ''}`; return; }
   // 1.0: Pokédex, PC, Simulate, Gems and Activity are Mega's own screens (Now, Plan and Trades keep their phone shape)
-  const V = { box: () => mvTab('box'), team: vTeam, act: () => mvTab('act'), now: () => subApply('now', vNow()), plan: () => subApply('plan', vPlan()), dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[tab] || vNow;
+  // 2.14: Tasks, Queue and Day Care are Mega's own screens too; Now keeps its phone shape (live numbers), overview only
+  const vt = view();
+  const V0 = { box: () => mvTab('box'), team: vTeam, now: () => subApply('now', vNow(), 'main'), tasks: () => mvTab('tasks'), plan: () => mvTab('queue'), care: () => mvTab('care'), dex: () => mvTab('dex'), sim: () => mvTab('legends'), fights: vFights, trades: vTrades, gems: () => mvTab('gems'), blocs: () => mvTab('blocs'), set: vSet }[vt] || vNow;
+  // the status card (Mega's own, from the snapshot) and the section row, like Mega's panel
+  const V = () => ((vt === 'plan' || vt === 'care' || vt === 'set' || vt === 'team' ? '' : (snap.stat || '')) + (GROUPS[tab] ? `<div class="snav">${GROUPS[tab].map(([k, l]) => `<button class="${vt === k ? 'on' : ''}" data-x="grp" data-v="${k}">${l}</button>`).join('')}</div>` : '') + V0());
   const banner = RELAY ? '' : `<div class="card" style="border-color:var(--gold-lo)"><b>⚡ Slow mode</b><div>This page uses ntfy (slow, limited per day). For live numbers, open your PC's Tailscale address (with Tailscale on) and use that Home Screen icon instead.</div></div>`;
   const focus = document.activeElement?.id, pos = document.activeElement?.selectionStart;
   const ae = document.activeElement, mvFocus = ae && ae.closest?.('.mv') && ae.matches('input') ? { tab: ae.closest('.mv').dataset.mvtab, sel: ae.className ? 'input.' + ae.className.trim().split(/\s+/)[0] : 'input', pos } : null;
   const why = relayWhy ? `<div class="card" style="border-color:var(--bad)"><b>Connection problem</b><div>${esc(relayWhy)}</div>${RELAY ? '<div class="dim" style="margin-top:6px">Check that the Tailscale app is on, the PC is awake, and the Mega Relay window is open.</div>' : ''}</div>` : '';
-  $('#main').className = ['now', 'act', 'plan', 'set', 'gems', 'blocs'].includes(tab) ? 'cols' : '';
+  $('#main').className = ['set', 'gems', 'blocs'].includes(vt) ? 'cols' : '';
   $('#main').innerHTML = Icons.swap(why + (tab === 'set' ? '' : banner) + V());
   animateHp();
   if (mvFocus) { const el = document.querySelector(`.mv[data-mvtab="${mvFocus.tab}"] ${mvFocus.sel}`); if (el) { el.focus(); try { el.setSelectionRange(mvFocus.pos, mvFocus.pos); } catch {} } }
@@ -1128,7 +1217,7 @@ document.addEventListener('click', async (e) => {
   const z = e.target.closest('[data-z]'); if (z) { zoomI = Math.max(0, Math.min(ZOOMS.length - 1, zoomI + +z.dataset.z)); store.set('mr-zoom', zoomI); applyZoom(); return; }
   const t = e.target.closest('[data-tab],[data-c],[data-x],[data-sm]'); if (!t) return;
   if (t.dataset.sm) { ui.simMode = t.dataset.sm; store.set('mr-sm', ui.simMode); if (ui.simMode === 'elite' && !ui.elite) loadElite(); if (ui.simMode === 'league' && !ui.league) loadLeague(); render(); return; }
-  if (t.dataset.tab) { tab = t.dataset.tab; store.set('mr-tab', tab); window.scrollTo(0, 0); render(); return; }
+  if (t.dataset.tab) { goTab(t.dataset.tab); window.scrollTo(0, 0); render(); return; }
   if (t.dataset.c) {
     if (t.dataset.confirm && !await askConfirm(t.dataset.confirm)) return;
     const after = t.dataset.after;
@@ -1136,6 +1225,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   const x = t.dataset.x;
+  if (x === 'grp') { grp = { ...grp, [tab]: t.dataset.v }; store.set('mr-grp', grp); window.scrollTo(0, 0); render(); return; }
   if (x === 'sub') { ui.sub = { ...(ui.sub || {}), [t.dataset.t]: t.dataset.v }; store.set('mr-sub', ui.sub); render(); window.scrollTo(0, 0); return; }
   if (x === 'trOpen') { openTrades(+t.dataset.v, t.dataset.sh === '1'); return; }
   if (x === 'trClose') { tr.sel = null; tr.data = null; render(); return; }
@@ -1156,8 +1246,8 @@ document.addEventListener('click', async (e) => {
   if (x === 'tmSlot') { if (tm.add) { const d = tm.draft.slice(); d[+t.dataset.v] = tm.add; tm.draft = d; tm.add = null; } tm.slot = +t.dataset.v; render(); return; }
   if (x === 'tmDrop') { e.stopPropagation(); tm.draft[+t.dataset.v] = undefined; tm.draft = [...tm.draft.filter(Boolean)]; tm.slot = Math.min(tm.draft.length, 5); render(); return; }
   if (x === 'tmPick') { if (tm.slot < 0) tm.slot = Math.min(tm.draft.length, 5); tm.add = null; const d = tm.draft.slice(); d[tm.slot] = t.dataset.v; tm.draft = d.filter(Boolean).slice(0, 6); tm.slot = Math.min(tm.draft.length, 5); render(); return; }
-  if (x === 'tmSave') { cmd('team.set', { uids: tm.draft.filter(Boolean) }, 'Save team', (res) => { if (!/^error/.test(res)) { tab = 'now'; render(); } }); return; }
-  if (x === 'tmCancel') { tab = 'now'; render(); return; }
+  if (x === 'tmSave') { cmd('team.set', { uids: tm.draft.filter(Boolean) }, 'Save team', (res) => { if (!/^error/.test(res)) { goTab('now'); render(); } }); return; }
+  if (x === 'tmCancel') { goTab('now'); render(); return; }
   if (x === 'pushOn') { pushOn(); return; }
   if (x === 'pushTest') { pushTest(false); return; }
   if (x === 'pushOff') { if (await askConfirm('Turn off alerts on this phone?')) pushOff(); return; }
