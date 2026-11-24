@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.1
+// @version      2.15.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.1';
+const VERSION = '2.15.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10588,7 +10588,7 @@ const GameMode = (() => {
   function css() {
     const links = [], text = [];
     for (const s of document.styleSheets) {
-      const n = s.ownerNode; if (!n || n.closest?.('#mega-alakazam')) continue;
+      const n = s.ownerNode; if (!n || n.closest?.('#mega-alakazam') || /^mega-/.test(n.id || '')) continue; // Mega's own (the panel dock moves the game over)
       if (s.href) { links.push(s.href); continue; }
       try { text.push([...s.cssRules].map((r) => r.cssText).join('\n')); } catch (__e) { __h('82-gamemode:30', __e); }
     }
@@ -10603,7 +10603,9 @@ const GameMode = (() => {
       if (n.nodeType !== 1) return '';
       const tag = n.tagName; if (SKIP.has(tag) || SKIP_ID.has(n.id)) return '';
       let cs; try { cs = getComputedStyle(n); } catch { return ''; }
-      if (cs.display === 'none' || cs.visibility === 'hidden') return '';
+      // the game has its own phone layout (at 640 px and below), so parts the wide screen hides stay in: only the
+      // pages that aren't open (and anything marked hidden) are left out
+      if (n.hidden || (cs.display === 'none' && (n.matches('#app main > .screen, #modal-root, .modal, [role=dialog], .tooltip, .tip') || n.querySelectorAll('*').length > 150))) return '';
       const i = els.push(n) - 1, t = tag.toLowerCase();
       let a = ` data-gm="${i}"`;
       for (const k of KEEP) { const v = n.getAttribute(k); if (v != null && v !== '') a += ` ${k}="${attr(v)}"`; }
@@ -10647,9 +10649,9 @@ const GameMode = (() => {
     hold();
     const el = find(f, i); guard(el);
     const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 };
-    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:87', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:89', __e); }
     el.dispatchEvent(new MouseEvent('mousedown', o));
-    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:89', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:91', __e); }
     el.dispatchEvent(new MouseEvent('mouseup', o));
     el.click();
     return 'ok';
