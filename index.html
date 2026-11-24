@@ -1211,7 +1211,7 @@ function gmCss() { cmd('gm.css', {}, 'Game Mode', (r, d) => { if (!d || !GM.on) 
 function gmDoc() {
   const f = $('#gmf'), c = GM.css; if (!f || !c) return;
   const d = f.contentDocument; d.open();
-  d.write(`<!DOCTYPE html><html class="${c.html}" style="${c.hstyle}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="https://pokecatch-online.app/">${c.links.map((h) => `<link rel="stylesheet" href="${h.replace(/"/g, '&quot;')}">`).join('')}<style>${c.text.replace(/<\/style/gi, '')}</style><style>${GM_CSS}</style></head><body class="${c.body}"></body></html>`);
+  d.write(`<!DOCTYPE html><html class="${c.html}" style="${c.hstyle}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="https://pokecatch-online.app/">${(c.order || [...c.links.map((href) => ({ href })), { text: c.text }]).map((o) => (o.href ? `<link rel="stylesheet" href="${o.href.replace(/"/g, '&quot;')}">` : `<style>${(o.text || '').replace(/<\/style/gi, '')}</style>`)).join('')}<style>${GM_CSS}</style></head><body class="${c.body}"></body></html>`);
   d.close();
   d.addEventListener('click', gmTap, true);
   d.addEventListener('change', gmChange, true);
