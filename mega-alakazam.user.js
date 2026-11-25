@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.8
+// @version      2.20.9
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.8';
+const VERSION = '2.20.9';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4662,6 +4662,39 @@ Views.trades = (esc) => {
   }
   if (!(t.list || []).length) o += `<div class="note">No offers left for ${nm(t.id)} - they may have been taken.</div>`;
   return o;
+};
+
+// Trainer Count Event: regions, starter picker and suggestions (2.20.6 - shown in Tasks › Trainer Count Event)
+  // ---- Trainer Count Event (2.20.0, Jimmy 2026-11-25): the game's 15,000 Trainers event - one shiny starter per region ----
+Views.feteBlock = (esc) => {
+  const D = Engine.get('Game.DEX') || {}, nm = (id) => esc(D[id]?.name || '#' + id);
+  let h = '';
+  try {
+    const F = Engine.get('Fete15'), on = F && (() => { try { return F.open(); } catch { return false; } })();
+    if (!on) return '<div class="note dim">The Trainer Count Event is not open right now.</div>';
+    {
+      const ask = Views.__rwAsk || null, regs = F.regions() || [], inQ = Plan.goals.some((g) => !g.done && g.type === 'fete15');
+      const RN = (k) => k[0].toUpperCase() + k.slice(1), clk = (x) => new Date(x).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+      const to = Date.parse(Engine.get('CONFIG')?.FETE15?.TO || '');
+      let b = '';
+      for (const r of regs) {
+        const st = (() => { try { return F.state(r.key); } catch { return '?'; } })(), got = (() => { try { return F.got(r.key); } catch { return null; } })(), pk = (() => { try { return F.picked(r.key); } catch { return null; } })();
+        const right = st === 'done' ? `<b class="ok">✓ ${nm(got?.id || pk?.id)}</b>` : st === 'run' ? `<b class="gold">✨ ${nm(pk?.id)} · try ${(() => { try { return F.tries(r.key); } catch { return 0; } })()}</b>` : st === 'ready' ? '<b class="gold">🔔 Pick a starter</b>' : st === 'soon' ? `<span class="dim">opens ${esc(clk(+F.openAt(r.key)))}</span>` : st === 'wait' ? '<span class="dim">after the previous region</span>' : st === 'locked' ? '<span class="dim">win its League first</span>' : `<span class="dim">${esc(st)}</span>`;
+        b += `<div class="row"><span class="k">${esc(RN(r.key))}</span><span class="v">${right}</span></div>`;
+        if (st === 'ready') {
+          const ids = (() => { try { return F.starters(r.key); } catch { return []; } })();
+          b += `<div style="display:flex;gap:8px;margin:4px 0 8px">${ids.map((id) => `<button class="btn sm" data-act="rw-ask" data-k="f${r.key}${id}" style="flex:1;margin:0;display:flex;flex-direction:column;align-items:center;gap:2px"><img src="${Engine.sprite(id)}" width="40" height="40" style="image-rendering:pixelated">${nm(id)}</button>`).join('')}</div>`;
+          { const a = (() => { try { return GoalTypes.feteAdvice(r.key); } catch { return null; } })();
+            if (a) b += `<div style="font-size:var(--t-s);margin:0 0 8px">${a.discord ? `<div>📋 <b>Discord:</b> ${nm(a.discord.id)} <span class="dim">- ${esc(a.discord.why)}</span></div>` : '<div class="dim">📋 Discord: none of these starters is on the tier lists</div>'}${a.mine ? `<div style="margin-top:3px">🔮 <b>Mega:</b> ${nm(a.mine.id)} <span class="dim">- ${esc(a.mine.why)}</span></div>` : ''}</div>`; }
+          const sel = ids.find((id) => ask === `f${r.key}${id}`);
+          if (sel) b += `<div class="note" style="margin:0 0 8px">Pick <b>shiny ${nm(sel)}</b> for ${esc(RN(r.key))}? The game saves this choice for good, then Mega simulates the team and starts the raid.<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="fete-pick" data-reg="${r.key}" data-id="${sel}">Pick ${nm(sel)}</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
+        }
+      }
+      if (Views.__feteMsg) b += `<div class="dim" style="margin-top:4px">${esc(Views.__feteMsg)}</div>`;
+      h += `<div class="wrapk"><div class="dim" style="margin-bottom:4px">${to ? `Until ${esc(clk(to))} · ` : ''}${inQ ? 'in your queue - Mega catches each picked starter (team from the game\'s own engine)' : 'pick a starter and Mega adds the task and starts the raid'}</div>${b}</div>`;
+    }
+  } catch (__e) { __h('62-feteblock:30', __e); }
+  return h;
 };
 
 /* ---------------------------------------------------------------------------------------------
