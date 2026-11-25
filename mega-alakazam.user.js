@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.1
+// @version      2.20.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.1';
+const VERSION = '2.20.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10098,7 +10098,7 @@ const Plan = (() => {
       if (!x) return { state: 'done', why: 'every region\'s starter is caught' };
       if (x.st === 'run') return { state: 'ready', why: null };
       if (x.st === 'ready') {
-        if (g && g.askPick !== x.reg) { g.askPick = x.reg; Plan.save(); try { const a = advice(x.reg); Notify.send('ready', `Trainer Count Event: pick your ${regName(x.reg)} starter`, `${t(() => F().starters(x.reg).map((id) => name(id)).join(', '), '')}${a.discord ? ` · Discord: ${name(a.discord.id)}` : ''}${a.mine ? ` · Mega: ${name(a.mine.id)}` : ''} - pick on Mega's Now screen (or Kinesis), then Mega catches it`); } catch (__e) { __h('70-plan-24-fete:37', __e); } }
+        // the alert comes from Dailies (one per region, queued or not)
         return { state: 'wait', why: `pick your ${regName(x.reg)} starter (Now › Trainer Count Event, or Raids in the game)` };
       }
       if (x.st === 'soon') return { state: 'wait', why: `${regName(x.reg)} opens ${DexInfo.clock(+t(() => f.openAt(x.reg), 0))}` };
@@ -10465,6 +10465,17 @@ const Dailies = (() => {
       const left = +t(() => W.left(), 0);
       return left > 0 ? { state: 'ready', line: `${left} attack${left === 1 ? '' : 's'} left` } : { state: 'done' };
     } },
+    // the Trainer Count Event (until Dec 1): a region open to pick, or a picked starter not caught yet
+    { key: 'fete15', icon: '🎉', name: 'Trainer Count Event', read() {
+      const F = E.get('Fete15'); if (!F || !t(() => F.open(), false)) return { state: 'off' };
+      const regs = t(() => F.regions(), []) || [], st = (k) => t(() => F.state(k));
+      const ev = E.get('Game.S')?.adv?.event; if (ev?.raid && ev.date === 'fete15') return { state: 'run', line: `${ev.reg} raid going` };
+      const pick = regs.find((r) => st(r.key) === 'ready');
+      if (pick) { const a = t(() => GoalTypes.feteAdvice(pick.key)); return { state: 'ready', line: `pick your ${pick.key[0].toUpperCase() + pick.key.slice(1)} starter${a?.discord ? ` · Discord: ${name(a.discord.id)}` : ''}${a?.mine ? ` · Mega: ${name(a.mine.id)}` : ''}` }; }
+      const run = regs.find((r) => st(r.key) === 'run'); if (run) return { state: 'ready', line: `catch your ${run.key} starter` };
+      const soon = regs.find((r) => st(r.key) === 'soon'); if (soon) return { state: 'closed', line: `${soon.key[0].toUpperCase() + soon.key.slice(1)} opens ${new Date(+t(() => F.openAt(soon.key), 0)).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` };
+      return { state: 'done', line: 'all caught' };
+    } },
     { key: 'tower', icon: '🗼', name: 'Battle Tower', week: true, read() {
       const T = E.get('Tower'); if (!T || !t(() => T.unlocked(), false)) return { state: 'off' };
       if (E.get('Game.S')?.adv?.tower) return { state: 'run' };
@@ -10490,12 +10501,12 @@ const Dailies = (() => {
       if (x.state !== 'ready') continue;
       const id = x.week ? 'w' + wk : d;
       if (told[x.key] === id) continue;
-      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:80', __e); }
-      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:81', __e); }
+      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:91', __e); }
+      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:92', __e); }
     }
   }
   let timer = null;
-  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:85', __e); } }, 30_000); }
+  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:96', __e); } }, 30_000); }
   return { list, resetAt, tick, boot };
 })();
 
