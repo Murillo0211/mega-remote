@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.18.0
+// @version      2.18.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.18.0';
+const VERSION = '2.18.1';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4811,6 +4811,7 @@ Views.now = (w, esc, fmtIn) => {
       const lab = (d) => {
         if (d.state === 'ready') return ['🔔 Ready', 'gold'];
         if (d.state === 'run') return ['▶ Going', 'ok'];
+        if (d.state === 'wait') return ['⏳ Waiting', 'warn'];
         const at = d.week ? wk : rs;
         return [at ? `⏳ in ${left(at)}` : d.state === 'done' ? '✓ Done' : 'Not now', 'dim'];
       };
@@ -4820,7 +4821,7 @@ Views.now = (w, esc, fmtIn) => {
           return `<div class="row"><span class="k">${d.icon} ${esc(d.name)}${why ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(why)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${l}</b></span></div>`; }).join('')
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `Dailies open again ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} (in ${left(rs)})` : ''} · one phone alert per daily when it opens (Settings → phone alerts → Dailies ready)</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:197', __e); }
+  } catch (__e) { __h('62-nowview:198', __e); }
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
@@ -4872,7 +4873,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:249', __e); }
+  } catch (__e) { __h('62-nowview:250', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -10268,7 +10269,14 @@ const Dailies = (() => {
       return left > 0 ? { state: 'ready', line: `${left} run${left === 1 ? '' : 's'} left this week` } : { state: 'done', line: 'this week' };
     } },
   ];
-  function list() { return LIST.map((d) => ({ key: d.key, icon: d.icon, name: d.name, week: !!d.week, ...(t(() => d.read(), { state: 'off' })) })).filter((d) => d.state !== 'off'); }
+  function list() {
+    return LIST.map((d) => {
+      const x = { key: d.key, icon: d.icon, name: d.name, week: !!d.week, ...(t(() => d.read(), { state: 'off' })) };
+      // ready in the game, but its goal is waiting for Pokémon to come back from the Underground (the dailies' gate)
+      if (x.state === 'ready') { const g = Plan.goals.find((y) => !y.done && y.type === d.key), L = g && Plan.live(g.id); const w = String(L?.line || L?.why || ''); if (w.startsWith('⏳')) { x.state = 'wait'; x.line = w.replace(/^⏳\s*/, ''); } }
+      return x;
+    }).filter((d) => d.state !== 'off');
+  }
   const resetAt = () => t(() => +E.get('Raids').nextDay(), 0);
   // ---- one alert per daily per day, when it comes up ----
   let told = t(() => JSON.parse(localStorage.getItem(KEY) || '{}'), {}) || {};
@@ -10279,12 +10287,12 @@ const Dailies = (() => {
       if (x.state !== 'ready') continue;
       const id = x.week ? 'w' + wk : d;
       if (told[x.key] === id) continue;
-      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:73', __e); }
-      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:74', __e); }
+      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:80', __e); }
+      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:81', __e); }
     }
   }
   let timer = null;
-  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:78', __e); } }, 30_000); }
+  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:85', __e); } }, 30_000); }
   return { list, resetAt, tick, boot };
 })();
 
