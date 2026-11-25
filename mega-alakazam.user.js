@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.16.3
+// @version      2.16.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.16.3';
+const VERSION = '2.16.4';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5720,10 +5720,10 @@ const EliteSim = (() => {
     // the final odds with more runs (Mega's own model - only if the engine couldn't run)
     const wins = each(team, 160), fin = rate(wins);
     opts.onProgress?.(1);
-    return put(`G${reg}:${tier}`, { uids: team.map((m) => m.uid), ko: fin.prod, per: fights.map((f, i) => ({ leader: f.leader, champion: f.champion, win: wins[i] })), sim: 2 });
+    return put(`G${reg}:${tier}`, { uids: team.map((m) => m.uid), ko: fin.prod, per: fights.map((f, i) => ({ leader: f.leader, champion: f.champion, win: wins[i] })), sim: 2, engine: false });
   }
   // a saved League sim from the gym simulator, if under 3 h old (levels / ranks change)
-  const leagueFresh = (reg, tier) => { const r = get(`G${reg}:${tier}`); return r && r.sim === 2 && r.engine && Date.now() - (r.at || 0) < 3 * 3600e3 ? r : null; };
+  const leagueFresh = (reg, tier) => { const r = get(`G${reg}:${tier}`); return r && r.sim === 2 && 'engine' in r && Date.now() - (r.at || 0) < 3 * 3600e3 ? r : null; };
   // one League sim at a time, for the League screen and the goal (the goal's own sims go through here too)
   let queue = Promise.resolve();
   const running = new Map(), failed = new Map(); // "reg:tier" -> progress 0-100 / when it last failed
