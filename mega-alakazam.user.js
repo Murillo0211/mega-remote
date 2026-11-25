@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.17.1
+// @version      2.17.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.17.1';
+const VERSION = '2.17.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4793,18 +4793,27 @@ Views.now = (w, esc, fmtIn) => {
 
   try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:175', __e); }
 
-  // ---- today's dailies (2.17.0, Jimmy 2026-11-25): what's up for the day, straight from the game ----
+  // ---- dailies (2.17.2, Jimmy 2026-11-25): what's up now, straight from the game. The game's day turns over at
+  // 3 PM Pacific, so a daily finished last night is "next in 2 h 48 m", not "done today" ----
   try {
     const D = Dailies.list();
     if (D.length) {
-      const chip = { ready: ['🔔 Ready', 'gold'], run: ['▶ Going', 'ok'], done: ['✓ Done', 'dim'], closed: ['Not today', 'dim'] };
-      const nReady = D.filter((d) => d.state === 'ready').length, rs = Dailies.resetAt();
-      h += `<div class="card dcard${nReady ? ' hot' : ''}"><h3>Today's Dailies${nReady ? ` <span class="chip on" style="font-size:var(--t-s);padding:1px 8px">${nReady} ready</span>` : ''}</h3>`
-        + D.map((d) => { const [lbl, cls] = chip[d.state] || [d.state, 'dim']; const inQ = Plan.goals.some((g) => !g.done && !g.paused && g.type === d.key);
-          return `<div class="row"><span class="k">${d.icon} ${esc(d.name)}${d.line ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(d.line)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${lbl}</b></span></div>`; }).join('')
-        + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `New day ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : ''} · your phone gets one alert per daily when it's up (Settings → phone alerts → Dailies ready)</div></div>`;
+      const rs = Dailies.resetAt(), wk = (() => { try { return +Engine.get('Tower').weekEnds(); } catch { return 0; } })();
+      const left = (at) => { const m = Math.max(0, Math.round((at - Date.now()) / 60000)); return m < 60 ? `${m} min` : m < 48 * 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} m` : `${Math.round(m / 1440)} days`; };
+      const nReady = D.filter((d) => d.state === 'ready').length;
+      const lab = (d) => {
+        if (d.state === 'ready') return ['🔔 Ready', 'gold'];
+        if (d.state === 'run') return ['▶ Going', 'ok'];
+        const at = d.week ? wk : rs;
+        return [at ? `⏳ in ${left(at)}` : d.state === 'done' ? '✓ Done' : 'Not now', 'dim'];
+      };
+      h += `<div class="card dcard${nReady ? ' hot' : ''}"><h3>Dailies${nReady ? ` <span class="chip on" style="font-size:var(--t-s);padding:1px 8px">${nReady} ready</span>` : ''}</h3>`
+        + D.map((d) => { const [l, cls] = lab(d); const inQ = Plan.goals.some((g) => !g.done && !g.paused && g.type === d.key);
+          const why = d.state === 'done' ? (d.week ? 'done this week' : 'done - next round') : d.line;
+          return `<div class="row"><span class="k">${d.icon} ${esc(d.name)}${why ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(why)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${l}</b></span></div>`; }).join('')
+        + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `Dailies open again ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} (in ${left(rs)})` : ''} · one phone alert per daily when it opens (Settings → phone alerts → Dailies ready)</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:188', __e); }
+  } catch (__e) { __h('62-nowview:197', __e); }
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
@@ -4856,7 +4865,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:240', __e); }
+  } catch (__e) { __h('62-nowview:249', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
