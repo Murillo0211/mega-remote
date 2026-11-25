@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.17.0
+// @version      2.17.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.17.0';
+const VERSION = '2.17.1';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10153,6 +10153,11 @@ const Dailies = (() => {
     { key: 'bloc', icon: '🍡', name: 'Pokéblock Boss', read() {
       const B = E.get('BlocBoss'); if (!B || !t(() => B.unlocked(), false)) return { state: 'off' };
       if (t(() => B.playedToday(), false)) return { state: 'done' };
+      // the game's own reason: 'played' (done), 'day' (today's boss isn't loaded yet), anything else = not now
+      const w = t(() => B.why());
+      if (w === 'played') return { state: 'done' };
+      if (w === 'day' && Date.now() - (this.ask || 0) > 5 * 60_000) { this.ask = Date.now(); try { B.loadDay(); } catch (__e) { __h('76-dailies:29', __e); } } // ask the game for today's boss (the Pokéblock goal does the same)
+      if (w) return { state: 'closed', line: w === 'day' ? "today's boss not loaded yet" : String(w) };
       const d = t(() => B.today());
       return { state: 'ready', line: d?.boss ? `today: ${name(d.boss)}` : '' };
     } },
@@ -10195,12 +10200,12 @@ const Dailies = (() => {
       if (x.state !== 'ready') continue;
       const id = x.week ? 'w' + wk : d;
       if (told[x.key] === id) continue;
-      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:68', __e); }
-      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:69', __e); }
+      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:73', __e); }
+      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:74', __e); }
     }
   }
   let timer = null;
-  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:73', __e); } }, 30_000); }
+  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:78', __e); } }, 30_000); }
   return { list, resetAt, tick, boot };
 })();
 
