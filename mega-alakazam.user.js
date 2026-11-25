@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.3
+// @version      2.20.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.3';
+const VERSION = '2.20.4';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10154,7 +10154,12 @@ const Plan = (() => {
       why.push(`${types.map((x) => x[0].toUpperCase() + x.slice(1)).join('/')}: ${cover ? `${cover} of your Lv 100s share its type${types.length > 1 ? 's' : ''}` : 'a type you barely have at Lv 100'}`);
       return { id, fin, score, why: why.join(' · '), owned: owned.length };
     });
-    const mine = rows.slice().sort((a, b) => b.score - a.score)[0] || null;
+    const sorted = rows.slice().sort((a, b) => b.score - a.score), mine = sorted[0] ? { ...sorted[0] } : null;
+    // say why the others lost: a shiny you already have, or a weaker final form
+    if (mine) {
+      const fin = mine.fin, notes = sorted.slice(1).map((r) => { const sh = all.find((m) => m.shiny && [r.id, r.id + 1, r.id + 2].includes(+m.id)); return sh ? `${name(r.id)}: you already have a shiny ${name(sh.id)}` : bstOf(r.fin) < bstOf(fin) ? `${name(r.fin)} is weaker (stats ${bstOf(r.fin)} vs ${bstOf(fin)})` : `${name(r.fin)}: more of your Lv 100s already share its type`; });
+      mine.why = `no shiny ${name(fin)} yet · ${name(fin)} stats ${bstOf(fin)}${DISCORD[mine.id] ? ' · on the Discord tier list' : ''} · ${notes.join(' · ')}`;
+    }
     const dId = ids.find((id) => DISCORD[id]);
     return { discord: dId ? { id: dId, why: DISCORD[dId] } : null, mine, rows };
   }
@@ -10169,7 +10174,7 @@ const Plan = (() => {
     let g = Plan.goals.find((x) => !x.done && x.type === 'fete15');
     if (!g) { Plan.add('fete15', {}); g = Plan.goals.find((x) => !x.done && x.type === 'fete15'); }
     if (g) { Plan.toTop(g.id); if (!Plan.running) Plan.setRunning(true); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-24-fete:108', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-24-fete:113', __e); }
     return `picked ${name(r.id)} - simulating the team, then the raid starts`;
   }
   Object.assign(GoalTypes, { fete15, fetePick, feteAdvice: advice });
