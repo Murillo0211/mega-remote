@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.7
+// @version      2.20.8
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.7';
+const VERSION = '2.20.8';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4870,7 +4870,7 @@ Views.now = (w, esc, fmtIn) => {
       const row = (x) => {
         const k = `u${x.kind}${x.id}`, tag = x.queued ? ' <span class="chip on" style="font-size:var(--t-s);padding:1px 7px">In queue</span>' : '';
         const act = x.kind === 'fete' ? 'data-act="task-open" data-k="fete15"' : x.queued ? 'data-act="tab" data-tab="plan"' : `data-act="rw-ask" data-k="${k}"`;
-        let r = `<div class="row" ${act} style="cursor:pointer"><span class="k">${Upcoming.verb(x) === 'fight' ? '⚔️' : Upcoming.verb(x) === 'event' ? '🎉' : '🎯'} ${esc(Upcoming.what(x))}${tag} <span class="faint" style="font-size:var(--t-s)">· ${esc(x.why)}${x.place ? ' · ' + esc(x.place) : ''}</span></span><span class="v">${when(x)}</span></div>`;
+        let r = `<div class="row" ${act} style="cursor:pointer"><span class="k"><span class="faint" style="font-size:var(--t-s)">${Upcoming.verb(x) === 'fight' ? 'Fight' : Upcoming.verb(x) === 'event' ? 'Event' : 'Catch'}</span> ${esc(Upcoming.what(x))}${tag} <span class="faint" style="font-size:var(--t-s)">· ${esc(x.why)}${x.place ? ' · ' + esc(x.place) : ''}</span></span><span class="v">${when(x)}</span></div>`;
         if (x.kind !== 'fete' && !x.queued && ask === k) r += `<div class="note" style="margin:4px 0 6px">Add <b>${x.kind === 'elite' ? `${esc(Upcoming.what(x).replace(/ · Elite tier \d+$/, ''))} Elite up to tier 5` : `Catch ${esc(Upcoming.what(x))}`}</b> to your queue?<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="up-add" data-type="${x.type}" data-json="${esc(JSON.stringify(x.data))}">Add to Queue</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
         return r;
       };
@@ -4878,7 +4878,7 @@ Views.now = (w, esc, fmtIn) => {
       h += `<div class="card wrapk"><h3>Coming Up</h3>`
         + `<div class="lbl" style="margin-top:2px">Today</div>${T.length ? T.map(row).join('') : '<div class="dim">Nothing new opens today.</div>'}`
         + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
-        + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">🎯 to catch (not in your Pokédex) · ⚔️ Elite tiers left · 🎉 Trainer Count Event (tap to pick in Tasks) · times are when it opens. Tap one to add it to your queue.</div></div>`;
+        + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">Catch: not in your Pokédex yet · Fight: Elite tiers left · Event: Trainer Count Event (tap to pick in Tasks). Times are when it opens; tap one to add it to your queue.</div></div>`;
     }
   } catch (__e) { __h('62-nowview:217', __e); }
   // ---- best next rewards ----
@@ -10500,7 +10500,7 @@ const Upcoming = (() => {
   const E = Engine, t = (f, d = null) => { try { return f(); } catch { return d; } };
   const nm = (id) => t(() => Casing.names(E.get('Game.DEX')[id].name), '#' + id);
   const midnight = (days) => { const d = new Date(); d.setHours(24 * days, 0, 0, 0); return d.getTime(); };
-  const WX = { morning: '🌅 morning', day: '☀️ day', night: '🌙 night', spring: '🌸 spring', summer: '☀️ summer', autumn: '🍂 autumn', winter: '❄️ winter', full: '🌕 full moon', new: '🌑 new moon' };
+  const WX = { morning: 'morning', day: 'day', night: 'night', spring: 'spring', summer: 'summer', autumn: 'autumn', winter: 'winter', full: 'full moon', new: 'new moon' };
   const label = (k) => WX[k] || t(() => DexInfo.wxName(k), k);
   const queued = (type, id) => Plan.goals.some((g) => !g.done && g.type === type && +g.foe === +id);
   // first hour in [now, end) when the moon is `phase` at night (zones with a moon open at night)
