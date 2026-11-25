@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.16.5
+// @version      2.16.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.16.5';
+const VERSION = '2.16.6';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10336,7 +10336,7 @@ const Updater = (() => {
       const a = E.get('Game.S')?.adv || {};
       if (a.zone || a.tower || a.league || a.event) return false;
       if (GameMode.on()) return false; // never reload under Jimmy's thumb in Game Mode
-      const busy = (Plan.goals || []).some((g) => !g.done && Plan.live(g.id)?.state === 'running' && ['raid', 'elite', 'league', 'wboss', 'legend', 'candy', 'tower', 'trade'].includes(g.type));
+      const busy = (Plan.goals || []).some((g) => !g.done && Plan.live(g.id)?.state === 'running' && ['raid', 'wboss', 'candy', 'tower', 'trade'].includes(g.type)); // 2.16.5: Elite, League and legendary goals keep their state in the plan, so the gap between two of their fights (checked above: no zone or League open) is a safe moment - a chain of them used to hold an update back for hours
       return !busy;
     } catch { return false; }
   }
