@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.16.1
+// @version      2.16.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.16.1';
+const VERSION = '2.16.3';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -866,16 +866,17 @@ const Sim = (() => {
     }
     // Elite tiers (2.16.0): the game's own engine decides (GameSim) - this model drifted far from the game
     // there. Its picks and the current team are re-scored in a sandboxed copy of the game, then refined.
-    if (tier > 0 && !asMax && typeof GameSim !== 'undefined') {
+    // 2.16.2: legendary zones too (tier 0, a zone of its own - not roamers, gyms or World Boss)
+    if ((tier > 0 || (z?.static && !z?.wild && !z?.roam && !z?.wb && !zoneIn)) && !asMax && typeof GameSim !== 'undefined') {
       try {
         const g = await GameSim.refine(foeId, tier, [...(cur.length === 6 && dupFree(cur) && legOk(cur) ? [cur] : []), ...tops], byV.map((x) => x.m), { legOk, species, onProgress });
         if (g) {
           const final = { ko: g.final.ko, left: g.final.left, rounds: g.final.n, engine: true };
-          const curE = cur.length === 6 && legOk(cur) ? await GameSim.elite(foeId, tier, cur.map((m) => m.uid), 60) : null;
+          const curE = cur.length === 6 && legOk(cur) ? await GameSim.play(foeId, tier, cur.map((m) => m.uid), 60) : null;
           onProgress?.(1);
           return { foeId, tier, team: g.team, final, today: final, toLevel: [], asMax, current: curE ? { ko: curE.ko, engine: true } : null, at: Date.now(), engine: true };
         }
-      } catch (e) { try { Log.add(`Elite sim in the game's engine failed (${e?.message || e}) - using Mega's own model`); } catch (__e) { __h('35-sim:420', __e); } }
+      } catch (e) { try { Log.add(`${tier ? 'Elite' : 'Zone'} sim in the game's engine failed (${e?.message || e}) - using Mega's own model`); } catch (__e) { __h('35-sim:421', __e); } }
     }
     const final = evaluate(best.team, foeId, 1000, 99, null, z);
     const current = cur.length === 6 ? evaluate(legCap < 99 && !legOk(cur) ? cur.filter((m, i, a) => !isLeg(m) || a.filter(isLeg).indexOf(m) < legCap) : cur, foeId, 1000, 99, null, z) : null;
@@ -1129,7 +1130,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:674', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:675', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -1138,7 +1139,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:683', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:684', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -1206,12 +1207,46 @@ const GameSim = (() => {
     L.sort((a, b) => a - b);
     return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
   }
+  // ---- legendary zones (2.16.2): one try at catching `foe` in its zone (tier 0). In the copy it's marked not
+  // caught so the zone opens like the first time; a try ends with a KO (the game throws a Ball: 'capture')
+  // or a wipe ('zoneLoop' / 'defeat').
+  function zoneOnce(foe, uids, base) {
+    const G = E.get('Game'), A = E.get('Adventure');
+    const x = structuredClone(base || G.S);
+    if (x.dex) delete x.dex[foe];
+    x.eventTeams = x.eventTeams || {}; x.eventTeams['zone:' + foe] = uids.slice(); x.road = null;
+    let win = false, left = 1, ok = false;
+    G.sandbox(x, () => {
+      const ad = A.ensure();
+      Object.assign(ad, { event: null, tower: null, league: null, zone: null, battle: null, pending: null });
+      ok = A.startZone(foe) !== false && !!ad.zone && !ad.zone.riddle;
+      if (!ok) return;
+      for (let s = 0; s < 20000; s++) {
+        const en = ad.battle?.enemies?.[0];
+        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:66', __e); } }
+        const ev = A.step() || [];
+        if (ev.some((e) => e.type === 'capture')) { win = true; left = 0; return; }
+        if (ev.some((e) => e.type === 'zoneLoop' || e.type === 'defeat' || e.type === 'zoneShut')) return;
+      }
+    });
+    if (!ok) throw new Error('the game would not open that zone in the simulator');
+    return { win, left };
+  }
+  async function zone(foe, uids, n = 40) {
+    const base = structuredClone(E.get('Game').S);
+    let w = 0, t0 = performance.now(); const L = [];
+    for (let i = 0; i < n; i++) { const r = zoneOnce(foe, uids, base); if (r.win) w++; else L.push(r.left); if (performance.now() - t0 > 45) { await yieldNow(); t0 = performance.now(); } }
+    L.sort((a, b) => a - b);
+    return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
+  }
+  // the right fight for a tier: Elite tiers 1-5, or the zone itself (0)
+  const play = (foe, tier, uids, n) => (tier > 0 ? elite(foe, tier, uids, n) : zone(foe, uids, n));
   const score = (r) => r.ko - 0.25 * r.left; // wins first; among equals, the team that hurts the boss most
   // Refine Mega's heuristic pick with the real engine: score its candidates, then try swapping each slot
   // for the strongest few alternatives (the game's 1-Legendary cap kept). cands: arrays of mons.
   async function refine(foe, tier, cands, pool, { legOk = () => true, species = (m) => m.id, onProgress } = {}) {
     const seen = new Map();
-    const rate = async (team, n) => { const k = team.map((m) => m.uid).join(',') + ':' + n; if (!seen.has(k)) seen.set(k, await elite(foe, tier, team.map((m) => m.uid), n)); return seen.get(k); };
+    const rate = async (team, n) => { const k = team.map((m) => m.uid).join(',') + ':' + n; if (!seen.has(k)) seen.set(k, await play(foe, tier, team.map((m) => m.uid), n)); return seen.get(k); };
     let best = null;
     for (const t of cands) { if (t.length < 6 || !legOk(t)) continue; const r = await rate(t, 24); if (!best || score(r) > score(best.r)) best = { team: t.slice(), r }; }
     if (!best) return null;
@@ -1232,7 +1267,7 @@ const GameSim = (() => {
       }
       if (!improved) break;
     }
-    const final = await elite(foe, tier, best.team.map((m) => m.uid), 100);
+    const final = await play(foe, tier, best.team.map((m) => m.uid), 100);
     return { team: best.team, final };
   }
   // ---- Shiny Raid (2.16.1): one try of today's raid in `reg` with your `mine` (uids) and ally trainer keys.
@@ -1253,7 +1288,7 @@ const GameSim = (() => {
       if (!ok) return;
       for (let s = 0; s < 20000; s++) {
         const en = ad.battle?.enemies?.[0];
-        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:97', __e); } }
+        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:131', __e); } }
         const ev = A.step() || [];
         if (ev.some((e) => e.type === 'capture')) { ko = true; left = 0; return; }
         if (ev.some((e) => e.type === 'defeat')) return;
@@ -1273,7 +1308,41 @@ const GameSim = (() => {
     L.sort((a, b) => a - b);
     return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
   }
-  return { eliteOnce, elite, refine, raidOnce, raid };
+  // ---- Elite League (2.16.3): one try = the League run of `reg` at `tier` until a wipe (the game then starts
+  // over from the first leader) or the run is won. Returns how many leaders fell and whether it was won.
+  function leagueOnce(reg, tier, uids, base) {
+    const G = E.get('Game'), A = E.get('Adventure');
+    const x = structuredClone(base || G.S);
+    x.eliteLeague = x.eliteLeague || {}; x.eliteLeague[reg] = { ...(x.eliteLeague[reg] || {}), t: tier - 1 };
+    x.road = uids.slice(); x.team = uids.slice();
+    let won = false, beat = 0, ok = false;
+    G.sandbox(x, () => {
+      const ad = A.ensure();
+      Object.assign(ad, { event: null, tower: null, league: null, zone: null, battle: null, pending: null });
+      ok = A.startLeague(reg, tier) !== false && !!ad.league;
+      if (!ok) return;
+      for (let s = 0; s < 40000; s++) {
+        const ev = A.step() || [];
+        for (const e of ev) { if (e.type === 'victory') beat++; if (e.type === 'defeat') return; }
+        if (!ad.league) { won = true; return; }
+      }
+    });
+    if (!ok) throw new Error('the game would not start that League tier in the simulator');
+    return { won, beat };
+  }
+  // n tries: { ko, per: [win share against leader i, among tries that reached them] }
+  async function league(reg, tier, uids, n = 40, leaders = 5) {
+    const base = structuredClone(E.get('Game').S);
+    let w = 0, t0 = performance.now(); const reach = Array(leaders).fill(0), pass = Array(leaders).fill(0);
+    for (let i = 0; i < n; i++) {
+      const r = leagueOnce(reg, tier, uids, base); if (r.won) w++;
+      const got = r.won ? leaders : Math.min(r.beat, leaders - 1);
+      for (let k = 0; k < leaders; k++) { if (got >= k) reach[k]++; if (got > k) pass[k]++; }
+      if (performance.now() - t0 > 45) { await yieldNow(); t0 = performance.now(); }
+    }
+    return { ko: w / n, n, per: reach.map((r, k) => (r ? pass[k] / r : null)) };
+  }
+  return { eliteOnce, elite, zoneOnce, zone, play, refine, raidOnce, raid, leagueOnce, league };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5625,13 +5694,36 @@ const EliteSim = (() => {
       }
       if (!moved) break;
     }
-    // the final odds with more runs
+    // 2.16.3: the game's own engine has the last word - whole League runs played in a sandboxed copy. The
+    // model's team is the start; swaps with the strongest outsiders are kept when the real runs say so.
+    try {
+      if (typeof GameSim !== 'undefined') {
+        const N = fights.length, uidsOf = (t) => t.map((m) => m.uid);
+        const sc = (r) => r.ko + 0.02 * r.per.reduce((a, b) => a + (b || 0), 0);
+        let cur = { team, r: await GameSim.league(reg, tier, uidsOf(team), 24, N) };
+        const outs = pool.filter((m) => !team.includes(m)).slice(0, 8);
+        for (let pass = 0; pass < 2; pass++) {
+          let moved = false;
+          for (let i = 0; i < cur.team.length; i++) for (const m of outs) {
+            if (cur.team.includes(m)) continue;
+            const t2 = cur.team.slice(); t2[i] = m;
+            const q = await GameSim.league(reg, tier, uidsOf(t2), 10, N); if (sc(q) < sc(cur.r) - 0.05) continue;
+            const r = await GameSim.league(reg, tier, uidsOf(t2), 24, N); if (sc(r) > sc(cur.r) + 0.02) { cur = { team: t2, r }; moved = true; }
+          }
+          if (!moved) break;
+        }
+        const fin = await GameSim.league(reg, tier, uidsOf(cur.team), 100, N);
+        opts.onProgress?.(1);
+        return put(`G${reg}:${tier}`, { uids: uidsOf(cur.team), ko: fin.ko, per: fights.map((f, i) => ({ leader: f.leader, champion: f.champion, win: fin.per[i] ?? 0 })), sim: 2, engine: true });
+      }
+    } catch (e) { try { Log.add(`Elite League sim in the game's engine failed (${e?.message || e}) - using Mega's own model`); } catch (__e) { __h('65-elitesim:125', __e); } }
+    // the final odds with more runs (Mega's own model - only if the engine couldn't run)
     const wins = each(team, 160), fin = rate(wins);
     opts.onProgress?.(1);
     return put(`G${reg}:${tier}`, { uids: team.map((m) => m.uid), ko: fin.prod, per: fights.map((f, i) => ({ leader: f.leader, champion: f.champion, win: wins[i] })), sim: 2 });
   }
   // a saved League sim from the gym simulator, if under 3 h old (levels / ranks change)
-  const leagueFresh = (reg, tier) => { const r = get(`G${reg}:${tier}`); return r && r.sim === 2 && Date.now() - (r.at || 0) < 3 * 3600e3 ? r : null; };
+  const leagueFresh = (reg, tier) => { const r = get(`G${reg}:${tier}`); return r && r.sim === 2 && r.engine && Date.now() - (r.at || 0) < 3 * 3600e3 ? r : null; };
   // one League sim at a time, for the League screen and the goal (the goal's own sims go through here too)
   let queue = Promise.resolve();
   const running = new Map(), failed = new Map(); // "reg:tier" -> progress 0-100 / when it last failed
@@ -5639,8 +5731,8 @@ const EliteSim = (() => {
     const k = `${reg}:${tier}`; if (running.has(k) || Date.now() - (failed.get(k) || 0) < 10 * 60e3) return;
     running.set(k, 0); onChange?.();
     queue = queue.then(() => leagueSim(reg, tier, { onProgress: (p) => { const v = Math.round(p * 100); if (v !== running.get(k)) { running.set(k, v); onChange?.(); } } })
-      .then((r) => { try { Log.add(`Elite League ${reg} tier ${tier}: best team ${Math.round(r.ko * 100)}% to win all 5 (${r.per.map((p) => `${p.leader} ${Math.round(p.win * 100)}%`).join(', ')})`); } catch (__e) { __h('65-elitesim:117', __e); } })
-      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite League sim failed: ${e?.message || e}`); } catch (__e) { __h('65-elitesim:118', __e); } })
+      .then((r) => { try { Log.add(`Elite League ${reg} tier ${tier}: best team ${Math.round(r.ko * 100)}% to win all 5 (${r.per.map((p) => `${p.leader} ${Math.round(p.win * 100)}%`).join(', ')})`); } catch (__e) { __h('65-elitesim:140', __e); } })
+      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite League sim failed: ${e?.message || e}`); } catch (__e) { __h('65-elitesim:141', __e); } })
       .finally(() => { running.delete(k); onChange?.(); }));
   }
   // the same for elite legendaries (the Elite screen's "Easiest Next Tier"): one search at a time, kept 3 h
@@ -5649,7 +5741,7 @@ const EliteSim = (() => {
     const k = `L${id}:${tier}`; if (running.has(k) || Date.now() - (failed.get(k) || 0) < 10 * 60e3) return;
     running.set(k, 0); onChange?.();
     queue = queue.then(() => legend(+id, +tier, { onProgress: (p) => { const v = Math.round(p * 100); if (v !== running.get(k)) { running.set(k, v); onChange?.(); } } })
-      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite sim failed (#${id} tier ${tier}): ${e?.message || e}`); } catch (__e) { __h('65-elitesim:127', __e); } })
+      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite sim failed (#${id} tier ${tier}): ${e?.message || e}`); } catch (__e) { __h('65-elitesim:150', __e); } })
       .finally(() => { running.delete(k); onChange?.(); }));
   }
   return { get, put, drop, legend, members, leagueTeam, leagueSim, leagueFights, leagueFresh, leagueQueue, legendFresh, legendQueue, leagueRunning: running };
