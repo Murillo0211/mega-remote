@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.16
+// @version      2.16.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.16';
+const VERSION = '2.16.0';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -840,6 +840,7 @@ const Sim = (() => {
     const starts = [cur.length === 6 && dupFree(cur) && legOk(cur) ? cur.map(lift) : null, fill([], false), fill([], true), ...statusUsers.slice(0, 3).map((x) => fill([x.m], true))].filter(Boolean);
     const total = starts.length * 6 * pool.length;
     let evals = 0, best = null, slice = performance.now();
+    const tops = [];
     const cache = new Map();
     const full = (t) => { const k = t.map((m) => m.uid).join(','); let r = cache.get(k); if (!r) { r = evaluate(t, foeId, 200, 1, null, z); cache.set(k, r); } return r; };
     for (const start of starts) {
@@ -861,6 +862,20 @@ const Sim = (() => {
         if (!improved) break;
       }
       if (!best || curRes.score > best.res.score) best = { team: team.slice(), res: curRes };
+      tops.push(team.slice());
+    }
+    // Elite tiers (2.16.0): the game's own engine decides (GameSim) - this model drifted far from the game
+    // there. Its picks and the current team are re-scored in a sandboxed copy of the game, then refined.
+    if (tier > 0 && !asMax && typeof GameSim !== 'undefined') {
+      try {
+        const g = await GameSim.refine(foeId, tier, [...(cur.length === 6 && dupFree(cur) && legOk(cur) ? [cur] : []), ...tops], byV.map((x) => x.m), { legOk, species, onProgress });
+        if (g) {
+          const final = { ko: g.final.ko, left: g.final.left, rounds: g.final.n, engine: true };
+          const curE = cur.length === 6 && legOk(cur) ? await GameSim.elite(foeId, tier, cur.map((m) => m.uid), 60) : null;
+          onProgress?.(1);
+          return { foeId, tier, team: g.team, final, today: final, toLevel: [], asMax, current: curE ? { ko: curE.ko, engine: true } : null, at: Date.now(), engine: true };
+        }
+      } catch (e) { try { Log.add(`Elite sim in the game's engine failed (${e?.message || e}) - using Mega's own model`); } catch (__e) { __h('35-sim:420', __e); } }
     }
     const final = evaluate(best.team, foeId, 1000, 99, null, z);
     const current = cur.length === 6 ? evaluate(legCap < 99 && !legOk(cur) ? cur.filter((m, i, a) => !isLeg(m) || a.filter(isLeg).indexOf(m) < legCap) : cur, foeId, 1000, 99, null, z) : null;
@@ -1114,7 +1129,7 @@ const Sim = (() => {
   function sidePool(ch) {
     const L = Gm().S?.link, all = Gm().allMons?.() || [];
     if (!L) return all;
-    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:659', __e); }
+    let side = null; try { side = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:674', __e); }
     return all.filter((m) => { try { return (Gm().groupOf(m.reg) === 'to' ? 'to' : 'from') === side; } catch { return true; } });
   }
   function carriers(ch, { exclude = [], n = 4, minLevel = 90 } = {}) {
@@ -1123,7 +1138,7 @@ const Sim = (() => {
     const away = new Set((Gm().underMons?.() || []).map((m) => m.uid));
     // a new region (Unova) is its own side until its League: only Pokémon of the chapter's side can play it
     const L = Gm().S?.link; let chSide = null;
-    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:668', __e); } }
+    if (L) { try { chSide = G().STORY.regionOf(ch)?.key === L.to ? 'to' : 'from'; } catch (__e) { __h('35-sim:683', __e); } }
     const fits = (m) => !L || !chSide || ((() => { try { return Gm().groupOf(m.reg) === 'to'; } catch { return false; } })() ? 'to' : 'from') === chSide;
     const seen = new Set(), cands = [];
     for (const m of [...(Gm().ownedMons?.() || [])].sort((a, b) => b.level - a.level)) {
@@ -1140,6 +1155,87 @@ const Sim = (() => {
   }
 
   return { CARRIER_V: 4, gymNow, isNight, roamZone, coverage, gymEval, gymChain, bandOf, staticZone, sidePool, zoneOf, setup, run, evaluate, trace, search, mulberry, chapterPool, chapterFoes, clearScore, carriers, species, dupFree };
+})();
+
+/* ---------------------------------------------------------------------------------------------
+ * GameSim (2.16.0): Elite legendary fights played in the GAME'S OWN battle engine, in a sandbox.
+ * Mega's Sim (35-sim.js) is its own model of the game's fights. For Elite tiers it drifted far from
+ * the game (2026-11-25: it gave Rayquaza tier 4 99.6% while every real try lost with the boss at
+ * ~35-45% HP). Here a copy of the save is handed to Game.sandbox (the game's own tool, the
+ * Underground's simulate uses it), the Elite tier is started there with Adventure.startZone and
+ * Adventure.step() plays it out: the same code, numbers and randomness as a real try.
+ * Checked against Jimmy's real fights: tier 3 won first try (engine 88%), tier 4 lost every try
+ * with the boss at 33-46% (engine 2%, boss at ~30%).
+ * The copy is thrown away - nothing reaches the real save (sandbox() also blocks saving).
+ * ------------------------------------------------------------------------------------------- */
+const GameSim = (() => {
+  const E = Engine;
+  const yieldNow = () => new Promise((r) => setTimeout(r, 0));
+  // one try of Elite `tier` against legendary `foe` with `uids`: { win, left } (left = boss HP share at the end)
+  function eliteOnce(foe, tier, uids, base) {
+    const G = E.get('Game'), A = E.get('Adventure');
+    const x = structuredClone(base || G.S);
+    x.elite = x.elite || {}; x.elite[foe] = { ...(x.elite[foe] || {}), t: tier - 1 }; // the game only starts best+1
+    x.eventTeams = x.eventTeams || {}; x.eventTeams['zone:' + foe] = uids.slice(); x.road = null;
+    let win = false, left = 1, ok = false;
+    G.sandbox(x, () => {
+      const ad = A.ensure();
+      Object.assign(ad, { event: null, tower: null, league: null, zone: null, battle: null, pending: null });
+      ok = A.startZone(foe, tier) !== false;
+      if (!ok) return;
+      for (let s = 0; s < 20000; s++) {
+        const en = ad.battle?.enemies?.[0];
+        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:29', __e); } }
+        const ev = A.step() || [];
+        if (ev.some((e) => e.type === 'eliteDone')) { win = true; left = 0; return; }
+        if (ev.some((e) => e.type === 'zoneLoop' || e.type === 'zoneShut')) return;
+      }
+    });
+    if (!ok) throw new Error('the game would not start that tier in the simulator');
+    return { win, left };
+  }
+  // n tries: { ko (win share), left (median boss HP share on losses), n }
+  async function elite(foe, tier, uids, n = 40, { budgetMs = 45 } = {}) {
+    const G = E.get('Game'); const base = structuredClone(G.S);
+    let w = 0, t0 = performance.now(); const L = [];
+    for (let i = 0; i < n; i++) {
+      const r = eliteOnce(foe, tier, uids, base);
+      if (r.win) w++; else L.push(r.left);
+      if (performance.now() - t0 > budgetMs) { await yieldNow(); t0 = performance.now(); }
+    }
+    L.sort((a, b) => a - b);
+    return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
+  }
+  const score = (r) => r.ko - 0.25 * r.left; // wins first; among equals, the team that hurts the boss most
+  // Refine Mega's heuristic pick with the real engine: score its candidates, then try swapping each slot
+  // for the strongest few alternatives (the game's 1-Legendary cap kept). cands: arrays of mons.
+  async function refine(foe, tier, cands, pool, { legOk = () => true, species = (m) => m.id, onProgress } = {}) {
+    const seen = new Map();
+    const rate = async (team, n) => { const k = team.map((m) => m.uid).join(',') + ':' + n; if (!seen.has(k)) seen.set(k, await elite(foe, tier, team.map((m) => m.uid), n)); return seen.get(k); };
+    let best = null;
+    for (const t of cands) { if (t.length < 6 || !legOk(t)) continue; const r = await rate(t, 24); if (!best || score(r) > score(best.r)) best = { team: t.slice(), r }; }
+    if (!best) return null;
+    const alt = pool.slice(0, 10);
+    let step = 0; const total = 6 * alt.length * 2;
+    for (let pass = 0; pass < 2; pass++) {
+      let improved = false;
+      for (let slot = 0; slot < 6; slot++) {
+        for (const c of alt) {
+          step++; onProgress?.(Math.min(0.97, step / total));
+          if (best.team.some((m, i) => i !== slot && species(m) === species(c)) || best.team[slot].uid === c.uid) continue;
+          const trial = best.team.slice(); trial[slot] = c; if (!legOk(trial)) continue;
+          const q = await rate(trial, 12);
+          if (score(q) <= score(best.r) - 0.05) continue;
+          const r = await rate(trial, 30);
+          if (score(r) > score(best.r) + 0.02) { best = { team: trial, r }; improved = true; }
+        }
+      }
+      if (!improved) break;
+    }
+    const final = await elite(foe, tier, best.team.map((m) => m.uid), 100);
+    return { team: best.team, final };
+  }
+  return { eliteOnce, elite, refine };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -5406,7 +5502,9 @@ const EliteSim = (() => {
   const G = () => E.get('Game'), ST = () => E.get('STORY'), LZ = () => E.get('LegendZones');
   let saved = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } })();
   const store = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (__e) { __h('65-elitesim:17', __e); } };
-  const get = (k) => saved[k] || null;
+  // 2.16.0: legendary tiers are scored in the game's own engine (GameSim); older saved odds came from Mega's
+  // model (Rayquaza tier 4: 99.6% saved, 2% real) and are dropped - they're simulated again when needed
+  const get = (k) => { const v = saved[k] || null; return v && k[0] === 'L' && !v.v2 ? null : v; };
   const put = (k, v) => { saved[k] = { ...v, at: Date.now() }; store(); return saved[k]; };
   const drop = (k) => { delete saved[k]; store(); };
   const yieldNow = () => new Promise((r) => setTimeout(r, 0));
@@ -5414,7 +5512,7 @@ const EliteSim = (() => {
   // ---- elite legendaries ----
   async function legend(foe, tier, opts = {}) {
     const r = await Sim.search(foe, { tier, asMax: !!opts.asMax, onProgress: opts.onProgress });
-    return put(`L${foe}:${tier}`, { uids: r.team.map((m) => m.uid), ko: r.final.ko, today: r.today?.ko ?? r.final.ko, asMax: !!r.asMax });
+    return put(`L${foe}:${tier}`, { uids: r.team.map((m) => m.uid), ko: r.final.ko, today: r.today?.ko ?? r.final.ko, asMax: !!r.asMax, engine: !!r.engine, left: r.final.left ?? null, v2: true });
   }
 
   // ---- Elite League ----
@@ -5424,8 +5522,8 @@ const EliteSim = (() => {
       const c = st.CHAPTERS[ch]; if (!c?.league) continue;
       const step = (c.steps || []).find((x) => x.kind === 'gym'); if (!step) continue;
       const gym = Sim.gymNow(step, ch); // Unova: the night version when the League is entered at night
-      let team = []; try { team = st.gymTeam(ch, gym); } catch (__e) { __h('65-elitesim:36', __e); }
-      let field = 1; try { field = +E.call('Adventure.fieldSize', gym) || 1; } catch (__e) { __h('65-elitesim:37', __e); }
+      let team = []; try { team = st.gymTeam(ch, gym); } catch (__e) { __h('65-elitesim:38', __e); }
+      let field = 1; try { field = +E.call('Adventure.fieldSize', gym) || 1; } catch (__e) { __h('65-elitesim:39', __e); }
       out.push({ ch, leader: gym.leader, champion: !!gym.champion, type: gym.type, power: gym.power || 1, field, team, swaps: !!step.atNight, night: !!step.atNight && (gym.leader !== step.leader || JSON.stringify(gym.team) !== JSON.stringify(step.team)) });
     }
     return out;
@@ -5503,8 +5601,8 @@ const EliteSim = (() => {
     const k = `${reg}:${tier}`; if (running.has(k) || Date.now() - (failed.get(k) || 0) < 10 * 60e3) return;
     running.set(k, 0); onChange?.();
     queue = queue.then(() => leagueSim(reg, tier, { onProgress: (p) => { const v = Math.round(p * 100); if (v !== running.get(k)) { running.set(k, v); onChange?.(); } } })
-      .then((r) => { try { Log.add(`Elite League ${reg} tier ${tier}: best team ${Math.round(r.ko * 100)}% to win all 5 (${r.per.map((p) => `${p.leader} ${Math.round(p.win * 100)}%`).join(', ')})`); } catch (__e) { __h('65-elitesim:115', __e); } })
-      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite League sim failed: ${e?.message || e}`); } catch (__e) { __h('65-elitesim:116', __e); } })
+      .then((r) => { try { Log.add(`Elite League ${reg} tier ${tier}: best team ${Math.round(r.ko * 100)}% to win all 5 (${r.per.map((p) => `${p.leader} ${Math.round(p.win * 100)}%`).join(', ')})`); } catch (__e) { __h('65-elitesim:117', __e); } })
+      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite League sim failed: ${e?.message || e}`); } catch (__e) { __h('65-elitesim:118', __e); } })
       .finally(() => { running.delete(k); onChange?.(); }));
   }
   // the same for elite legendaries (the Elite screen's "Easiest Next Tier"): one search at a time, kept 3 h
@@ -5513,7 +5611,7 @@ const EliteSim = (() => {
     const k = `L${id}:${tier}`; if (running.has(k) || Date.now() - (failed.get(k) || 0) < 10 * 60e3) return;
     running.set(k, 0); onChange?.();
     queue = queue.then(() => legend(+id, +tier, { onProgress: (p) => { const v = Math.round(p * 100); if (v !== running.get(k)) { running.set(k, v); onChange?.(); } } })
-      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite sim failed (#${id} tier ${tier}): ${e?.message || e}`); } catch (__e) { __h('65-elitesim:125', __e); } })
+      .catch((e) => { failed.set(k, Date.now()); try { Log.add(`Elite sim failed (#${id} tier ${tier}): ${e?.message || e}`); } catch (__e) { __h('65-elitesim:127', __e); } })
       .finally(() => { running.delete(k); onChange?.(); }));
   }
   return { get, put, drop, legend, members, leagueTeam, leagueSim, leagueFights, leagueFresh, leagueQueue, legendFresh, legendQueue, leagueRunning: running };
@@ -8694,8 +8792,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
 (() => {
   const { E, S, name, setTeam, want, LZ } = GoalKit;
   // ---- elite legendaries: beat a legendary's elite tiers, one after another ----------------------
-  // The game retries a lost fight by itself ("try 2…"); a loss can also lock that legendary's elite
-  // fights for ELITE.FREEZE_MS - the goal then waits. Team: the elite simulator per tier (EliteSim).
+  // The game retries a lost fight by itself ("try 2…") with no limit - it only ends on a win, when you
+  // leave, or when a timed zone closes. Team and odds: EliteSim, scored in the game's own engine (GameSim).
+  // Move-on rule (Jimmy 2026-11-25): skip a tier whose best team sims under SKIP; leave a tier after CAP of
+  // trying (between tries, never mid-fight) and let the next Elite goal run; a tier set aside comes back
+  // after REST, simulated again (rank-ups and levels since then count).
+  const SKIP = 0.10, CAP = 15 * 60_000, REST = 2 * 3600_000, RESIM = 6 * 3600_000;
   const eliteBusy = new Set();
   const zoneObj = (id) => (LZ()?.ZONES || []).find((z) => +z.id === +id) || null;
   const elite = {
@@ -8712,9 +8814,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       if (!inIt && !lz.eliteOpen(z)) return { state: 'wait', why: 'its zone is closed right now' };
       if (!inIt && !lz.eliteCan(g.foe, next)) return { state: 'wait', why: `tier ${next} is locked for a while after a loss` };
       if (eliteBusy.has(`L${g.foe}:${next}`)) return { state: 'wait', why: `simulating tier ${next}…` };
+      if (!inIt && g.rest && g.rest.tier === next && Date.now() < g.rest.until) return { state: 'wait', why: `tier ${next} set aside after ${g.rest.why} - back ${new Date(g.rest.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` };
+      // an old result is simulated again (ranks and levels change)
+      { const o = EliteSim.get(`L${g.foe}:${next}`); if (o && !inIt && Date.now() - (o.at || 0) > RESIM) EliteSim.drop(`L${g.foe}:${next}`); }
       const sim = EliteSim.get(`L${g.foe}:${next}`);
       if (!sim) { eliteBusy.add(`L${g.foe}:${next}`); EliteSim.legend(g.foe, next).then((r) => Log.add(`${name(g.foe)} elite tier ${next}: best team ${Math.round(r.ko * 100)}%`)).catch((e) => Log.add(`elite sim failed: ${e?.message || e}`)).finally(() => eliteBusy.delete(`L${g.foe}:${next}`)); return { state: 'wait', why: `simulating tier ${next}…` }; }
-      if (sim.ko < 0.03 && !g.force) return { state: 'wait', why: `tier ${next} looks too strong for now (best team ${Math.round(sim.ko * 100)}%) - rank up / level, or press ▶ to try anyway` };
+      if (sim.ko < SKIP && !g.force && !inIt) return { state: 'wait', why: `tier ${next} looks too strong for now (best team ${Math.round(sim.ko * 100)}% a try in the game's engine) - rank up / level, or press ▶ to try anyway` };
       return { state: 'ready', why: null };
     },
     async step(g) {
@@ -8730,30 +8835,39 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // Legendaries fights 1v1 (2026-11-21, Elite Genesect). Drop such a saved sim and simulate a legal team.
       const cap = +(E.get('CONFIG')?.ELITE?.LEGENDS) || 1, DX = E.get('Game.DEX') || {};
       const legs = (uids) => (uids || []).filter((u) => { const m = E.read('Game.getMon', null, u); const d = m && DX[m.id]; return d && (d.legendary || d.mythical); }).length;
-      if (sim && legs(sim.uids) > cap) { try { EliteSim.drop(`L${g.foe}:${next}`); } catch (__e) { __h('70-plan-16-elite:41', __e); } sim = null; }
+      if (sim && legs(sim.uids) > cap) { try { EliteSim.drop(`L${g.foe}:${next}`); } catch (__e) { __h('70-plan-16-elite:48', __e); } sim = null; }
       const zt0 = E.read('Game.zoneTeam', [], g.foe) || [];
       if (!sim && legs(zt0) > cap) {
         if (!g.simming) { g.simming = Date.now(); Log.add(`${name(g.foe)} elite: the team had ${legs(zt0)} Legendaries but Elite allows ${cap} - simulating a legal team`); EliteSim.legend(g.foe, next).catch(() => {}).finally(() => { g.simming = 0; Plan.save(); }); }
-        if (inIt && !(a.battle && !a.battle.over)) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:45', __e); } }
+        if (inIt && !(a.battle && !a.battle.over)) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:52', __e); } }
         return `simulating an Elite team with at most ${cap} Legendary…`;
       }
-      if (inIt && sim && legs(zt0) > cap) { if (!(a.battle && !a.battle.over)) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:48', __e); } } return 'leaving to swap in the legal Elite team…'; }
+      if (inIt && sim && legs(zt0) > cap) { if (!(a.battle && !a.battle.over)) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:55', __e); } } return 'leaving to swap in the legal Elite team…'; }
       if (!inIt) {
-        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:50', __e); } return 'leaving the current zone…'; }
+        if (a.zone) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:57', __e); } return 'leaving the current zone…'; }
         if (sim?.uids?.length) { const zt = E.read('Game.zoneTeam', [], g.foe) || []; if (!(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) { const r = setTeam(g.foe, sim.uids); if (!r.ok) return 'waiting: ' + r.why; } }
         if (Date.now() - (g.enterAt || 0) < 15_000) return 'entering…';
         { const mt = await MoveTune.ensure(g.foe, E.read('Game.zoneTeam', [], g.foe) || [], Sim.zoneOf(g.foe, next), `${name(g.foe)} elite tier ${next}`); if (mt) return mt; } // which status moves to use (v0.5.12)
         g.enterAt = Date.now();
         { const zt = E.read('Game.zoneTeam', [], g.foe) || []; const why = Guard.team(zt, { need: Math.min(6, sim?.uids?.length || 1), want: sim?.uids || null, minLevel: 50 }); if (why) return Guard.stop(`${name(g.foe)} elite tier ${next}`, why); }
-        let ok = false; try { ok = E.call('Adventure.startZone', g.foe, next) !== false; } catch (__e) { __h('70-plan-16-elite:56', __e); }
-        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-16-elite:57', __e); }
+        let ok = false; try { ok = E.call('Adventure.startZone', g.foe, next) !== false; } catch (__e) { __h('70-plan-16-elite:63', __e); }
+        try { E.call('App.refresh'); } catch (__e) { __h('70-plan-16-elite:64', __e); }
         if (ok) Log.add(`${name(g.foe)}: started elite tier ${next}${sim ? ` (sim ${Math.round(sim.ko * 100)}%)` : ''}`);
         return ok ? `started elite tier ${next}` : `the game would not start tier ${next}`;
+      }
+      // the 15-minute cap: counted from the first try of this tier; leave only between tries
+      if (!g.tierAt || g.tierAt.tier !== next) { g.tierAt = { tier: next, at: Date.now() }; Plan.save(); }
+      if (!g.force && Date.now() - g.tierAt.at > CAP && !(a.battle && !a.battle.over)) {
+        g.rest = { tier: next, until: Date.now() + REST, why: `${Math.round(CAP / 60000)} min without a win` }; g.tierAt = null; Plan.save();
+        try { EliteSim.drop(`L${g.foe}:${next}`); } catch (__e) { __h('70-plan-16-elite:72', __e); }
+        Log.add(`${name(g.foe)} elite tier ${next}: no win in ${Math.round(CAP / 60000)} min (${+(a.zone?.tries || 1)} tries) - moving on, back in ${Math.round(REST / 3600000)} h`);
+        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:74', __e); }
+        return `tier ${next}: 15 min without a win - moving on to the next Elite goal`;
       }
       const tries = +(a.zone?.tries || 1);
       return `elite tier ${next} vs ${name(a.zone?.foe || g.foe)} · try ${tries}${sim ? ` · sim ${Math.round(sim.ko * 100)}%` : ''}`;
     },
-    finish(g) { const a = S().adv || {}; if (+(a.zone?.id) === +g.foe && a.zone?.elite) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:64', __e); } } },
+    finish(g) { const a = S().adv || {}; if (+(a.zone?.id) === +g.foe && a.zone?.elite) { try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-16-elite:80', __e); } } },
   };
   Object.assign(GoalTypes, { elite });
 })();
