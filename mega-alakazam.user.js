@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.15
+// @version      2.15.16
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.15';
+const VERSION = '2.15.16';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10706,6 +10706,9 @@ const GameMode = (() => {
       const i = els.push(n) - 1, t = tag.toLowerCase();
       let a = ` data-gm="${i}"`;
       for (const k of KEEP) { const v = n.getAttribute(k); if (v != null && v !== '') a += ` ${k}="${attr(v)}"`; }
+      // the game's data-* attributes too: its CSS shows a page by them (2.15.16: the Underground's open tab is
+      // .ug[data-tab=geo] - without it Expeditions, Geodes and Shop were all hidden on the phone)
+      for (const at of n.attributes) if (at.name.startsWith('data-') && !at.name.startsWith('data-gm') && at.value.length < 200) a += ` ${at.name}="${attr(at.value)}"`;
       if (n.id) a += ` id="${attr(n.id)}"`;
       if (t === 'img') { if (n.currentSrc || n.src) a += ` src="${attr(n.currentSrc || n.src)}"`; a += ' loading="lazy"'; }
       if (n.disabled) a += ' disabled';
@@ -10746,9 +10749,9 @@ const GameMode = (() => {
     hold();
     const el = find(f, i); guard(el);
     const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 };
-    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:91', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:94', __e); }
     el.dispatchEvent(new MouseEvent('mousedown', o));
-    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:93', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:96', __e); }
     el.dispatchEvent(new MouseEvent('mouseup', o));
     el.click();
     return 'ok';
