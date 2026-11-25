@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.4
+// @version      2.20.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.4';
+const VERSION = '2.20.5';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3717,6 +3717,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .wrap .btn.dimb{opacity:.55}
 .wrap .csec{border-top:1px solid var(--line);margin-top:12px;padding-top:12px} .wrap .csec:first-child{border-top:0;margin-top:0;padding-top:0} .wrap .csec h3{font-size:var(--t-m);margin-bottom:4px}
 .wrap .dready{margin-top:6px;padding:6px 10px;border-radius:10px;background:color-mix(in srgb,var(--gold) 18%,transparent);border:1px solid color-mix(in srgb,var(--gold) 55%,transparent);font-size:var(--t-s);cursor:pointer} .wrap .dcard.hot{border-color:color-mix(in srgb,var(--gold) 60%,transparent)}
+.wrap .dcard .row .k,.wrap .wrapk .row .k{white-space:normal;flex:1 1 60%;min-width:0;overflow-wrap:anywhere} .wrap .dcard .row .v,.wrap .wrapk .row .v{flex:0 0 auto}
 
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
@@ -4884,7 +4885,7 @@ Views.now = (w, esc, fmtIn) => {
       if (Views.__feteMsg) b += `<div class="dim" style="margin-top:4px">${esc(Views.__feteMsg)}</div>`;
       b += inQ ? '<div class="dim" style="font-size:var(--t-s);margin-top:6px">In your queue - Mega catches each picked starter (team from the game\'s own engine).</div>'
         : `<div class="note" style="margin-top:6px">Not in your queue. <button class="btn sm gold" data-act="plan-add-fete15" style="width:auto;margin:4px 0 0">Add the Trainer Count Event</button></div>`;
-      h += `<div class="card"><h3>Trainer Count Event${to ? ` <span class="dim" style="font-size:var(--t-s);font-weight:600">· until ${esc(clk(to))}</span>` : ''}</h3>${b}</div>`;
+      h += `<div class="card wrapk"><h3>Trainer Count Event${to ? ` <span class="dim" style="font-size:var(--t-s);font-weight:600">· until ${esc(clk(to))}</span>` : ''}</h3>${b}</div>`;
     }
   } catch (__e) { __h('62-nowview:225', __e); }
   // ---- coming up (2.19.0, Jimmy 2026-11-25): season / weather / time / moon windows opening today and tomorrow ----
@@ -4900,7 +4901,7 @@ Views.now = (w, esc, fmtIn) => {
         return r;
       };
       const T = U.filter((x) => x.day === 'today'), M = U.filter((x) => x.day === 'tomorrow');
-      h += `<div class="card"><h3>Coming Up</h3>`
+      h += `<div class="card wrapk"><h3>Coming Up</h3>`
         + `<div class="lbl" style="margin-top:2px">Today</div>${T.length ? T.map(row).join('') : '<div class="dim">Nothing new opens today.</div>'}`
         + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">🎯 to catch (not in your Pokédex) · ⚔️ Elite tiers left · times are when it opens. Tap one to add it to your queue.</div></div>`;
@@ -4923,7 +4924,7 @@ Views.now = (w, esc, fmtIn) => {
     else r += `<div class="dim">No tiers rated yet - open Simulate › Elite or › League and Mega rates them.</div>`;
     if (R.ready.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${R.ready.slice(0, 4).map((c) => `<b>${esc(c.name)}</b> <span class="dim">→ ${RK(c.next)} (${esc(c.label)})</span>`).join(' · ')}</div>`;
     if (R.shop.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${R.shop.map((x) => `${esc(x.label)} <span class="${x.ok ? 'ok' : 'dim'}">${x.price ? x.price.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(x.mons.slice(0, 2).join(', '))}</span>`).join(' · ')}</div>`;
-    h += `<div class="card"><h3>Best Next Rewards</h3>${r}</div>`;
+    h += `<div class="card wrapk"><h3>Best Next Rewards</h3>${r}</div>`;
   }
   // ---- ready for candy (the Battle XP goal's rule: past ~5.5 M XP per level, Exp. Candies beat battling) ----
   { const g = Plan.goals.find((x) => !x.done && x.type === 'discord' && (x.spot === 'xp' || x.candyAt));
