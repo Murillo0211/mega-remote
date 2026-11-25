@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.8
+// @version      2.15.9
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.8';
+const VERSION = '2.15.9';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5035,17 +5035,34 @@ const GemFocus = (() => {
   const U = () => E.get('Underground');
   const TIER = ['Common', 'Uncommon', 'Rare', 'Legendary'];
   const MAX = () => +(E.get('CONFIG')?.UNDERGROUND?.RANK_MAX ?? 5);
-  // the Discord's picks, in their order (English names, as Mega shows them)
-  const WATCH = [
-    ['White Kyurem', 'S legendary'], ['Black Kyurem', 'S legendary'], ['Dialga', 'S legendary'], ['Reshiram', 'S legendary'], ['Kyogre', 'S legendary'], ['Palkia', 'S legendary'],
-    ['Zekrom', 'A legendary'], ['Giratina (Origin Forme)', 'A legendary'], ['Groudon', 'A legendary'], ['Giratina', 'A legendary'], ['Regigigas', 'A legendary'], ['Ho-Oh', 'A legendary'],
-    ['Garchomp', 'Pseudo #1'], ['Metagross', 'Pseudo #2'], ['Tyranitar', 'Pseudo #3'], ['Hydreigon', 'Pseudo #4'], ['Salamence', 'Pseudo #5'], ['Dragonite', 'Pseudo #6'],
-    ['Slaking', 'Rare #1'], ['Gyarados', 'Rare #2'], ['Walrein', 'Rare #3'], ['Mamoswine', 'Rare #4'], ['Feraligatr', 'Rare #5'], ['Lapras', 'Rare #6'], ['Emboar', 'Rare #7'], ['Chandelure', 'Rare #8'], ['Exeggutor', 'Rare #9'], ['Vaporeon', 'Rare #10'],
-    ['Escavalier', 'Uncommon #1'], ['Scrafty', 'Uncommon #2'], ['Skuntank', 'Uncommon #3'], ['Froslass', 'Uncommon #4'], ['Breloom', 'Uncommon #5'],
+  // the Discord's two gem tier lists (@destryyy, both rerun for game v0.5.161 on 2026-11-24, every Pokémon at
+  // Lv 100 rank 5 in the game's own battle engine), in their order. Elite allows one Legendary, so the
+  // legendary list fills that slot and the rare/uncommon list the other five.
+  //  [name, list, tier/place, score or null, where it is strongest]
+  const LEG = [
+    ['White Kyurem', 'S', 1, null, '#1 overall'], ['Dialga', 'S', 2, null, 'leads Elite Leagues'], ['Reshiram', 'S', 3, null, ''], ['Black Kyurem', 'S', 4, null, ''],
+    ['Kyogre', 'S', 5, null, ''], ['Ho-Oh', 'S', 6, null, 'leads Elite legendary fights'], ['Palkia', 'S', 7, null, ''],
+    ['Giratina (Origin Forme)', 'A', 8, null, ''], ['Zekrom', 'A', 9, null, ''], ['Giratina', 'A', 10, null, ''], ['Regigigas', 'A', 11, null, ''], ['Arceus (Ice)', 'A', 12, null, ''],
+    ['Groudon', 'A', 13, null, ''], ['Entei', 'A', 14, null, ''], ['Arceus (Dark)', 'A', 15, null, ''], ['Kyurem', 'A', 16, null, ''],
   ];
-  // the Discord's top player (has cleared everything and every Elite tier) - his rank-5 picks, Jimmy 2026-11-23.
-  // Shown first; the uncommon ones (Skuntank, Venomoth, Magcargo) rank with the cheap uncommon gems.
+  const NON = [
+    ['Metagross', 'Pseudo', 1, 79, 'Underground #2'], ['Garchomp', 'Pseudo', 2, 78, 'Underground #3'], ['Tyranitar', 'Pseudo', 3, 70, 'Elite #2'],
+    ['Hydreigon', 'Pseudo', 4, 65, 'Elite #12'], ['Salamence', 'Pseudo', 5, 64, 'Underground #7'], ['Dragonite', 'Pseudo', 6, 61, 'Underground #11'],
+    ['Slaking', 'Rare', 1, 92, 'Underground #1'], ['Gyarados', 'Rare', 2, 78, 'League #3'], ['Walrein', 'Rare', 3, 74, 'League #1'], ['Mamoswine', 'Rare', 4, 71, 'League #2'],
+    ['Rhyperior', 'Rare', 5, 68, 'Elite #7'], ['Feraligatr', 'Rare', 6, 67, 'League #4'], ['Emboar', 'Rare', 7, 66, 'Elite #8'], ['Lapras', 'Rare', 8, 66, 'League #10'],
+    ['Chandelure', 'Rare', 9, 65, 'Elite #1'], ['Glaceon', 'Rare', 10, 64, 'League #12'],
+    ['Scrafty', 'Uncommon', 1, 61, 'Underground #15'], ['Escavalier', 'Uncommon', 2, 60, 'Elite #9'], ['Skuntank', 'Uncommon', 3, 53, 'Elite #3'], ['Golurk', 'Uncommon', 4, 52, 'Underground #36'],
+    ['Dewgong', 'Uncommon', 5, 51, 'League #11'], ['Darmanitan', 'Uncommon', 6, 51, 'Underground #27'], ['Froslass', 'Uncommon', 7, 49, 'Elite #57'], ['Granbull', 'Uncommon', 8, 48, 'League #53'],
+    ['Hariyama', 'Uncommon', 9, 48, 'Underground #26'], ['Gastrodon', 'Uncommon', 10, 48, 'League #45'],
+  ];
+  const tagOf = (r) => (r[1] === 'S' || r[1] === 'A' ? `${r[1]} tier · #${r[2]} of the legendaries` : `${r[1]} #${r[2]} · ${r[3]} pts`) + (r[4] ? ` · ${r[4]}` : '');
+  // the Discord's top player (has cleared everything and every Elite tier) - his rank-5 picks, Jimmy 2026-11-23:
+  // a tag on the ones the lists have, and listed last (after the lists) for the ones they don't
   const TOP = ['Skuntank', 'Venomoth', 'White Kyurem', 'Dialga', 'Metagross', 'Magcargo', 'Gardevoir'];
+  const listed = new Set([...LEG, ...NON].map((r) => r[0]));
+  const EXTRA = TOP.filter((n) => !listed.has(n)).map((n) => [n, 'Top', 0, 0, '']);
+  const tagOf2 = (r) => (r[1] === 'Top' ? "the top player's rank-5 pick (not on the lists)" : tagOf(r));
+  const WATCH = [...LEG, ...NON, ...EXTRA].map((r) => [r[0], tagOf2(r), r]);
   const nameOf = (id) => { try { return Casing.names(E.get('Game.DEX')[id].name); } catch { return '#' + id; } };
   const gems = () => E.get('Game.S')?.under?.gems || {};
   const tierOf = (k) => +String(k).split(':')[1] || 0;
@@ -5065,7 +5082,7 @@ const GemFocus = (() => {
   function fuseFor(k) {
     const t = tierOf(k); if (t < 1) return null;
     const lower = `${typeOf(k)}:${t - 1}`;
-    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:49', __e); }
+    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:66', __e); }
     if (to !== k) return { can: false, lower };
     const per = +(E.get('CONFIG')?.UNDERGROUND?.GEM_FUSE ?? 3), have = gems()[lower] || 0;
     return { can: true, lower, lowerLabel: label(lower), per, have, makes: Math.floor(have / per) };
@@ -5076,14 +5093,13 @@ const GemFocus = (() => {
   // your best copy of each Discord pick (highest rank, then level)
   function watchRows() {
     const all = owned(), out = [];
-    const tags = new Map(WATCH.map(([n, t]) => [n, t]));
-    const order = [...TOP, ...WATCH.map((x) => x[0]).filter((n) => !TOP.includes(n))];
-    for (const n of order) {
-      const tag = TOP.includes(n) ? `top player's rank-5 pick${tags.has(n) ? ' · ' + tags.get(n) : ''}` : tags.get(n);
+    for (const [n, tag, r] of WATCH) {
       const ms = all.filter((m) => nameOf(m.id) === n).sort((a, b) => (b.rank || 0) - (a.rank || 0) || b.level - a.level);
-      if (ms.length) out.push({ ...status(ms[0]), tag, name: n });
+      if (ms.length) out.push({ ...status(ms[0]), tag: tag + (TOP.includes(n) && listed.has(n) ? " · top player's pick" : ''), name: n, leg: r[1] === 'S' || r[1] === 'A', list: r[1], place: r[2], pts: r[3] });
     }
-    return out;
+    // the five other slots: best score first (the list's own order inside a tier)
+    const leg = out.filter((x) => x.leg), non = out.filter((x) => !x.leg).sort((a, b) => b.pts - a.pts || a.place - b.place);
+    return [...leg, ...non];
   }
   // the shop's gems that one of your Discord picks (still below rank 5) can use
   function shopHits() {
@@ -5097,7 +5113,7 @@ const GemFocus = (() => {
   function watchShop() {
     try {
       const o = shop(); if (!o) return;
-      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:81', __e); }
+      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:97', __e); }
       if (told.ends !== o.ends) told = { ends: o.ends, keys: [] };
       const fresh = shopHits().filter((h) => h.ok && !told.keys.includes(h.k));
       if (!fresh.length) return;
@@ -5106,7 +5122,7 @@ const GemFocus = (() => {
       const ends = new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
       Notify.send('daily', `Gem shop: ${fresh.map((h) => h.label).join(', ')}`, `${fresh.map((h) => `${h.label} (${h.price} shards) - for ${h.mons.slice(0, 3).join(', ')}`).join(' · ')} · you have ${shards()} shards · offer ends ${ends}. Buy it on the Gems tab.`);
       Log.add(`gem shop: ${fresh.map((h) => `${h.label} for ${h.mons.join(', ')}`).join('; ')} - you can afford it (phone told)`);
-    } catch (__e) { __h('63-gemfocus:90', __e); }
+    } catch (__e) { __h('63-gemfocus:106', __e); }
   }
   let timer = null;
   function boot() { if (timer) return; timer = setInterval(watchShop, 5 * 60_000); setTimeout(watchShop, 30_000); }
@@ -5116,7 +5132,7 @@ const GemFocus = (() => {
   function reroll() { try { return U().reroll(); } catch { return { error: 'the game refused' }; } }
   // the menu: Discord picks first, then everyone by name
   function choices() {
-    const picks = new Set([...TOP, ...WATCH.map((x) => x[0])]);
+    const picks = new Set(WATCH.map((x) => x[0]));
     return owned().map((m) => ({ uid: m.uid, name: nameOf(m.id), lv: m.level, rank: m.rank || 0, shiny: !!m.shiny, pick: picks.has(nameOf(m.id)) }))
       .sort((a, b) => (b.pick - a.pick) || a.name.localeCompare(b.name) || b.rank - a.rank || b.lv - a.lv);
   }
@@ -5162,14 +5178,22 @@ const GemFocus = (() => {
       for (const k of o.ids || []) { const p = F.price(k), hit = hits.get(k); h += `<div class="row" style="align-items:center;margin-top:6px"><span>${esc(F.label(k))} · ${p} shards${hit ? ` <span class="ok">for ${esc(hit.mons.slice(0, 3).join(', '))}</span>` : ''}</span><button class="btn sm" data-act="gem-buy" data-key="${k}" style="width:auto;margin:0" ${F.shards() >= (p || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`; }
       h += `<button class="btn sm" data-act="gem-reroll" style="margin-top:8px">New Offer (₽${(+o.cost || 0).toLocaleString()})</button><div class="dim" style="font-size:var(--t-s);margin-top:4px">Mega sends your phone a note when the shop has a gem one of the Discord picks needs and you can afford it. It never buys by itself.</div></div>`;
     }
-    // 3. the Discord picks
+    // 3. the Discord picks: the legendary slot, then the five others (best score first)
     const W = F.watchRows();
     if (W.length) {
-      h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">From the Discord's gem tier lists: the Legendaries that gain most from gems, and the non-Legendaries for the 5 Elite slots (Elite allows one Legendary).</div>`;
-      for (const r of W) {
+      const row = (r) => {
         const st = r.rank >= r.max ? '<span class="ok">rank 5 ✓</span>' : r.why ? `<span class="dim">${esc(r.why)}</span>` : `<span class="ok">✓ ready for rank ${r.next}</span>`;
-        h += `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">${esc(r.tag)} · Lv ${r.m.level} · rank ${r.rank}</span><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
-      }
+        return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">· Lv ${r.m.level} · rank ${r.rank}</span><div class="dim" style="font-size:var(--t-s)">${esc(r.tag)}</div><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
+      };
+      // the next gems worth spending: the first picks (list order) that can rank up right now
+      const ready = W.filter((r) => r.rank < r.max && !r.why);
+      const gap = W.filter((r) => r.rank === 0 && r.m.level >= 100 && (r.leg ? r.list === 'S' : r.pts >= 70));
+      h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">The Discord's two gem tier lists (rerun for game v0.5.161, Nov 24): Elite allows one Legendary, so the legendary list fills that slot and the rare &amp; uncommon list the other five. Each rank costs its number in gems (rank 5 = 15 in all) and sends the Pokémon back to Lv 5.</div>`;
+      if (ready.length) h += `<div style="margin-top:4px"><b class="ok">Ready now:</b> ${ready.slice(0, 4).map((r) => esc(r.name)).join(', ')}</div>`;
+      if (gap.length) h += `<div style="margin-top:2px"><b class="warn">Top picks still at rank 0:</b> ${gap.slice(0, 5).map((r) => esc(r.name)).join(', ')}</div>`;
+      const L = W.filter((r) => r.leg), N = W.filter((r) => !r.leg);
+      if (L.length) h += `<div style="margin-top:10px"><b>👑 Your Legendary slot</b></div>` + L.map(row).join('');
+      if (N.length) h += `<div style="margin-top:12px"><b>⚔️ Your 5 other Elite slots</b> <span class="dim">best score first</span></div>` + N.map(row).join('');
       h += `</div>`;
     }
     return h + gemsView(esc);
