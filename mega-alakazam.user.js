@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.2
+// @version      2.20.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.2';
+const VERSION = '2.20.3';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4850,7 +4850,7 @@ Views.now = (w, esc, fmtIn) => {
         if (d.state === 'ready') return ['🔔 Ready', 'gold'];
         if (d.state === 'run') return ['▶ Going', 'ok'];
         if (d.state === 'wait') return ['⏳ Waiting', 'warn'];
-        const at = d.week ? wk : rs;
+        const at = d.week ? wk : d.key === 'fete15' ? 0 : rs; // the event's regions open at 7 AM (shown in its line)
         return [at ? `⏳ in ${left(at)}` : d.state === 'done' ? '✓ Done' : 'Not now', 'dim'];
       };
       h += `<div class="card dcard${nReady ? ' hot' : ''}"><h3>Dailies${nReady ? ` <span class="chip on" style="font-size:var(--t-s);padding:1px 8px">${nReady} ready</span>` : ''}</h3>`
