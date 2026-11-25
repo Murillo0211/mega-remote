@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.8
+// @version      2.15.12
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.8';
+const VERSION = '2.15.12';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5035,23 +5035,42 @@ const GemFocus = (() => {
   const U = () => E.get('Underground');
   const TIER = ['Common', 'Uncommon', 'Rare', 'Legendary'];
   const MAX = () => +(E.get('CONFIG')?.UNDERGROUND?.RANK_MAX ?? 5);
-  // the Discord's picks, in their order (English names, as Mega shows them)
-  const WATCH = [
-    ['White Kyurem', 'S legendary'], ['Black Kyurem', 'S legendary'], ['Dialga', 'S legendary'], ['Reshiram', 'S legendary'], ['Kyogre', 'S legendary'], ['Palkia', 'S legendary'],
-    ['Zekrom', 'A legendary'], ['Giratina (Origin Forme)', 'A legendary'], ['Groudon', 'A legendary'], ['Giratina', 'A legendary'], ['Regigigas', 'A legendary'], ['Ho-Oh', 'A legendary'],
-    ['Garchomp', 'Pseudo #1'], ['Metagross', 'Pseudo #2'], ['Tyranitar', 'Pseudo #3'], ['Hydreigon', 'Pseudo #4'], ['Salamence', 'Pseudo #5'], ['Dragonite', 'Pseudo #6'],
-    ['Slaking', 'Rare #1'], ['Gyarados', 'Rare #2'], ['Walrein', 'Rare #3'], ['Mamoswine', 'Rare #4'], ['Feraligatr', 'Rare #5'], ['Lapras', 'Rare #6'], ['Emboar', 'Rare #7'], ['Chandelure', 'Rare #8'], ['Exeggutor', 'Rare #9'], ['Vaporeon', 'Rare #10'],
-    ['Escavalier', 'Uncommon #1'], ['Scrafty', 'Uncommon #2'], ['Skuntank', 'Uncommon #3'], ['Froslass', 'Uncommon #4'], ['Breloom', 'Uncommon #5'],
+  // the Discord's two gem tier lists (@destryyy, both rerun for game v0.5.161 on 2026-11-24, every Pokémon at
+  // Lv 100 rank 5 in the game's own battle engine), in their order. Elite allows one Legendary, so the
+  // legendary list fills that slot and the rare/uncommon list the other five.
+  //  [name, list, tier/place, score or null, where it is strongest]
+  const LEG = [
+    ['White Kyurem', 'S', 1, null, '#1 overall'], ['Dialga', 'S', 2, null, 'leads Elite Leagues'], ['Reshiram', 'S', 3, null, ''], ['Black Kyurem', 'S', 4, null, ''],
+    ['Kyogre', 'S', 5, null, ''], ['Ho-Oh', 'S', 6, null, 'leads Elite legendary fights'], ['Palkia', 'S', 7, null, ''],
+    ['Giratina (Origin Forme)', 'A', 8, null, ''], ['Zekrom', 'A', 9, null, ''], ['Giratina', 'A', 10, null, ''], ['Regigigas', 'A', 11, null, ''], ['Arceus (Ice)', 'A', 12, null, ''],
+    ['Groudon', 'A', 13, null, ''], ['Entei', 'A', 14, null, ''], ['Arceus (Dark)', 'A', 15, null, ''], ['Kyurem', 'A', 16, null, ''],
   ];
-  // the Discord's top player (has cleared everything and every Elite tier) - his rank-5 picks, Jimmy 2026-11-23.
-  // Shown first; the uncommon ones (Skuntank, Venomoth, Magcargo) rank with the cheap uncommon gems.
+  const NON = [
+    ['Metagross', 'Pseudo', 1, 79, 'Underground #2'], ['Garchomp', 'Pseudo', 2, 78, 'Underground #3'], ['Tyranitar', 'Pseudo', 3, 70, 'Elite #2'],
+    ['Hydreigon', 'Pseudo', 4, 65, 'Elite #12'], ['Salamence', 'Pseudo', 5, 64, 'Underground #7'], ['Dragonite', 'Pseudo', 6, 61, 'Underground #11'],
+    ['Slaking', 'Rare', 1, 92, 'Underground #1'], ['Gyarados', 'Rare', 2, 78, 'League #3'], ['Walrein', 'Rare', 3, 74, 'League #1'], ['Mamoswine', 'Rare', 4, 71, 'League #2'],
+    ['Rhyperior', 'Rare', 5, 68, 'Elite #7'], ['Feraligatr', 'Rare', 6, 67, 'League #4'], ['Emboar', 'Rare', 7, 66, 'Elite #8'], ['Lapras', 'Rare', 8, 66, 'League #10'],
+    ['Chandelure', 'Rare', 9, 65, 'Elite #1'], ['Glaceon', 'Rare', 10, 64, 'League #12'],
+    ['Scrafty', 'Uncommon', 1, 61, 'Underground #15'], ['Escavalier', 'Uncommon', 2, 60, 'Elite #9'], ['Skuntank', 'Uncommon', 3, 53, 'Elite #3'], ['Golurk', 'Uncommon', 4, 52, 'Underground #36'],
+    ['Dewgong', 'Uncommon', 5, 51, 'League #11'], ['Darmanitan', 'Uncommon', 6, 51, 'Underground #27'], ['Froslass', 'Uncommon', 7, 49, 'Elite #57'], ['Granbull', 'Uncommon', 8, 48, 'League #53'],
+    ['Hariyama', 'Uncommon', 9, 48, 'Underground #26'], ['Gastrodon', 'Uncommon', 10, 48, 'League #45'],
+  ];
+  const tagOf = (r) => (r[1] === 'S' || r[1] === 'A' ? `${r[1]} tier · #${r[2]} of the legendaries` : `${r[1]} #${r[2]} · ${r[3]} pts`) + (r[4] ? ` · ${r[4]}` : '');
+  // the Discord's top player (has cleared everything and every Elite tier) - his rank-5 picks, Jimmy 2026-11-23:
+  // a tag on the ones the lists have, and listed last (after the lists) for the ones they don't
   const TOP = ['Skuntank', 'Venomoth', 'White Kyurem', 'Dialga', 'Metagross', 'Magcargo', 'Gardevoir'];
+  const listed = new Set([...LEG, ...NON].map((r) => r[0]));
+  const EXTRA = TOP.filter((n) => !listed.has(n)).map((n) => [n, 'Top', 0, 0, '']);
+  const tagOf2 = (r) => (r[1] === 'Top' ? "the top player's rank-5 pick (not on the lists)" : tagOf(r));
+  const WATCH = [...LEG, ...NON, ...EXTRA].map((r) => [r[0], tagOf2(r), r]);
   const nameOf = (id) => { try { return Casing.names(E.get('Game.DEX')[id].name); } catch { return '#' + id; } };
   const gems = () => E.get('Game.S')?.under?.gems || {};
   const tierOf = (k) => +String(k).split(':')[1] || 0;
   const typeOf = (k) => String(k).split(':')[0];
   const label = (k) => { try { return U().gemName(k); } catch { return `${TIER[tierOf(k)]} ${typeOf(k)} gem`; } };
   const owned = () => E.read('Game.ownedMons', []) || [];
+  // a Pokémon on an expedition: the game can't rank it up (it answers "Not found.")
+  const away = (m) => { try { return (E.read('Game.underMons', []) || []).some((x) => x.uid === m.uid); } catch { return false; } };
   // one Pokémon: its gem types, what it has, the next rank, and what rank 5 would take in all
   function status(m) {
     const u = U(), keys = (() => { try { return u.gemKeys(m.id) || []; } catch { return []; } })(), have = gems();
@@ -5059,13 +5078,13 @@ const GemFocus = (() => {
     const ro = (() => { try { return u.rankOf(m); } catch { return null; } })();
     let left = 0; for (let r = rank + 1; r <= max; r++) left += r;
     const best = keys.slice().sort((a, b) => (have[b] || 0) - (have[a] || 0))[0] || null;
-    return { m, keys: keys.map((k) => ({ k, label: label(k), have: have[k] || 0, tier: tierOf(k) })), rank, max, next: ro?.next ?? rank + 1, need: ro?.need ?? rank + 1, why: rank >= max ? 'at the top rank' : ro?.why || null, key: ro?.key || best, left, haveBest: best ? have[best] || 0 : 0 };
+    return { m, keys: keys.map((k) => ({ k, label: label(k), have: have[k] || 0, tier: tierOf(k) })), rank, max, next: ro?.next ?? rank + 1, need: ro?.need ?? rank + 1, why: rank >= max ? 'at the top rank' : away(m) ? 'in the Underground right now' : ro?.why || null, key: ro?.key || best, left, haveBest: best ? have[best] || 0 : 0 };
   }
   // fusing into one of this Pokémon's gem types: 3 of the tier below make 1 (only where the game allows it)
   function fuseFor(k) {
     const t = tierOf(k); if (t < 1) return null;
     const lower = `${typeOf(k)}:${t - 1}`;
-    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:49', __e); }
+    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:68', __e); }
     if (to !== k) return { can: false, lower };
     const per = +(E.get('CONFIG')?.UNDERGROUND?.GEM_FUSE ?? 3), have = gems()[lower] || 0;
     return { can: true, lower, lowerLabel: label(lower), per, have, makes: Math.floor(have / per) };
@@ -5076,14 +5095,13 @@ const GemFocus = (() => {
   // your best copy of each Discord pick (highest rank, then level)
   function watchRows() {
     const all = owned(), out = [];
-    const tags = new Map(WATCH.map(([n, t]) => [n, t]));
-    const order = [...TOP, ...WATCH.map((x) => x[0]).filter((n) => !TOP.includes(n))];
-    for (const n of order) {
-      const tag = TOP.includes(n) ? `top player's rank-5 pick${tags.has(n) ? ' · ' + tags.get(n) : ''}` : tags.get(n);
+    for (const [n, tag, r] of WATCH) {
       const ms = all.filter((m) => nameOf(m.id) === n).sort((a, b) => (b.rank || 0) - (a.rank || 0) || b.level - a.level);
-      if (ms.length) out.push({ ...status(ms[0]), tag, name: n });
+      if (ms.length) out.push({ ...status(ms[0]), tag: tag + (TOP.includes(n) && listed.has(n) ? " · top player's pick" : ''), name: n, leg: r[1] === 'S' || r[1] === 'A', list: r[1], place: r[2], pts: r[3] });
     }
-    return out;
+    // the five other slots: best score first (the list's own order inside a tier)
+    const leg = out.filter((x) => x.leg), non = out.filter((x) => !x.leg).sort((a, b) => b.pts - a.pts || a.place - b.place);
+    return [...leg, ...non];
   }
   // the shop's gems that one of your Discord picks (still below rank 5) can use
   function shopHits() {
@@ -5097,7 +5115,7 @@ const GemFocus = (() => {
   function watchShop() {
     try {
       const o = shop(); if (!o) return;
-      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:81', __e); }
+      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:99', __e); }
       if (told.ends !== o.ends) told = { ends: o.ends, keys: [] };
       const fresh = shopHits().filter((h) => h.ok && !told.keys.includes(h.k));
       if (!fresh.length) return;
@@ -5106,7 +5124,7 @@ const GemFocus = (() => {
       const ends = new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
       Notify.send('daily', `Gem shop: ${fresh.map((h) => h.label).join(', ')}`, `${fresh.map((h) => `${h.label} (${h.price} shards) - for ${h.mons.slice(0, 3).join(', ')}`).join(' · ')} · you have ${shards()} shards · offer ends ${ends}. Buy it on the Gems tab.`);
       Log.add(`gem shop: ${fresh.map((h) => `${h.label} for ${h.mons.join(', ')}`).join('; ')} - you can afford it (phone told)`);
-    } catch (__e) { __h('63-gemfocus:90', __e); }
+    } catch (__e) { __h('63-gemfocus:108', __e); }
   }
   let timer = null;
   function boot() { if (timer) return; timer = setInterval(watchShop, 5 * 60_000); setTimeout(watchShop, 30_000); }
@@ -5116,7 +5134,7 @@ const GemFocus = (() => {
   function reroll() { try { return U().reroll(); } catch { return { error: 'the game refused' }; } }
   // the menu: Discord picks first, then everyone by name
   function choices() {
-    const picks = new Set([...TOP, ...WATCH.map((x) => x[0])]);
+    const picks = new Set(WATCH.map((x) => x[0]));
     return owned().map((m) => ({ uid: m.uid, name: nameOf(m.id), lv: m.level, rank: m.rank || 0, shiny: !!m.shiny, pick: picks.has(nameOf(m.id)) }))
       .sort((a, b) => (b.pick - a.pick) || a.name.localeCompare(b.name) || b.rank - a.rank || b.lv - a.lv);
   }
@@ -5162,14 +5180,22 @@ const GemFocus = (() => {
       for (const k of o.ids || []) { const p = F.price(k), hit = hits.get(k); h += `<div class="row" style="align-items:center;margin-top:6px"><span>${esc(F.label(k))} · ${p} shards${hit ? ` <span class="ok">for ${esc(hit.mons.slice(0, 3).join(', '))}</span>` : ''}</span><button class="btn sm" data-act="gem-buy" data-key="${k}" style="width:auto;margin:0" ${F.shards() >= (p || Infinity) ? '' : 'disabled'}>Buy 1</button></div>`; }
       h += `<button class="btn sm" data-act="gem-reroll" style="margin-top:8px">New Offer (₽${(+o.cost || 0).toLocaleString()})</button><div class="dim" style="font-size:var(--t-s);margin-top:4px">Mega sends your phone a note when the shop has a gem one of the Discord picks needs and you can afford it. It never buys by itself.</div></div>`;
     }
-    // 3. the Discord picks
+    // 3. the Discord picks: the legendary slot, then the five others (best score first)
     const W = F.watchRows();
     if (W.length) {
-      h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">From the Discord's gem tier lists: the Legendaries that gain most from gems, and the non-Legendaries for the 5 Elite slots (Elite allows one Legendary).</div>`;
-      for (const r of W) {
+      const row = (r) => {
         const st = r.rank >= r.max ? '<span class="ok">rank 5 ✓</span>' : r.why ? `<span class="dim">${esc(r.why)}</span>` : `<span class="ok">✓ ready for rank ${r.next}</span>`;
-        h += `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">${esc(r.tag)} · Lv ${r.m.level} · rank ${r.rank}</span><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
-      }
+        return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">· Lv ${r.m.level} · rank ${r.rank}</span><div class="dim" style="font-size:var(--t-s)">${esc(r.tag)}</div><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
+      };
+      // the next gems worth spending: the first picks (list order) that can rank up right now
+      const ready = W.filter((r) => r.rank < r.max && !r.why);
+      const gap = W.filter((r) => r.rank === 0 && r.m.level >= 100 && (r.leg ? r.list === 'S' : r.pts >= 70));
+      h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">The Discord's two gem tier lists (rerun for game v0.5.161, Nov 24): Elite allows one Legendary, so the legendary list fills that slot and the rare &amp; uncommon list the other five. Each rank costs its number in gems (rank 5 = 15 in all) and sends the Pokémon back to Lv 5.</div>`;
+      if (ready.length) h += `<div style="margin-top:4px"><b class="ok">Ready now:</b> ${ready.slice(0, 4).map((r) => esc(r.name)).join(', ')}</div>`;
+      if (gap.length) h += `<div style="margin-top:2px"><b class="warn">Top picks still at rank 0:</b> ${gap.slice(0, 5).map((r) => esc(r.name)).join(', ')}</div>`;
+      const L = W.filter((r) => r.leg), N = W.filter((r) => !r.leg);
+      if (L.length) h += `<div style="margin-top:10px"><b>👑 Your Legendary slot</b></div>` + L.map(row).join('');
+      if (N.length) h += `<div style="margin-top:12px"><b>⚔️ Your 5 other Elite slots</b> <span class="dim">best score first</span></div>` + N.map(row).join('');
       h += `</div>`;
     }
     return h + gemsView(esc);
@@ -7285,22 +7311,26 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   let ugBusy = false, ugStatus = '';
   const booked = () => { try { return JSON.parse(localStorage.getItem('mega-ug-book') || 'null'); } catch { return null; } };
   const saveBook = (b) => { try { if (b) localStorage.setItem('mega-ug-book', JSON.stringify(b)); else localStorage.removeItem('mega-ug-book'); } catch (__e) { __h('70-plan-04-underground:12', __e); } };
-  function reserved() {
-    const out = new Set(S().team || []);
+  // noTeam: leave out the active team (a booked team may be in it - the game takes a Pokémon out of the team
+  // itself when it is sent, takeOutMon)
+  // booked (a team Jimmy booked): only goals running right now hold a Pokémon back - a waiting goal picks again later
+  function reserved(noTeam, booked) {
+    const out = new Set(noTeam ? [] : S().team || []);
     for (const g of Plan.goals) {
       if (g.done) continue;
+      if (booked && Plan.live(g.id)?.state !== 'running') continue;
       if (g.type === 'legend') { for (const u of E.read('Game.zoneTeam', [], g.foe) || []) out.add(u); for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       if (g.type === 'level') { for (const u of [...(g.uids || []), ...(g.carriers || [])]) out.add(u); }
       // the Shiny Raid team and roamer teams (2026-11-19: Palkia went to the Underground mid-raid, leaving Dialga alone)
-      if (g.type === 'raid') { for (const u of g.pick?.mine || []) out.add(u); try { const r = E.get('Raids'), reg = S().adv?.event?.raid ? S().adv.event.reg : r.drawn(); for (const u of S().eventTeams?.[r.teamKey(reg)] || []) out.add(u); } catch (__e) { __h('70-plan-04-underground:20', __e); } }
+      if (g.type === 'raid') { for (const u of g.pick?.mine || []) out.add(u); try { const r = E.get('Raids'), reg = S().adv?.event?.raid ? S().adv.event.reg : r.drawn(); for (const u of S().eventTeams?.[r.teamKey(reg)] || []) out.add(u); } catch (__e) { __h('70-plan-04-underground:24', __e); } }
       if (g.type === 'roam') { for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       // the World Boss capture team: expeditions take Pokémon out for hours, and the capture window comes once an edition
       if (g.type === 'wboss') { const z = GoalKit.wbZone(); if (z) { for (const u of E.read('Game.zoneTeam', [], z.id) || []) out.add(u); for (const u of Legends.sims()[z.id]?.uids || []) out.add(u); } }
     }
     return out;
   }
-  function eligible() {
-    const used = S().under?.used || {}, rsv = reserved();
+  function eligible(noTeam, booked) {
+    const used = S().under?.used || {}, rsv = reserved(noTeam, booked);
     const away = new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
     return (E.read('Game.ownedMons', []) || []).filter((m) => !used[m.uid] && !rsv.has(m.uid) && !away.has(m.uid) && (() => { try { return !U().why(m); } catch { return false; } })());
   }
@@ -7358,7 +7388,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   function guidePicks(pool, theme) {
     const list = GUIDE[theme?.key] || []; if (!list.length) return [];
     const by = new Map();
-    for (const m of pool) { let n = ''; try { n = norm(GemFocus.nameOf(m.id)); } catch (__e) { __h('70-plan-04-underground:86', __e); } const o = by.get(n); if (!o || m.level > o.level || (m.level === o.level && (m.rank || 0) > (o.rank || 0))) by.set(n, m); }
+    for (const m of pool) { let n = ''; try { n = norm(GemFocus.nameOf(m.id)); } catch (__e) { __h('70-plan-04-underground:90', __e); } const o = by.get(n); if (!o || m.level > o.level || (m.level === o.level && (m.rank || 0) > (o.rank || 0))) by.set(n, m); }
     return list.map((n) => by.get(norm(n))).filter(Boolean);
   }
   function candidates(pool, theme, from) {
@@ -7366,7 +7396,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const lv = (f) => { try { return +u.levelOf(f) || 50; } catch { return 50; } };
     const foes = [];
     for (let f = Math.ceil(Math.max(1, from) / every) * every, k = 0; k < 2; f += every, k++) {
-      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:94', __e); }
+      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:98', __e); }
       ids.slice(0, 5).forEach((id, i) => foes.push({ id: +id, level: lv(f), w: 2 }));
     }
     const TT = theme?.types || [], DEX = E.get('Game.DEX') || {};
@@ -7442,12 +7472,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:170', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:174', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:174', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:175', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:178', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:179', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -7475,7 +7505,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           // Galleries on 2026-11-25). It waits for them up to 3 h into the day (he frees them from other plans), then gives up.
           const bk = booked();
           if (bk && bk.day === S().under?.day && u.theme(bay)?.key === bk.theme) {
-            const busy = reserved(), el = new Set(eligible().map((m) => m.uid));
+            // the active team doesn't hold a booked Pokémon back - unless a run is using it right now (raid, League, tower)
+            const run = !!GoalKit.holder(), busy = reserved(!run, true), el = new Set(eligible(!run, true).map((m) => m.uid));
             const free2 = bk.uids.every((x) => el.has(x) && !busy.has(x) && !taken.has(x));
             if (!free2) {
               bk.seen = bk.seen || Date.now(); saveBook(bk);
@@ -7497,14 +7528,14 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           if (!Plan.running || Plan.oldOn() || !Plan.hasType('under')) return; // paused or removed while picking
           // the pick takes a while (the game's expedition sim): a raid / catch goal may have claimed one of these meanwhile
           // (2026-11-20: Lugia and Gyarados went underground right after the Shiny Raid picked them) - check again just before sending
-          { const now = reserved(); if (pl.uids.some((x) => now.has(x))) { delete ugPlans[bay]; ugStatus = 'a goal just claimed one of the picked Pokémon - picking again'; return; } }
+          { const now = pl.booked ? reserved(!GoalKit.holder(), true) : reserved(); if (pl.uids.some((x) => now.has(x))) { delete ugPlans[bay]; ugStatus = 'a goal just claimed one of the picked Pokémon - picking again'; return; } }
           const who = pl.uids.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', '); // before: once sent, they're out of the PC
           { const why = Guard.team(pl.uids, { need: (E.get('CONFIG')?.UNDERGROUND?.TEAM) || 3, minLevel: 1 });
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, pl.from || 1);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:231', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:232', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:236', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:237', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who}${pl.guide ? ` (${pl.guide} of them from the Discord guide's picks)` : ''} from floor ${pl.from} - about floor ${pl.floors}, floor ${pl.low ?? pl.floors} on a bad run (${pl.cleared}+ floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
           g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, low: pl.low, cleared: pl.cleared, theme: pl.theme };
           if (pl.booked) { saveBook(null); Log.add('Underground: your booked team is on its way'); }
