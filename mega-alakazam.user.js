@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.9
+// @version      2.15.10
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.9';
+const VERSION = '2.15.10';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5069,6 +5069,8 @@ const GemFocus = (() => {
   const typeOf = (k) => String(k).split(':')[0];
   const label = (k) => { try { return U().gemName(k); } catch { return `${TIER[tierOf(k)]} ${typeOf(k)} gem`; } };
   const owned = () => E.read('Game.ownedMons', []) || [];
+  // a Pokémon on an expedition: the game can't rank it up (it answers "Not found.")
+  const away = (m) => { try { return (E.read('Game.underMons', []) || []).some((x) => x.uid === m.uid); } catch { return false; } };
   // one Pokémon: its gem types, what it has, the next rank, and what rank 5 would take in all
   function status(m) {
     const u = U(), keys = (() => { try { return u.gemKeys(m.id) || []; } catch { return []; } })(), have = gems();
@@ -5076,13 +5078,13 @@ const GemFocus = (() => {
     const ro = (() => { try { return u.rankOf(m); } catch { return null; } })();
     let left = 0; for (let r = rank + 1; r <= max; r++) left += r;
     const best = keys.slice().sort((a, b) => (have[b] || 0) - (have[a] || 0))[0] || null;
-    return { m, keys: keys.map((k) => ({ k, label: label(k), have: have[k] || 0, tier: tierOf(k) })), rank, max, next: ro?.next ?? rank + 1, need: ro?.need ?? rank + 1, why: rank >= max ? 'at the top rank' : ro?.why || null, key: ro?.key || best, left, haveBest: best ? have[best] || 0 : 0 };
+    return { m, keys: keys.map((k) => ({ k, label: label(k), have: have[k] || 0, tier: tierOf(k) })), rank, max, next: ro?.next ?? rank + 1, need: ro?.need ?? rank + 1, why: rank >= max ? 'at the top rank' : away(m) ? 'in the Underground right now' : ro?.why || null, key: ro?.key || best, left, haveBest: best ? have[best] || 0 : 0 };
   }
   // fusing into one of this Pokémon's gem types: 3 of the tier below make 1 (only where the game allows it)
   function fuseFor(k) {
     const t = tierOf(k); if (t < 1) return null;
     const lower = `${typeOf(k)}:${t - 1}`;
-    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:66', __e); }
+    let to = null; try { to = U().fuseTo(lower); } catch (__e) { __h('63-gemfocus:68', __e); }
     if (to !== k) return { can: false, lower };
     const per = +(E.get('CONFIG')?.UNDERGROUND?.GEM_FUSE ?? 3), have = gems()[lower] || 0;
     return { can: true, lower, lowerLabel: label(lower), per, have, makes: Math.floor(have / per) };
@@ -5113,7 +5115,7 @@ const GemFocus = (() => {
   function watchShop() {
     try {
       const o = shop(); if (!o) return;
-      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:97', __e); }
+      let told = {}; try { told = JSON.parse(localStorage.getItem(TOLD) || '{}'); } catch (__e) { __h('63-gemfocus:99', __e); }
       if (told.ends !== o.ends) told = { ends: o.ends, keys: [] };
       const fresh = shopHits().filter((h) => h.ok && !told.keys.includes(h.k));
       if (!fresh.length) return;
@@ -5122,7 +5124,7 @@ const GemFocus = (() => {
       const ends = new Date(o.ends).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
       Notify.send('daily', `Gem shop: ${fresh.map((h) => h.label).join(', ')}`, `${fresh.map((h) => `${h.label} (${h.price} shards) - for ${h.mons.slice(0, 3).join(', ')}`).join(' · ')} · you have ${shards()} shards · offer ends ${ends}. Buy it on the Gems tab.`);
       Log.add(`gem shop: ${fresh.map((h) => `${h.label} for ${h.mons.join(', ')}`).join('; ')} - you can afford it (phone told)`);
-    } catch (__e) { __h('63-gemfocus:106', __e); }
+    } catch (__e) { __h('63-gemfocus:108', __e); }
   }
   let timer = null;
   function boot() { if (timer) return; timer = setInterval(watchShop, 5 * 60_000); setTimeout(watchShop, 30_000); }
