@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.11
+// @version      2.15.12
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.11';
+const VERSION = '2.15.12';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7313,22 +7313,24 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   const saveBook = (b) => { try { if (b) localStorage.setItem('mega-ug-book', JSON.stringify(b)); else localStorage.removeItem('mega-ug-book'); } catch (__e) { __h('70-plan-04-underground:12', __e); } };
   // noTeam: leave out the active team (a booked team may be in it - the game takes a Pokémon out of the team
   // itself when it is sent, takeOutMon)
-  function reserved(noTeam) {
+  // booked (a team Jimmy booked): only goals running right now hold a Pokémon back - a waiting goal picks again later
+  function reserved(noTeam, booked) {
     const out = new Set(noTeam ? [] : S().team || []);
     for (const g of Plan.goals) {
       if (g.done) continue;
+      if (booked && Plan.live(g.id)?.state !== 'running') continue;
       if (g.type === 'legend') { for (const u of E.read('Game.zoneTeam', [], g.foe) || []) out.add(u); for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       if (g.type === 'level') { for (const u of [...(g.uids || []), ...(g.carriers || [])]) out.add(u); }
       // the Shiny Raid team and roamer teams (2026-11-19: Palkia went to the Underground mid-raid, leaving Dialga alone)
-      if (g.type === 'raid') { for (const u of g.pick?.mine || []) out.add(u); try { const r = E.get('Raids'), reg = S().adv?.event?.raid ? S().adv.event.reg : r.drawn(); for (const u of S().eventTeams?.[r.teamKey(reg)] || []) out.add(u); } catch (__e) { __h('70-plan-04-underground:22', __e); } }
+      if (g.type === 'raid') { for (const u of g.pick?.mine || []) out.add(u); try { const r = E.get('Raids'), reg = S().adv?.event?.raid ? S().adv.event.reg : r.drawn(); for (const u of S().eventTeams?.[r.teamKey(reg)] || []) out.add(u); } catch (__e) { __h('70-plan-04-underground:24', __e); } }
       if (g.type === 'roam') { for (const u of Legends.sims()[g.foe]?.uids || []) out.add(u); }
       // the World Boss capture team: expeditions take Pokémon out for hours, and the capture window comes once an edition
       if (g.type === 'wboss') { const z = GoalKit.wbZone(); if (z) { for (const u of E.read('Game.zoneTeam', [], z.id) || []) out.add(u); for (const u of Legends.sims()[z.id]?.uids || []) out.add(u); } }
     }
     return out;
   }
-  function eligible(noTeam) {
-    const used = S().under?.used || {}, rsv = reserved(noTeam);
+  function eligible(noTeam, booked) {
+    const used = S().under?.used || {}, rsv = reserved(noTeam, booked);
     const away = new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
     return (E.read('Game.ownedMons', []) || []).filter((m) => !used[m.uid] && !rsv.has(m.uid) && !away.has(m.uid) && (() => { try { return !U().why(m); } catch { return false; } })());
   }
@@ -7386,7 +7388,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   function guidePicks(pool, theme) {
     const list = GUIDE[theme?.key] || []; if (!list.length) return [];
     const by = new Map();
-    for (const m of pool) { let n = ''; try { n = norm(GemFocus.nameOf(m.id)); } catch (__e) { __h('70-plan-04-underground:88', __e); } const o = by.get(n); if (!o || m.level > o.level || (m.level === o.level && (m.rank || 0) > (o.rank || 0))) by.set(n, m); }
+    for (const m of pool) { let n = ''; try { n = norm(GemFocus.nameOf(m.id)); } catch (__e) { __h('70-plan-04-underground:90', __e); } const o = by.get(n); if (!o || m.level > o.level || (m.level === o.level && (m.rank || 0) > (o.rank || 0))) by.set(n, m); }
     return list.map((n) => by.get(norm(n))).filter(Boolean);
   }
   function candidates(pool, theme, from) {
@@ -7394,7 +7396,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     const lv = (f) => { try { return +u.levelOf(f) || 50; } catch { return 50; } };
     const foes = [];
     for (let f = Math.ceil(Math.max(1, from) / every) * every, k = 0; k < 2; f += every, k++) {
-      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:96', __e); }
+      let ids = []; try { ids = u.guardsOf(f) || []; } catch (__e) { __h('70-plan-04-underground:98', __e); }
       ids.slice(0, 5).forEach((id, i) => foes.push({ id: +id, level: lv(f), w: 2 }));
     }
     const TT = theme?.types || [], DEX = E.get('Game.DEX') || {};
@@ -7470,12 +7472,12 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const u = U(), now = Date.now();
       // 1) bring finished runs home - never before their end time (taking back early recalls them)
       for (const sl of [...(S().under?.slots || [])]) {
-        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:172', __e); }
+        let pr = null; try { pr = u.progress(sl); } catch (__e) { __h('70-plan-04-underground:174', __e); }
         if (pr?.done && now > +sl.end + 2000) {
           const reached = pr.floor ?? sl.res?.at?.length;
           try { u.collect(sl.id); } catch (e) { Log.add('Underground: could not bring a run home (' + (e?.message || e) + ')'); continue; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:176', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:177', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:178', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:179', __e); }
           Log.add(`Underground bay ${(sl.bay || 0) + 1}: back from floor ${reached ?? '?'} (${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')})`);
           Notify.send('daily', `Underground: back from floor ${reached ?? '?'}`, `Bay ${(sl.bay || 0) + 1} · ${sl.team.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', ')} · ${+u.left() || 0} runs left today`);
         }
@@ -7504,7 +7506,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           const bk = booked();
           if (bk && bk.day === S().under?.day && u.theme(bay)?.key === bk.theme) {
             // the active team doesn't hold a booked Pokémon back - unless a run is using it right now (raid, League, tower)
-            const run = !!GoalKit.holder(), busy = reserved(!run), el = new Set(eligible(!run).map((m) => m.uid));
+            const run = !!GoalKit.holder(), busy = reserved(!run, true), el = new Set(eligible(!run, true).map((m) => m.uid));
             const free2 = bk.uids.every((x) => el.has(x) && !busy.has(x) && !taken.has(x));
             if (!free2) {
               bk.seen = bk.seen || Date.now(); saveBook(bk);
@@ -7526,14 +7528,14 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
           if (!Plan.running || Plan.oldOn() || !Plan.hasType('under')) return; // paused or removed while picking
           // the pick takes a while (the game's expedition sim): a raid / catch goal may have claimed one of these meanwhile
           // (2026-11-20: Lugia and Gyarados went underground right after the Shiny Raid picked them) - check again just before sending
-          { const now = reserved(pl.booked && !GoalKit.holder()); if (pl.uids.some((x) => now.has(x))) { delete ugPlans[bay]; ugStatus = 'a goal just claimed one of the picked Pokémon - picking again'; return; } }
+          { const now = pl.booked ? reserved(!GoalKit.holder(), true) : reserved(); if (pl.uids.some((x) => now.has(x))) { delete ugPlans[bay]; ugStatus = 'a goal just claimed one of the picked Pokémon - picking again'; return; } }
           const who = pl.uids.map((x) => name(E.read('Game.getMon', {}, x)?.id)).join(', '); // before: once sent, they're out of the PC
           { const why = Guard.team(pl.uids, { need: (E.get('CONFIG')?.UNDERGROUND?.TEAM) || 3, minLevel: 1 });
             if (why) { ugStatus = Guard.stop(`Underground bay ${bay + 1}`, why); delete ugPlans[bay]; return; } }
           const res = await u.send(pl.uids, bay, pl.from || 1);
           if (res?.error) { Log.add(`Underground bay ${bay + 1}: the game said "${res.error}"`); delete ugPlans[bay]; ugStatus = 'could not send: ' + res.error; return; }
-          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:234', __e); }
-          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:235', __e); }
+          try { E.call('Game.save'); } catch (__e) { __h('70-plan-04-underground:236', __e); }
+          try { E.call('App.refresh'); } catch (__e) { __h('70-plan-04-underground:237', __e); }
           Log.add(`Underground bay ${bay + 1} (${pl.theme}): sent ${who}${pl.guide ? ` (${pl.guide} of them from the Discord guide's picks)` : ''} from floor ${pl.from} - about floor ${pl.floors}, floor ${pl.low ?? pl.floors} on a bad run (${pl.cleared}+ floors cleared, about ₽${pl.value.toLocaleString()} worth of loot) by the game's own simulation`);
           g.lastSend = { at: Date.now(), from: pl.from, floors: pl.floors, low: pl.low, cleared: pl.cleared, theme: pl.theme };
           if (pl.booked) { saveBook(null); Log.add('Underground: your booked team is on its way'); }
