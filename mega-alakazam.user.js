@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.14
+// @version      2.15.15
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.14';
+const VERSION = '2.15.15';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3166,7 +3166,7 @@ const Tasks = (() => {
         return `<button class="tcard${ui.pick === T.k ? ' on' : ''}" data-act="task-pick" data-k="${T.k}" title="${esc(T.hint)}"><i class="ic ic-${T.ic}"></i><span>${esc(T.name)}${busy ? '<small>in your queue</small>' : ''}</span></button>`;
       }).join('')}</div>`;
     h += options(w, planUi, esc);
-    if (ui.msg) h += `<div class="note ok" style="margin-top:8px">${esc(ui.msg)}</div>`;
+    if (ui.msg) h += `<div class="note ${ui.warn ? 'warn' : 'ok'}" style="margin-top:8px">${esc(ui.msg)}</div>`;
     return h;
   }
   // the picked task's add button, read from its options (no screen needed, so Kinesis can press it too):
@@ -3190,8 +3190,18 @@ const Tasks = (() => {
     return !!addBtn(w, planUi, esc);
   }
   // add the task; now = put what was added at the top and run the plan. fire(dataset) presses the add button.
+  // why Start Now / Add to Queue can't add anything right now (2.15.15: the buttons stay pressable and say so)
+  function whyNot(w, planUi, esc) {
+    const T = task(ui.pick); if (!T) return 'Pick a task first: choose a category, then tap one of the tasks above.';
+    if (!w.ok) return 'The game isn\'t ready yet - try again in a moment.';
+    if (T.t === 'daily') return DAILY.some(([k]) => ui.daily[k]) ? 'All the dailies you ticked are already in your queue.' : 'Tick at least one daily above first.';
+    if (['shiny', 'elite'].includes(T.t)) return `${T.name}: use the buttons in its options above.`;
+    return `${T.name}: it's already in your queue, or pick its options above first.`;
+  }
   function go(w, planUi, esc, now, fire) {
-    const T = task(ui.pick); if (!T) return;
+    const T = task(ui.pick);
+    if (!canGo(w, planUi, esc)) { ui.msg = whyNot(w, planUi, esc); ui.warn = 1; setTimeout(() => { ui.msg = ''; ui.warn = 0; }, 15000); return; }
+    ui.warn = 0;
     const before = new Set(Plan.goals.map((g) => g.id));
     if (T.t === 'daily') { for (const [k] of DAILY) if (ui.daily[k] && !inPlan(k)) Plan.add(k, {}); }
     else { const b = addBtn(w, planUi, esc); if (!b) return; fire(b.ds); }
@@ -3457,6 +3467,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .qd{margin:6px 0 0;color:var(--mute);font-size:var(--t-s);overflow-wrap:anywhere} .qx{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
 .qact{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px} .qact button{all:unset;cursor:pointer;padding:5px 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s)}
 .qact button:hover:enabled{border-color:var(--acc)} .qact button:disabled{opacity:.4;cursor:default} .qact .rm{color:#f1b3bc}
+.wrap .btn.dimb{opacity:.55}
 
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
@@ -3498,7 +3509,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     .fb{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:11px 8px;border-radius:10px;font-weight:800;font-size:var(--t-m);border:1px solid var(--line-2);background:var(--well);color:var(--ink)}
     .fb.go{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)} .fb.go2{border-color:var(--acc);color:var(--acc)}
     .fb.stop{background:color-mix(in srgb,var(--bad) 14%,var(--well));border-color:color-mix(in srgb,var(--bad) 45%,var(--line));color:#ffc5cf}
-    .fb.lt{padding:7px 8px;font-weight:600;font-size:var(--t-s);color:var(--mute)} .fb:disabled{opacity:.4;cursor:default}
+    .fb.lt{padding:7px 8px;font-weight:600;font-size:var(--t-s);color:var(--mute)} .fb:disabled{opacity:.4;cursor:default} .fb.dimb{opacity:.55}
     .pillq{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:999px;background:var(--line-2);color:var(--ink);font-size:var(--t-s)}
   `;
   let host, root, timer;
@@ -3563,7 +3574,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // so the two always match: whatever these screens get, the phone gets too.
   // 1.0: every tab but Now, Plan and Trades (those keep their phone shape - Trades does real trades from the phone)
   // the phone's Start Now / Add to Queue / Start-Stop (Mega's are in its footer)
-  const phoneFoot = (w) => { const can = w.ok && Tasks.canGo(w, planUi, esc); return `<div class="btns" style="margin-top:4px"><button class="btn gold" data-act="task-go" data-now="1" ${can ? '' : 'disabled'}>Start Now</button><button class="btn" data-act="task-go" data-now="0" ${can ? '' : 'disabled'}>＋ Add to Queue</button></div><button class="btn${Plan.running ? ' danger' : ''}" data-act="stop-all">${Plan.running ? 'Stop Mega' : 'Start Mega'}</button>`; };
+  const phoneFoot = (w) => { const can = w.ok && Tasks.canGo(w, planUi, esc); return `<div class="btns" style="margin-top:4px"><button class="btn gold${can ? '' : ' dimb'}" data-act="task-go" data-now="1">Start Now</button><button class="btn${can ? '' : ' dimb'}" data-act="task-go" data-now="0">＋ Add to Queue</button></div><button class="btn${Plan.running ? ' danger' : ''}" data-act="stop-all">${Plan.running ? 'Stop Mega' : 'Start Mega'}</button>`; };
   const MV = { now: (w) => Sub.apply('now', Views.now(w, esc, fmtIn), prefs, esc, { pick: 'main' }), trades: () => Views.trades(esc), tasks: (w) => Views.tasks(w, planUi, esc) + phoneFoot(w), queue: (w) => Views.queue(w, planUi, esc), care: (w) => Views.daycare(w, esc), engine: (w) => Views.engine(w, esc), fights: (w) => Views.fights(w, fightData, prefs, esc), league: () => Views.league(esc),
     dex: (w) => Views.dex(w, prefs, esc, dexUi), box: (w) => (w.ok ? Views.box(esc) : '<div class="note">Waiting for the game engine.</div>'),
     legends: (w) => Views.legends(w, legUi, esc), gems: (w) => (w.ok ? Views.gems(esc) : '<div class="note">Waiting for the game engine.</div>'), blocs: (w) => (w.ok ? Views.blocs(esc) : '<div class="note">Waiting for the game engine.</div>'), act: () => Views.activity(esc) };
@@ -3718,7 +3729,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'task-daily') { Tasks.ui.daily[t.dataset.k] = !!t.checked; Tasks.save(); renderBody(true); return; }
     if (act === 'task-go') {
       const fire = (ds) => onClick({ target: { closest: () => ({ dataset: ds, checked: false, value: '', tagName: 'BUTTON', classList: { contains: () => false }, closest: () => null }) }, preventDefault() {}, stopPropagation() {} });
-      Tasks.go(World.build(), planUi, esc, t.dataset.now === '1', fire); renderBody(true); return;
+      Tasks.go(World.build(), planUi, esc, t.dataset.now === '1', fire); if (view() !== 'tasks') goTab('tasks'); renderBody(true); return;
     }
     if (act === 'tr-refresh') { Trades.refresh(true).then(() => renderBody(true)); setTimeout(() => renderBody(true), 50); }
     if (act === 'tr-open') { Trades.openMsg = 'Opening in the game…'; renderBody(true); Trades.openInGame(+t.dataset.id, !!t.dataset.shiny, t.dataset.who || null, +t.dataset.want || 0).then((m) => { Trades.openMsg = m ? m[0].toUpperCase() + m.slice(1) + '.' : ''; renderBody(true); setTimeout(() => { Trades.openMsg = ''; }, 30_000); }); }
@@ -3910,8 +3921,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   function footer(w) {
     const f = root?.querySelector('.foot'); if (!f) return;
     const onTasks = view() === 'tasks', can = onTasks && w.ok && Tasks.canGo(w, planUi, esc), n = Plan.goals.filter((g) => !g.done).length;
-    const html = `<div class="fr"><button class="fb go" data-act="task-go" data-now="1" ${can ? '' : 'disabled'} title="${onTasks ? 'Put this task at the top of the queue and run it' : 'Open Tasks to pick one'}">Start Now</button><button class="fb ${Plan.running ? 'stop' : 'go2'}" data-act="stop-all">${Plan.running ? 'Stop Mega' : 'Start Mega'}</button></div>
-      <div class="fr"><button class="fb lt" data-act="task-go" data-now="0" ${can ? '' : 'disabled'}>＋ Add to Queue</button><button class="fb lt" data-act="tab" data-tab="plan">Queue <span class="pillq">${n}</span></button></div>`;
+    const html = `<div class="fr"><button class="fb go${can ? '' : ' dimb'}" data-act="task-go" data-now="1" title="${onTasks ? 'Put this task at the top of the queue and run it' : 'Open Tasks to pick one'}">Start Now</button><button class="fb ${Plan.running ? 'stop' : 'go2'}" data-act="stop-all">${Plan.running ? 'Stop Mega' : 'Start Mega'}</button></div>
+      <div class="fr"><button class="fb lt${can ? '' : ' dimb'}" data-act="task-go" data-now="0">＋ Add to Queue</button><button class="fb lt" data-act="tab" data-tab="plan">Queue <span class="pillq">${n}</span></button></div>`;
     if (f.dataset.html !== html) { f.innerHTML = html; f.dataset.html = html; }
   }
   function renderBody(force, w = World.build()) {
