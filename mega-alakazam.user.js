@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.15.13
+// @version      2.15.14
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.15.13';
+const VERSION = '2.15.14';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1847,6 +1847,7 @@ const Casing = (() => {
       const start = first || /[(:·–—\-|/]/.test(prev);
       first = false;
       if (/\d/.test(w) || /[A-Z].*[A-Z]/.test(w) || /^[A-Z]/.test(w) && w.length > 1 && w !== w[0] + w.slice(1).toLowerCase()) return w; // KO, Lv, Ch51, XP…
+      if (/^[A-Z]$/.test(w)) return w; // a capital letter on its own is meant ("Tier A"); the article is written lowercase
       if (!start && SMALL.has(w.toLowerCase())) return w.toLowerCase();
       return w[0].toUpperCase() + w.slice(1);
     });
@@ -1884,7 +1885,7 @@ const Casing = (() => {
     const hit = memo.get(s); if (hit !== undefined) return hit;
     let v = s; const list = namesMap();
     if (!list.length) return s;
-    try { for (const [re, map] of list) v = v.replace(re, (m, pre, k) => pre + (map.get(k) ?? k)); } catch (__e) { __h('54-case:59', __e); }
+    try { for (const [re, map] of list) v = v.replace(re, (m, pre, k) => pre + (map.get(k) ?? k)); } catch (__e) { __h('54-case:60', __e); }
     if (s.length < 2000) { if (memo.size > 3000) memo.clear(); memo.set(s, v); } // big texts (whole phone updates) aren't kept
     return v;
   }
