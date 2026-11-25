@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.0
+// @version      2.20.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.0';
+const VERSION = '2.20.1';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4875,8 +4875,10 @@ Views.now = (w, esc, fmtIn) => {
         if (st === 'ready') {
           const ids = (() => { try { return F.starters(r.key); } catch { return []; } })();
           b += `<div style="display:flex;gap:8px;margin:4px 0 8px">${ids.map((id) => `<button class="btn sm" data-act="rw-ask" data-k="f${r.key}${id}" style="flex:1;margin:0;display:flex;flex-direction:column;align-items:center;gap:2px"><img src="${Engine.sprite(id)}" width="40" height="40" style="image-rendering:pixelated">${nm(id)}</button>`).join('')}</div>`;
+          { const a = (() => { try { return GoalTypes.feteAdvice(r.key); } catch { return null; } })();
+            if (a) b += `<div style="font-size:var(--t-s);margin:0 0 8px">${a.discord ? `<div>📋 <b>Discord:</b> ${nm(a.discord.id)} <span class="dim">- ${esc(a.discord.why)}</span></div>` : '<div class="dim">📋 Discord: none of these starters is on the tier lists</div>'}${a.mine ? `<div style="margin-top:3px">🔮 <b>Mega:</b> ${nm(a.mine.id)} <span class="dim">- ${esc(a.mine.why)}</span></div>` : ''}</div>`; }
           const sel = ids.find((id) => ask === `f${r.key}${id}`);
-          if (sel) b += `<div class="note" style="margin:0 0 8px">Pick <b>shiny ${nm(sel)}</b> for ${esc(RN(r.key))}? The game saves this choice for good.<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="fete-pick" data-reg="${r.key}" data-id="${sel}">Pick ${nm(sel)}</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
+          if (sel) b += `<div class="note" style="margin:0 0 8px">Pick <b>shiny ${nm(sel)}</b> for ${esc(RN(r.key))}? The game saves this choice for good, then Mega simulates the team and starts the raid.<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="fete-pick" data-reg="${r.key}" data-id="${sel}">Pick ${nm(sel)}</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
         }
       }
       if (Views.__feteMsg) b += `<div class="dim" style="margin-top:4px">${esc(Views.__feteMsg)}</div>`;
@@ -4884,7 +4886,7 @@ Views.now = (w, esc, fmtIn) => {
         : `<div class="note" style="margin-top:6px">Not in your queue. <button class="btn sm gold" data-act="plan-add-fete15" style="width:auto;margin:4px 0 0">Add the Trainer Count Event</button></div>`;
       h += `<div class="card"><h3>Trainer Count Event${to ? ` <span class="dim" style="font-size:var(--t-s);font-weight:600">· until ${esc(clk(to))}</span>` : ''}</h3>${b}</div>`;
     }
-  } catch (__e) { __h('62-nowview:223', __e); }
+  } catch (__e) { __h('62-nowview:225', __e); }
   // ---- coming up (2.19.0, Jimmy 2026-11-25): season / weather / time / moon windows opening today and tomorrow ----
   try {
     const U = Upcoming.list(), ask = Views.__rwAsk || null;
@@ -4903,7 +4905,7 @@ Views.now = (w, esc, fmtIn) => {
         + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">🎯 to catch (not in your Pokédex) · ⚔️ Elite tiers left · times are when it opens. Tap one to add it to your queue.</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:242', __e); }
+  } catch (__e) { __h('62-nowview:244', __e); }
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
@@ -4955,7 +4957,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:294', __e); }
+  } catch (__e) { __h('62-nowview:296', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -10096,7 +10098,7 @@ const Plan = (() => {
       if (!x) return { state: 'done', why: 'every region\'s starter is caught' };
       if (x.st === 'run') return { state: 'ready', why: null };
       if (x.st === 'ready') {
-        if (g && g.askPick !== x.reg) { g.askPick = x.reg; Plan.save(); try { Notify.send('ready', `Trainer Count Event: pick your ${regName(x.reg)} starter`, `${t(() => F().starters(x.reg).map((id) => name(id)).join(', '), '')} - pick one on Mega's Now screen or in the game (Raids), then Mega catches it`); } catch (__e) { __h('70-plan-24-fete:37', __e); } }
+        if (g && g.askPick !== x.reg) { g.askPick = x.reg; Plan.save(); try { const a = advice(x.reg); Notify.send('ready', `Trainer Count Event: pick your ${regName(x.reg)} starter`, `${t(() => F().starters(x.reg).map((id) => name(id)).join(', '), '')}${a.discord ? ` · Discord: ${name(a.discord.id)}` : ''}${a.mine ? ` · Mega: ${name(a.mine.id)}` : ''} - pick on Mega's Now screen (or Kinesis), then Mega catches it`); } catch (__e) { __h('70-plan-24-fete:37', __e); } }
         return { state: 'wait', why: `pick your ${regName(x.reg)} starter (Now › Trainer Count Event, or Raids in the game)` };
       }
       if (x.st === 'soon') return { state: 'wait', why: `${regName(x.reg)} opens ${DexInfo.clock(+t(() => f.openAt(x.reg), 0))}` };
@@ -10130,16 +10132,47 @@ const Plan = (() => {
       return 'could not start the raid - see the log';
     },
   };
+  // ---- which starter: the Discord tier list's word, then Mega's (2.20.1, Jimmy 2026-11-25) ----
+  // Each starter line is base, base+1, base+2 (all 15 of the event's). The Discord's Rare & Uncommon tier list
+  // (v0.5.161) has two starter lines: Feraligatr (Rare #6, 67 pts, League #4) and Emboar (Rare #7, 66 pts, Elite #8).
+  const DISCORD = { 158: 'Feraligatr is Rare #6 on the Discord tier list (67 pts, League #4)', 498: 'Emboar is Rare #7 on the Discord tier list (66 pts, Elite #8)' };
+  function advice(reg) {
+    const ids = t(() => F().starters(reg), []) || [], mons = E.read('Game.allMons', []) || [], under = E.read('Game.underMons', []) || [];
+    const all = [...mons, ...under], D = E.get('Game.DEX') || {};
+    const bstOf = (id) => Object.values(D[id]?.stats || {}).reduce((a, b) => a + b, 0);
+    const rows = ids.map((id) => {
+      const line = [id, id + 1, id + 2], fin = id + 2;
+      const shiny = all.filter((m) => m.shiny && line.includes(+m.id));
+      const owned = all.filter((m) => line.includes(+m.id));
+      const types = D[fin]?.types || [];
+      // how many of your Lv 100s already cover its types
+      const cover = types.reduce((n, ty) => n + all.filter((m) => m.level >= 100 && (D[m.id]?.types || []).includes(ty)).length, 0);
+      let score = bstOf(fin) / 10 + (DISCORD[id] ? 25 : 0) - (shiny.length ? 60 : 0) - Math.min(cover, 20);
+      const why = [];
+      if (shiny.length) why.push(`you already have a shiny ${name(shiny[0].id)}`); else why.push(`no shiny ${name(fin)} yet`);
+      if (DISCORD[id]) why.push(`${name(fin)} is on the Discord tier list`);
+      why.push(`${types.map((x) => x[0].toUpperCase() + x.slice(1)).join('/')}: ${cover ? `${cover} of your Lv 100s share its type${types.length > 1 ? 's' : ''}` : 'a type you barely have at Lv 100'}`);
+      return { id, fin, score, why: why.join(' · '), owned: owned.length };
+    });
+    const mine = rows.slice().sort((a, b) => b.score - a.score)[0] || null;
+    const dId = ids.find((id) => DISCORD[id]);
+    return { discord: dId ? { id: dId, why: DISCORD[dId] } : null, mine, rows };
+  }
   // pick a starter (from Jimmy's tap on the Now card, after a confirm): the game's own server call
   async function fetePick(reg, id) {
     const f = F(); if (!f) return 'not in this game version';
     const r = await f.pick(reg, +id).catch((e) => ({ error: e?.message || e }));
     if (r?.error) { Log.add(`Trainer Count Event: the game refused the ${regName(reg)} pick (${r.error})`); return `the game said: ${r.error}`; }
     Log.add(`Trainer Count Event: picked shiny ${name(r.id)} for ${regName(reg)}`);
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-24-fete:77', __e); }
-    return `picked ${name(r.id)}`;
+    // then straight to the fight (Jimmy 2026-11-25): the task goes to the top of the queue and the plan runs -
+    // Mega simulates the team in the game's engine and starts the raid
+    let g = Plan.goals.find((x) => !x.done && x.type === 'fete15');
+    if (!g) { Plan.add('fete15', {}); g = Plan.goals.find((x) => !x.done && x.type === 'fete15'); }
+    if (g) { Plan.toTop(g.id); if (!Plan.running) Plan.setRunning(true); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-24-fete:108', __e); }
+    return `picked ${name(r.id)} - simulating the team, then the raid starts`;
   }
-  Object.assign(GoalTypes, { fete15, fetePick });
+  Object.assign(GoalTypes, { fete15, fetePick, feteAdvice: advice });
 })();
 
 /* ===================================================================================================
