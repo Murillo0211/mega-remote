@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.18.2
+// @version      2.19.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.18.2';
+const VERSION = '2.19.0';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2522,7 +2522,7 @@ const DexInfo = (() => {
     return v;
   }
 
-  return { timeOf, nextWhen, whenLine, nextSeason, itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
+  return { phaseAt, nextPhase, timeOf, nextWhen, whenLine, nextSeason, itemFor, howTo, route, routes, whenText, rareItems, availableNow, eggs, eggSlots, loot, itemName, breedFrom, special, wild, forms, regionIds, conditionText, windowText, wxName, clock, pct, evoText };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -3963,6 +3963,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     // Best Next Rewards: tap a tier -> confirm -> add its goal (Jimmy 2026-11-25)
     if (act === 'rw-ask') { Views.__rwAsk = Views.__rwAsk === t.dataset.k ? null : t.dataset.k; renderBody(true); return; }
     if (act === 'rw-cancel') { Views.__rwAsk = null; renderBody(true); return; }
+    if (act === 'up-add') { let d = null; try { d = JSON.parse(t.dataset.json || 'null'); } catch (__e) { __h('60-ui:316', __e); } const ty = t.dataset.type; if (d && ty && !Plan.goals.some((g) => !g.done && g.type === ty && +g.foe === +d.foe)) Plan.add(ty, d); try { Upcoming.clear(); } catch (__e) { __h('60-ui:316', __e); } Views.__rwAsk = null; renderBody(true); return; }
     if (act === 'rw-add') {
       const k = t.dataset.k || '';
       if (k[0] === 'e' && t.dataset.id && !Plan.goals.some((g) => !g.done && g.type === 'elite' && +g.foe === +t.dataset.id)) Plan.add('elite', { foe: +t.dataset.id, upTo: 5 });
@@ -3992,7 +3993,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'plan-add' && planUi.addFoe) { Plan.add('legend', { foe: planUi.addFoe }); planUi.addFoe = null; renderBody(true); }
     if (act === 'ug-preview') { const g = Plan.goals.find((x) => x.id === t.dataset.id); if (g) { const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) g.preview = p; renderBody(true); Promise.resolve(p).finally(() => renderBody(true)); } return; }
     if (act === 'plan-add-ug') { Plan.add('under', { from: planUi.addFrom || 'auto', aim: planUi.addAim || 'deep' }); planUi.addType = 'legend'; renderBody(true); }
-    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:345', __e); } renderBody(true); return; }
+    if (act === 'plan-add-story' && planUi.addStory) { const NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' }; Plan.add('story', { region: planUi.addStory, regionName: NM[planUi.addStory] || planUi.addStory }); planUi.addStory = null; planUi.addType = 'legend'; try { GoalTypes.storyPlace?.(); } catch (__e) { __h('60-ui:346', __e); } renderBody(true); return; }
     if (act === 'plan-add-league' && planUi.addLeague) { if (!Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === planUi.addLeague)) Plan.add('league', { reg: planUi.addLeague, upTo: 5 }); planUi.addLeague = null; planUi.addType = 'legend'; renderBody(true); return; }
     if (act === 'plan-add-reg' && planUi.addReg) { Plan.add('region', { reg: planUi.addReg }); planUi.addReg = null; planUi.addType = 'legend'; renderBody(true); }
     if (act === 'rows') { e.preventDefault(); planUi.openRows = planUi.openRows || {}; planUi.openRows[gid] = !planUi.openRows[gid]; renderBody(true); }
@@ -4018,7 +4019,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'rm-rekey') { Remote.reKey(); Log.add('phone remote: new keys - pair your phone again'); renderBody(true); }
     if (act === 'cards') { Cards.set(!!t.checked); }
     if (act === 'n-test') { Notify.test().then(() => renderBody(true)); }
-    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:371', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
+    if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:372', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -4032,7 +4033,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:385', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:386', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -4046,7 +4047,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:399', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:400', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -4057,19 +4058,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:410', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:411', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:416', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:417', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:419', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:420', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:422', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:423', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -4110,8 +4111,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:463', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:464', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:464', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:465', __e); }
     renderBody(true, w);
   }
 
@@ -4128,12 +4129,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:481', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:482', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:485', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:486', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:486', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:487', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -4165,8 +4166,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:518', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:519', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:519', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:520', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -4181,13 +4182,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:534', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:535', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:535', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:536', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:540', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:541', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4841,6 +4842,25 @@ Views.now = (w, esc, fmtIn) => {
     if (R.shop.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${R.shop.map((x) => `${esc(x.label)} <span class="${x.ok ? 'ok' : 'dim'}">${x.price ? x.price.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(x.mons.slice(0, 2).join(', '))}</span>`).join(' · ')}</div>`;
     h += `<div class="card"><h3>Best Next Rewards</h3>${r}</div>`;
   }
+  // ---- coming up (2.19.0, Jimmy 2026-11-25): season / weather / time / moon windows opening today and tomorrow ----
+  try {
+    const U = Upcoming.list(), ask = Views.__rwAsk || null;
+    if (U.length) {
+      const when = (x) => (x.now ? '<b class="ok">now</b>' : esc(new Date(x.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
+      const row = (x) => {
+        const k = `u${x.kind}${x.id}`, tag = x.queued ? ' <span class="chip on" style="font-size:var(--t-s);padding:1px 7px">In queue</span>' : '';
+        const act = x.queued ? 'data-act="tab" data-tab="plan"' : `data-act="rw-ask" data-k="${k}"`;
+        let r = `<div class="row" ${act} style="cursor:pointer"><span class="k">${Upcoming.verb(x) === 'fight' ? '⚔️' : '🎯'} ${esc(Upcoming.what(x))}${tag} <span class="faint" style="font-size:var(--t-s)">· ${esc(x.why)}${x.place ? ' · ' + esc(x.place) : ''}</span></span><span class="v">${when(x)}</span></div>`;
+        if (!x.queued && ask === k) r += `<div class="note" style="margin:4px 0 6px">Add <b>${x.kind === 'elite' ? `${esc(Upcoming.what(x).replace(/ · Elite tier \d+$/, ''))} Elite up to tier 5` : `Catch ${esc(Upcoming.what(x))}`}</b> to your queue?<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="up-add" data-type="${x.type}" data-json="${esc(JSON.stringify(x.data))}">Add to Queue</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
+        return r;
+      };
+      const T = U.filter((x) => x.day === 'today'), M = U.filter((x) => x.day === 'tomorrow');
+      h += `<div class="card"><h3>Coming Up</h3>`
+        + `<div class="lbl" style="margin-top:2px">Today</div>${T.length ? T.map(row).join('') : '<div class="dim">Nothing new opens today.</div>'}`
+        + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
+        + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">🎯 to catch (not in your Pokédex) · ⚔️ Elite tiers left · times are when it opens. Tap one to add it to your queue.</div></div>`;
+    }
+  } catch (__e) { __h('62-nowview:236', __e); }
   // ---- ready for candy (the Battle XP goal's rule: past ~5.5 M XP per level, Exp. Candies beat battling) ----
   { const g = Plan.goals.find((x) => !x.done && x.type === 'discord' && (x.spot === 'xp' || x.candyAt));
     const R = g ? (() => { try { return GoalTypes.candyReady(g); } catch { return []; } })() : [];
@@ -4873,7 +4893,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:250', __e); }
+  } catch (__e) { __h('62-nowview:269', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -10299,6 +10319,74 @@ const Dailies = (() => {
   let timer = null;
   function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:85', __e); } }, 30_000); }
   return { list, resetAt, tick, boot };
+})();
+
+/* ---------------------------------------------------------------------------------------------
+ * Upcoming (2.19.0, Jimmy 2026-11-25): Pokémon with a season / weather / time-of-day / moon window
+ * that open today or tomorrow - to catch (not in your Pokédex yet) or to fight (Elite tiers left).
+ * Shown on Now under Best Next Rewards; tap one to add it to the queue (after a confirm).
+ * Windows come from the game: its seasons and day phases, its weather forecast (a week ahead) and its moon.
+ * ------------------------------------------------------------------------------------------- */
+const Upcoming = (() => {
+  const E = Engine, t = (f, d = null) => { try { return f(); } catch { return d; } };
+  const nm = (id) => t(() => Casing.names(E.get('Game.DEX')[id].name), '#' + id);
+  const midnight = (days) => { const d = new Date(); d.setHours(24 * days, 0, 0, 0); return d.getTime(); };
+  const WX = { morning: '🌅 morning', day: '☀️ day', night: '🌙 night', spring: '🌸 spring', summer: '☀️ summer', autumn: '🍂 autumn', winter: '❄️ winter', full: '🌕 full moon', new: '🌑 new moon' };
+  const label = (k) => WX[k] || t(() => DexInfo.wxName(k), k);
+  const queued = (type, id) => Plan.goals.some((g) => !g.done && g.type === type && +g.foe === +id);
+  // first hour in [now, end) when the moon is `phase` at night (zones with a moon open at night)
+  function moonAt(phase, end) {
+    const LZ = E.get('LegendZones'), base = new Date(); base.setMinutes(0, 0, 0);
+    for (let i = 0; i <= 72; i++) { const at = Math.max(Date.now(), base.getTime() + i * 3_600_000); if (at > end) break; if (t(() => LZ.moon(at)) === phase && t(() => DexInfo.phaseAt(at)) === 'night') return at; }
+    return null;
+  }
+  let cache = null;
+  function list() {
+    if (cache && Date.now() - cache.at < 60_000) return cache.items;
+    const S = E.get('Game.S') || {}, dex = S.dex || {}, end = midnight(2), out = [], seen = new Set();
+    const unlocked = +(S.adv?.unlocked ?? 0), ST = E.get('STORY');
+    const push = (x) => { if (x.at == null || x.at > end) return; const k = x.kind + x.id; if (seen.has(k)) return; seen.add(k); out.push({ ...x, day: x.at < midnight(1) ? 'today' : 'tomorrow', now: x.at <= Date.now() + 1000 }); };
+    // 1. wild Pokémon you haven't caught whose spot has a window
+    t(() => (ST.CHAPTERS || []).forEach((c, ch) => {
+      if (ch > unlocked) return;
+      for (const st of c.steps || []) {
+        if (st.kind !== 'route' || !st.areas?.length) continue;
+        for (const p of t(() => E.pool(st, ch), []) || []) {
+          if (!p.when?.length || dex[p.id] || seen.has('wild' + p.id)) continue;
+          const w = t(() => DexInfo.nextWhen(ch, st.name, p.when)); if (!w) continue;
+          push({ kind: 'wild', type: 'wild', id: p.id, ch, place: st.name, at: w.at, why: label(w.key), queued: queued('wild', p.id), data: { foe: p.id, ch } });
+        }
+      }
+    }));
+    // 2. special encounters (a set spot) with a night / weather window, not caught yet
+    t(() => (ST.CHAPTERS || []).forEach((c, ch) => {
+      if (ch > unlocked) return;
+      for (const st of c.steps || []) {
+        if (st.kind !== 'static' || !st.id || dex[st.id] || !(st.night || st.day || st.skies?.length)) continue;
+        const r = t(() => DexInfo.special(+st.id).find((x) => x.ch === ch && x.place === st.name)); if (!r || r.blockers?.length || !r.window) continue;
+        push({ kind: 'special', type: 'special', id: +st.id, ch, place: st.name, at: r.window.at, why: st.night ? label('night') : st.day ? label('day') : label(r.window.key || st.skies[0]), queued: queued('special', st.id), data: { foe: +st.id, ch, place: st.name } });
+      }
+    }));
+    // 3. legendary zones that open at night / by day / at a full or new moon: catch (not caught) or fight (Elite tiers left)
+    t(() => {
+      const LZ = E.get('LegendZones');
+      for (const z of LZ.ZONES || []) {
+        if (!z.when && !z.moon) continue;
+        const foe = t(() => LZ.foe(z), z.id) || z.id, caught = !!dex[foe] || !!dex[z.id];
+        const elite = caught && t(() => LZ.eliteShown(z), false) && +t(() => LZ.eliteNext(z.id), 0);
+        if (caught && !elite) continue;
+        const at = z.moon ? moonAt(z.moon, end) : t(() => DexInfo.nextPhase((k) => (z.when === 'night' ? k === 'night' : k !== 'night')));
+        const kind = caught ? 'elite' : 'legend';
+        push({ kind, type: kind, id: z.id, place: z.name || '', at, why: label(z.moon || z.when), tier: elite || null, queued: queued(kind, z.id), data: kind === 'elite' ? { foe: z.id, upTo: 5 } : { foe: z.id } });
+      }
+    });
+    out.sort((a, b) => a.at - b.at);
+    cache = { at: Date.now(), items: out };
+    return out;
+  }
+  const what = (x) => (x.kind === 'elite' ? `${nm(x.id)} · Elite tier ${x.tier}` : nm(x.id));
+  const verb = (x) => (x.kind === 'elite' ? 'fight' : 'catch');
+  return { list, what, verb, clear: () => { cache = null; } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
