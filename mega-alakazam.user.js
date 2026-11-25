@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.6
+// @version      2.20.7
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.6';
+const VERSION = '2.20.7';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4179,7 +4179,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
     return `<div class="stat"><div class="live"><i class="sdot ${!w.ok ? 'err' : Plan.running ? '' : 'off'}"></i>${word}</div>
       <b>${esc(cur ? Plan.label(cur) : Plan.running ? (Plan.top || 'Nothing to do - leveling while idle') : 'Ready - press Start')}</b>
-      <div class="dim">${esc(cur ? brief([L?.why, L?.line].filter(Boolean).join(' · ')) : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div>${(() => { try { const r = Dailies.list().filter((d) => d.state === 'ready'); return r.length ? `<div class="dready" data-act="tab" data-tab="home">🔔 <b>${r.length} ${r.length === 1 ? 'daily' : 'dailies'} ready:</b> ${r.map((d) => esc(d.name)).join(', ')}</div>` : ''; } catch { return ''; } })()}</div>
+      <div class="dim">${esc(cur ? brief([L?.why, L?.line].filter(Boolean).join(' · ')) : Plan.running ? '' : 'Pick a task, then Start Now or Add to Queue')}</div>${(() => { try { const r = Dailies.list().filter((d) => d.state === 'ready'); return r.length ? `<div class="dready" data-act="tab" data-tab="home"><b>${r.length} ${r.length === 1 ? 'daily' : 'dailies'} ready:</b> ${r.map((d) => esc(d.name)).join(', ')}</div>` : ''; } catch { return ''; } })()}</div>
       <div class="mets"><div><b>${dex}</b><span>Pokédex</span></div><div><b>${net == null ? '—' : (net > 0 ? '+' : net < 0 ? '−' : '') + '₽' + Math.abs(Math.round(net)).toLocaleString()}</b><span>Money gained</span></div><div><b>${tm}</b><span>On this task</span></div></div>`;
   }
   function footer(w) {
@@ -4849,16 +4849,16 @@ Views.now = (w, esc, fmtIn) => {
       const left = (at) => { const m = Math.max(0, Math.round((at - Date.now()) / 60000)); return m < 60 ? `${m} min` : m < 48 * 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} m` : `${Math.round(m / 1440)} days`; };
       const nReady = D.filter((d) => d.state === 'ready').length;
       const lab = (d) => {
-        if (d.state === 'ready') return ['🔔 Ready', 'gold'];
-        if (d.state === 'run') return ['▶ Going', 'ok'];
-        if (d.state === 'wait') return ['⏳ Waiting', 'warn'];
+        if (d.state === 'ready') return ['Ready', 'gold'];
+        if (d.state === 'run') return ['Going', 'ok'];
+        if (d.state === 'wait') return ['Waiting', 'warn'];
         const at = d.week ? wk : d.key === 'fete15' ? 0 : rs; // the event's regions open at 7 AM (shown in its line)
-        return [at ? `⏳ in ${left(at)}` : d.state === 'done' ? '✓ Done' : 'Not now', 'dim'];
+        return [at ? `in ${left(at)}` : d.state === 'done' ? 'Done' : 'Not now', 'dim'];
       };
       h += `<div class="card dcard${nReady ? ' hot' : ''}"><h3>Dailies${nReady ? ` <span class="chip on" style="font-size:var(--t-s);padding:1px 8px">${nReady} ready</span>` : ''}</h3>`
         + D.map((d) => { const [l, cls] = lab(d); const inQ = Plan.goals.some((g) => !g.done && !g.paused && g.type === d.key);
           const why = d.state === 'done' ? (d.week ? 'done this week' : 'done - next round') : d.line;
-          return `<div class="row"><span class="k">${d.icon} ${esc(d.name)}${why ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(why)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${l}</b></span></div>`; }).join('')
+          return `<div class="row"><span class="k">${esc(d.name)}${why ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(why)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${l}</b></span></div>`; }).join('')
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `Dailies open again ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} (in ${left(rs)})` : ''} · one phone alert per daily when it opens (Settings → phone alerts → Dailies ready)</div></div>`;
     }
   } catch (__e) { __h('62-nowview:198', __e); }
@@ -10482,7 +10482,7 @@ const Dailies = (() => {
       const id = x.week ? 'w' + wk : d;
       if (told[x.key] === id) continue;
       told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:91', __e); }
-      try { Notify.send('ready', `${x.icon} ${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:92', __e); }
+      try { Notify.send('ready', `${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:92', __e); }
     }
   }
   let timer = null;
