@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.19.1
+// @version      2.20.0
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.19.1';
+const VERSION = '2.20.0';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1351,7 +1351,38 @@ const GameSim = (() => {
     }
     return { ko: w / n, n, per: reach.map((r, k) => (r ? pass[k] / r : null)) };
   }
-  return { eliteOnce, elite, zoneOnce, zone, play, refine, raidOnce, raid, leagueOnce, league };
+  // ---- Trainer Count Event (2.20.0): the 15,000 Trainers raid of `reg` (your picked starter, shiny) - one try
+  function feteOnce(reg, mine, allies, base) {
+    const G = E.get('Game'), A = E.get('Adventure');
+    const x = structuredClone(base || G.S);
+    if (x.fete15?.got) delete x.fete15.got[reg];
+    x.raids = x.raids || {}; x.raids.pick = x.raids.pick || {}; x.raids.pick[reg] = allies.slice();
+    x.eventTeams = x.eventTeams || {}; x.eventTeams['fete15:' + reg] = mine.slice();
+    let ko = false, left = 1, ok = false;
+    G.sandbox(x, () => {
+      const ad = A.ensure();
+      Object.assign(ad, { event: null, tower: null, league: null, zone: null, battle: null, pending: null });
+      ok = A.startFete15(reg) !== false && !!ad.event?.raid;
+      if (!ok) return;
+      for (let s = 0; s < 20000; s++) {
+        const en = ad.battle?.enemies?.[0];
+        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:209', __e); } }
+        const ev = A.step() || [];
+        if (ev.some((e) => e.type === 'capture')) { ko = true; left = 0; return; }
+        if (ev.some((e) => e.type === 'defeat')) return;
+      }
+    });
+    if (!ok) throw new Error('the game would not start the Trainer Count raid in the simulator');
+    return { ko, left };
+  }
+  async function fete(reg, mine, allies, n = 40) {
+    const base = snapshot();
+    let w = 0, t0 = performance.now(); const L = [];
+    for (let i = 0; i < n; i++) { const r = feteOnce(reg, mine, allies, base); if (r.ko) w++; else L.push(r.left); if (performance.now() - t0 > 30) { await rest(); t0 = performance.now(); } }
+    L.sort((a, b) => a - b);
+    return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
+  }
+  return { eliteOnce, elite, zoneOnce, zone, play, refine, raidOnce, raid, leagueOnce, league, feteOnce, fete };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -1373,7 +1404,7 @@ const RaidCount = {
   fete: (ev) => ev?.date === 'fete15',
   kos(ev) { try { return this.fete(ev) ? +Engine.get('Fete15').tries(ev.reg) || 0 : +Engine.get('Raids').pity(ev.reg) || 0; } catch { return 0; } },
   gauge(ev) { try { return +(this.fete(ev) ? Engine.get('Fete15').pity(ev.reg) : Engine.get('Raids').pity(ev.reg)) || 0; } catch { return 0; } },
-  label: (ev) => (ev?.date === 'fete15' ? '15,000 Trainers raid' : 'Shiny Raid'),
+  label: (ev) => (ev?.date === 'fete15' ? 'Trainer Count Event raid' : 'Shiny Raid'),
 };
 const Recorder = (() => {
   const E = Engine;
@@ -2880,6 +2911,9 @@ Views.planAdd = (w, ui, esc) => {
   } else if (ui.addType === 'raid') {
     h += `<button class="btn" data-act="plan-add-raid" ${Plan.hasType('raid') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Plays today's Shiny Raid once it's drawn: picks your 2 best against the boss and the ally trainers whose Pokémon do best, starts it, and lets the game retry until you win. Uses the daily reroll only when today's boss is a shiny you already own (or clearly weak) and another region's boss would be better.</div></div>`;
+  } else if (ui.addType === 'fete15') {
+    h += `<button class="btn" data-act="plan-add-fete15" ${Plan.hasType('fete15') ? 'disabled' : ''}>Add to plan</button>
+    <div class="note dim">The game's 15,000 Trainers event, until Dec 1: each region whose League you've won opens a day apart (7 AM). You pick its shiny starter (on the Now screen or in the game), then Mega picks your 2 and the ally trainers in the game's own engine, starts the raid and lets the game retry until it's caught (a Master Ball by the 150th try). Catching it opens the next region.</div>`;
   } else if (ui.addType === 'tower') {
     h += `<button class="btn" data-act="plan-add-tower" ${Plan.hasType('tower') ? 'disabled' : ''}>Add to plan</button>
     <div class="note dim">Plays one Battle Tower run each week (the game picks the lineup from all your Pokémon) and lets it run to the end. Goes ahead of your other goals like the other dailies.</div></div>`;
@@ -2900,7 +2934,7 @@ Views.planAdd = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:112', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:115', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3338,6 +3372,7 @@ const Tasks = (() => {
     { k: 'league', cat: 'evt', ic: 'trophy', name: 'Elite League', t: 'league', hint: 'Win a region\'s tiers for Legendary gems.' },
     { k: 'elite', cat: 'evt', ic: 'fight', name: 'Elite legendaries', t: 'elite', hint: 'Elite tiers of a legendary, from Sim.' },
     { k: 'raid', cat: 'evt', ic: 'shiny', name: 'Shiny Raid', t: 'raid', one: 1, hint: 'Every day.' },
+    { k: 'fete15', cat: 'evt', ic: 'shiny', name: 'Trainer Count Event', t: 'fete15', one: 1, hint: 'Shiny starters, a region a day (until Dec 1).' },
     { k: 'candy', cat: 'evt', ic: 'candy', name: 'Candy Factory', t: 'candy', one: 1, hint: 'Every day.' },
     { k: 'tower', cat: 'evt', ic: 'tower', name: 'Battle Tower', t: 'tower', one: 1, hint: 'Every week.' },
     { k: 'bloc', cat: 'evt', ic: 'gift', name: 'Pokéblock Boss', t: 'bloc', one: 1, hint: 'Every day.' },
@@ -3348,8 +3383,8 @@ const Tasks = (() => {
   // Daily clears = these goal types, each added once
   const DAILY = [['raid', 'Shiny Raid every day'], ['candy', 'Candy Factory every day'], ['bloc', 'Pokéblock Boss every day'], ['tower', 'Battle Tower every week'], ['wboss', 'World Boss every edition']];
   const ui = { cat: 'adv', pick: null, daily: Object.fromEntries(DAILY.map(([k]) => [k, true])), msg: '' };
-  try { const p = JSON.parse(localStorage.getItem('mega-tasks-ui') || '{}'); if (p.cat) ui.cat = p.cat; if (p.pick) ui.pick = p.pick; if (p.daily) Object.assign(ui.daily, p.daily); } catch (__e) { __h('59-tasks:35', __e); }
-  const save = () => { try { localStorage.setItem('mega-tasks-ui', JSON.stringify({ cat: ui.cat, pick: ui.pick, daily: ui.daily })); } catch (__e) { __h('59-tasks:36', __e); } };
+  try { const p = JSON.parse(localStorage.getItem('mega-tasks-ui') || '{}'); if (p.cat) ui.cat = p.cat; if (p.pick) ui.pick = p.pick; if (p.daily) Object.assign(ui.daily, p.daily); } catch (__e) { __h('59-tasks:36', __e); }
+  const save = () => { try { localStorage.setItem('mega-tasks-ui', JSON.stringify({ cat: ui.cat, pick: ui.pick, daily: ui.daily })); } catch (__e) { __h('59-tasks:37', __e); } };
   const task = (k) => LIST.find((x) => x.k === k) || null;
   const inPlan = (type) => { try { return Plan.hasType(type); } catch { return false; } };
 
@@ -4022,6 +4057,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'n-week') { try { Notify.weekly(true); } catch (__e) { __h('60-ui:372', __e); } } // the weekly summary (Sunday 6 PM) so far, without starting a new week
     if (act === 'n-new') { Notify.newTopic(); renderBody(true); }
     if (act === 'plan-add-money') { const sel = root?.querySelector('select[data-act="add-money"]'); Plan.add('money', { target: planUi.addMoney || +sel?.value || 1e7 }); planUi.addType = 'legend'; renderBody(true); }
+    if (act === 'plan-add-fete15') { if (!Plan.hasType('fete15')) Plan.add('fete15', {}); planUi.addType = 'legend'; renderBody(true); }
+    if (act === 'fete-pick') { const reg = t.dataset.reg, id = +t.dataset.id; Views.__rwAsk = null; Views.__feteMsg = 'picking…'; renderBody(true); GoalTypes.fetePick(reg, id).then((m) => { Views.__feteMsg = m; renderBody(true); }); return; }
     if (act === 'plan-add-raid') { Plan.add('raid', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-tower') { Plan.add('tower', {}); planUi.addType = 'legend'; renderBody(true); }
     if (act === 'plan-add-candy') { Plan.add('candy', {}); planUi.addType = 'legend'; renderBody(true); }
@@ -4033,7 +4070,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'chains-on') { Chains.setOn(t.checked); renderBody(true); return; }
     if (act === 'health-test') { Health.selfTest('on demand').then(() => renderBody(true)); return; }
     if (act === 'health-clear') { Health.clear(); renderBody(true); return; }
-    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:386', __e); } renderBody(true); return; }
+    if (act === 'gem-focus-pick') { Views.gemUi = { ...(Views.gemUi || {}), focus: t.dataset.uid }; try { localStorage.setItem('mega-gem-focus', t.dataset.uid); } catch (__e) { __h('60-ui:388', __e); } renderBody(true); return; }
     if (act === 'gem-fuse') {
       const k = t.dataset.key, n = Math.max(1, +t.dataset.n || 1), f = GemFocus.fuseFor(k); if (!f?.can) return;
       if (!t.dataset.sure && !window.confirm(`Fuse ${n * f.per} ${f.lowerLabel}s into ${n} ${GemFocus.label(k)}${n === 1 ? '' : 's'}?\n\nThis can't be undone.`)) return;
@@ -4047,7 +4084,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'gem-reroll') {
       const o = GemFocus.shop(); if (!o) return;
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
-      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:400', __e); } renderBody(true); return;
+      const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:402', __e); } renderBody(true); return;
     }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
@@ -4058,19 +4095,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:411', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:413', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:417', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:419', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:420', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:422', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:423', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:425', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -4111,8 +4148,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:464', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:465', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:466', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:467', __e); }
     renderBody(true, w);
   }
 
@@ -4129,12 +4166,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:482', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:484', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:486', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:487', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:488', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:489', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -4166,8 +4203,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:519', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:520', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:521', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:522', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -4182,13 +4219,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:535', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:536', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:537', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:538', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:541', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:543', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4823,6 +4860,31 @@ Views.now = (w, esc, fmtIn) => {
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `Dailies open again ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} (in ${left(rs)})` : ''} · one phone alert per daily when it opens (Settings → phone alerts → Dailies ready)</div></div>`;
     }
   } catch (__e) { __h('62-nowview:198', __e); }
+  // ---- Trainer Count Event (2.20.0, Jimmy 2026-11-25): the game's 15,000 Trainers event - one shiny starter per region ----
+  try {
+    const F = Engine.get('Fete15'), on = F && (() => { try { return F.open(); } catch { return false; } })();
+    if (on) {
+      const ask = Views.__rwAsk || null, regs = F.regions() || [], inQ = Plan.goals.some((g) => !g.done && g.type === 'fete15');
+      const RN = (k) => k[0].toUpperCase() + k.slice(1), clk = (x) => new Date(x).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+      const to = Date.parse(Engine.get('CONFIG')?.FETE15?.TO || '');
+      let b = '';
+      for (const r of regs) {
+        const st = (() => { try { return F.state(r.key); } catch { return '?'; } })(), got = (() => { try { return F.got(r.key); } catch { return null; } })(), pk = (() => { try { return F.picked(r.key); } catch { return null; } })();
+        const right = st === 'done' ? `<b class="ok">✓ ${nm(got?.id || pk?.id)}</b>` : st === 'run' ? `<b class="gold">✨ ${nm(pk?.id)} · try ${(() => { try { return F.tries(r.key); } catch { return 0; } })()}</b>` : st === 'ready' ? '<b class="gold">🔔 Pick a starter</b>' : st === 'soon' ? `<span class="dim">opens ${esc(clk(+F.openAt(r.key)))}</span>` : st === 'wait' ? '<span class="dim">after the previous region</span>' : st === 'locked' ? '<span class="dim">win its League first</span>' : `<span class="dim">${esc(st)}</span>`;
+        b += `<div class="row"><span class="k">${esc(RN(r.key))}</span><span class="v">${right}</span></div>`;
+        if (st === 'ready') {
+          const ids = (() => { try { return F.starters(r.key); } catch { return []; } })();
+          b += `<div style="display:flex;gap:8px;margin:4px 0 8px">${ids.map((id) => `<button class="btn sm" data-act="rw-ask" data-k="f${r.key}${id}" style="flex:1;margin:0;display:flex;flex-direction:column;align-items:center;gap:2px"><img src="${Engine.sprite(id)}" width="40" height="40" style="image-rendering:pixelated">${nm(id)}</button>`).join('')}</div>`;
+          const sel = ids.find((id) => ask === `f${r.key}${id}`);
+          if (sel) b += `<div class="note" style="margin:0 0 8px">Pick <b>shiny ${nm(sel)}</b> for ${esc(RN(r.key))}? The game saves this choice for good.<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="fete-pick" data-reg="${r.key}" data-id="${sel}">Pick ${nm(sel)}</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
+        }
+      }
+      if (Views.__feteMsg) b += `<div class="dim" style="margin-top:4px">${esc(Views.__feteMsg)}</div>`;
+      b += inQ ? '<div class="dim" style="font-size:var(--t-s);margin-top:6px">In your queue - Mega catches each picked starter (team from the game\'s own engine).</div>'
+        : `<div class="note" style="margin-top:6px">Not in your queue. <button class="btn sm gold" data-act="plan-add-fete15" style="width:auto;margin:4px 0 0">Add the Trainer Count Event</button></div>`;
+      h += `<div class="card"><h3>Trainer Count Event${to ? ` <span class="dim" style="font-size:var(--t-s);font-weight:600">· until ${esc(clk(to))}</span>` : ''}</h3>${b}</div>`;
+    }
+  } catch (__e) { __h('62-nowview:223', __e); }
   // ---- coming up (2.19.0, Jimmy 2026-11-25): season / weather / time / moon windows opening today and tomorrow ----
   try {
     const U = Upcoming.list(), ask = Views.__rwAsk || null;
@@ -4841,7 +4903,7 @@ Views.now = (w, esc, fmtIn) => {
         + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">🎯 to catch (not in your Pokédex) · ⚔️ Elite tiers left · times are when it opens. Tap one to add it to your queue.</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:217', __e); }
+  } catch (__e) { __h('62-nowview:242', __e); }
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
@@ -4893,7 +4955,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:269', __e); }
+  } catch (__e) { __h('62-nowview:294', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -8734,7 +8796,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
   //  1. every Pokémon you have (Lv 90+, best copy of each species, not in the Underground or busy
   //     elsewhere) next to your strongest one, with two default allies
   //  2. every pair among the top 10   3. every pair of today's ally trainers with the best pair
-  async function raidPick(reg, boss, C) {
+  // opts.fete (2.20.0): the Trainer Count Event's raid in `reg` - same fight as a Shiny Raid, its own team key
+  async function raidPick(reg, boss, C, opts = {}) {
     // nothing else runs during a raid (it takes the screen), so only the Underground keeps a Pokémon out
     const zone = raidZone(boss), r = RD(), busy = new Set();
     const yieldNow = () => new Promise((ok) => setTimeout(ok, 0));
@@ -8779,41 +8842,41 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     // teams down quickly, then the top pairs x ally sets are played as real raid tries in a sandboxed copy
     let engine = false;
     try {
-      const live = (() => { try { return r.drawn() === reg; } catch { return false; } })() || (S().adv?.event?.raid && S().adv.event.reg === reg);
+      const live = !!opts.fete || (() => { try { return r.drawn() === reg; } catch { return false; } })() || (S().adv?.event?.raid && S().adv.event.reg === reg);
       if (live && typeof GameSim !== 'undefined') {
         const allySets = [allies];
         if (bots.length > allyN) { const combos = []; const pick = (start, acc) => { if (acc.length === allyN) { combos.push(acc); return; } for (let i = start; i < byPower.length; i++) pick(i + 1, [...acc, byPower[i]]); }; pick(0, []); for (const c of combos.sort((a, b) => b.reduce((t, x) => t + x.v, 0) - a.reduce((t, x) => t + x.v, 0)).slice(0, 4)) if (!allySets.some((s) => s.map((x) => x.b.key).join() === c.map((x) => x.b.key).join())) allySets.push(c); }
         const finalists = [best.p, ...pairs.slice(0, 6).map((x) => x.p)].filter((p, i, a) => a.findIndex((q) => q.map((m) => m.uid).join() === p.map((m) => m.uid).join()) === i).slice(0, 6);
         let top = null;
         for (const p of finalists) for (const set of allySets.slice(0, 3)) {
-          const e = await GameSim.raid(reg, p.map((m) => m.uid), set.map((x) => x.b.key), 30); tested++;
+          const e = await (opts.fete ? GameSim.fete : GameSim.raid)(reg, p.map((m) => m.uid), set.map((x) => x.b.key), 30); tested++;
           if (!top || e.ko > top.e.ko || (e.ko === top.e.ko && e.left < top.e.left)) top = { p, set, e };
         }
         if (top) {
-          const fin = await GameSim.raid(reg, top.p.map((m) => m.uid), top.set.map((x) => x.b.key), 100);
+          const fin = await (opts.fete ? GameSim.fete : GameSim.raid)(reg, top.p.map((m) => m.uid), top.set.map((x) => x.b.key), 100);
           best = { p: top.p, ko: fin.ko }; allies = top.set; engine = true;
         }
       }
-    } catch (e) { try { Log.add(`Shiny Raid sim in the game's engine failed (${e?.message || e}) - using Mega's own model`); } catch (__e) { __h('70-plan-13-raid:88', __e); } }
+    } catch (e) { try { Log.add(`Shiny Raid sim in the game's engine failed (${e?.message || e}) - using Mega's own model`); } catch (__e) { __h('70-plan-13-raid:89', __e); } }
     return { mine: best.p.map((m) => m.uid), allies: allies.map((x) => x.b.key), allyNames: allies.map((x) => x.b.name), ko: best.ko, tested, engine };
   }
   async function raidRepick(by = 'from the phone') {
     const r = RD(), C = E.get('CONFIG')?.RAID || {}, a = S().adv || {};
-    if (RaidCount.fete(a.event)) return 'that\'s the 15,000 Trainers raid - change its team in the game\'s banner';
+    if (RaidCount.fete(a.event)) return 'that\'s the Trainer Count Event raid - its team is picked by the Trainer Count Event task';
     const g = Plan.goals.find((x) => x.type === 'raid' && !x.done);
-    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:95', __e); } }
+    let reg = a.event?.raid ? a.event.reg : null; if (!reg) { try { reg = r.drawn(); } catch (__e) { __h('70-plan-13-raid:96', __e); } }
     if (!reg) { if (g) { delete g.pick; Plan.save(); } return 'today\'s raid isn\'t drawn yet - it will pick when it starts'; }
     const lane = (() => { try { return r.lane() || []; } catch { return []; } })(), boss = a.event?.raid ? +a.event.id : lane.find((x) => x.key === reg)?.boss;
     if (!boss) return 'can\'t read today\'s boss';
     const blocked = Guard.blocks('raid'); if (blocked) return 'safety check: ' + blocked;
-    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan-13-raid:100', __e); }
+    const pick = await raidPick(reg, boss, C); let day = null; try { day = r.dateKey(); } catch (__e) { __h('70-plan-13-raid:101', __e); }
     if (g) { g.pick = { ...pick, day, reg }; Plan.save(); }
     const names = pick.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ');
     if (a.event?.raid) { // running now: swap the team for the next fight
       const why = Guard.team(pick.mine, { need: +C.MINE || 2, minLevel: 70 }); if (why) return 'not changed - ' + why;
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = pick.mine;
-      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:106', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:107', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:107', __e); }
+      pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:107', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:108', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:108', __e); }
       Log.add(`Shiny Raid: re-picked ${by} - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
       return `now ${names} + ${pick.allyNames.join(' & ')} (sim ${Math.round(pick.ko * 100)}%)`;
     }
@@ -8826,9 +8889,9 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
     check(g) {
       const r = RD(); if (!r || !E.read('Raids.unlocked', false)) return { state: 'wait', why: 'Shiny Raids are not open yet' };
       // the 15,000 Trainers event raid is yours: its team and counters aren't the Shiny Raid's, so hands off
-      if (RaidCount.fete(S().adv?.event)) return { state: 'wait', why: 'the 15,000 Trainers raid is running - Mega leaves it to you' };
+      if (RaidCount.fete(S().adv?.event)) return { state: 'wait', why: 'the Trainer Count Event raid is running' };
       if (S().adv?.event?.raid) return { state: 'ready', why: null };
-      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan-13-raid:122', __e); } }
+      if (Date.now() - raidSyncAt > 10 * 60_000) { raidSyncAt = Date.now(); try { r.sync(); } catch (__e) { __h('70-plan-13-raid:123', __e); } }
       const reg = (() => { try { return r.drawn(); } catch { return null; } })();
       if (!reg) { const from = r.state?.drawFrom; return { state: 'wait', why: `today's raid isn't drawn yet${from && from > Date.now() ? ` - draws ${DexInfo.clock(from)}` : ''}` }; }
       if ((() => { try { return r.done(reg); } catch { return false; } })()) { const b = (r.lane() || []).find((x) => x.key === reg);
@@ -8863,7 +8926,7 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         return `raid on · ${name(ev.id)} (${ev.reg}) · try ${(() => { try { return r.tried(ev.reg, ev.date); } catch { return '?'; } })()}${inTeam < need ? ` · only ${inTeam} of your Pokémon in it` : ''}`;
       }
-      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:157', __e); }
+      let reg = r.drawn(); try { r.reveal(); } catch (__e) { __h('70-plan-13-raid:158', __e); }
       const day = r.dateKey(), lane = (() => { try { return r.lane() || []; } catch { return []; } })();
       const bossOf = (k) => lane.find((x) => x.key === k)?.boss;
       // the reroll: once a day, only when today's boss is a shiny you own or clearly weak, and
@@ -8895,8 +8958,8 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = mine.map((m) => m.uid);
       const allyN = +C.ALLIES || 2;
       const bots = g.pick.allies.slice(0, allyN).map((key) => ({ b: { key, name: g.pick.allyNames[g.pick.allies.indexOf(key)] } }));
-      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:189', __e); } });
-      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:190', __e); }
+      bots.forEach((x, i) => { try { r.setPick(reg, i, x.b.key); } catch (__e) { __h('70-plan-13-raid:190', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:191', __e); }
       // safety: your 2 (read back from the game) and the ally trainers must be set as picked
       { const read = S().eventTeams?.[r.teamKey(reg)] || [];
         let why = Guard.team(read, { need: +C.MINE || 2, want: g.pick.mine, minLevel: 70 });
@@ -8918,13 +8981,13 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         }
         g.blockSaid = null; }
       let ok = false; try { ok = E.call('Adventure.startRaid', reg); } catch (e) { Log.add('Shiny Raid: the game refused to start (' + (e?.message || e) + ')'); }
-      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:212', __e); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:213', __e); }
       if (ok && S().adv?.event?.raid) { Log.add(`Shiny Raid: started vs ${name(boss)} (${reg}) with ${mine.map((m) => name(m.id)).join(' & ')} + ${bots.slice(0, allyN).map((x) => x.b.name).join(' & ')}`); return `started vs ${name(boss)}`; }
       Log.add('Shiny Raid: the game did not start it and gave no reason - trying again shortly');
       return 'could not start the raid - trying again shortly';
     },
   };
-  Object.assign(GoalTypes, { raid, raidRepick });
+  Object.assign(GoalTypes, { raid, raidRepick, raidPick });
 })();
 
 // goal module: money (takes shared helpers from GoalKit, registers itself in GoalTypes)
@@ -9505,7 +9568,7 @@ const Plan = (() => {
       runs = [...runs.filter((g) => g.type === 'under'), ...runs.filter((g) => g.type !== 'under')];
       // the goal whose run it is keeps going (an Elite League goal must see its own run: the 10-loss step back and the
       // wrong-team restart ran only between runs before - 2026-11-23)
-      const own = (x) => (/Candy/.test(h || '') && x.type === 'candy') || (/Tower/.test(h || '') && x.type === 'tower') || (/Raid/.test(h || '') && x.type === 'raid') || (/League/.test(h || '') && x.type === 'league' && x.reg === E.get('Game.S')?.adv?.league?.reg);
+      const own = (x) => (/Candy/.test(h || '') && x.type === 'candy') || (/Tower/.test(h || '') && x.type === 'tower') || (/Shiny Raid/.test(h || '') && x.type === 'raid') || (/Trainer Count/.test(h || '') && x.type === 'fete15') || (/League/.test(h || '') && x.type === 'league' && x.reg === E.get('Game.S')?.adv?.league?.reg);
       if (h) { for (const g of runs.filter((x) => type(x).uses === 'screen' && !own(x))) live[g.id] = { state: 'wait', why: `${h} is using the battle screen` }; runs = runs.filter((x) => type(x).uses !== 'screen' || own(x)); }
       const screenRuns = runs.some((g) => type(g).uses === 'screen');
       // a real goal wants the screen: end the idle job first (team, buddy, loop and chapter go back)
@@ -9995,6 +10058,88 @@ const Plan = (() => {
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
   function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:237', __e); } Plan.save(); }
   Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, candyReady, CANDY_AT, runTake, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
+})();
+
+// goal module: fete15 - the Trainer Count Event (takes shared helpers from GoalKit, registers itself in GoalTypes)
+(() => {
+  const { E, S, name } = GoalKit;
+  // ---- Trainer Count Event (2.20.0, Jimmy 2026-11-25) - the game's "15,000 Trainers" event (0.5.16, Fete15) -------
+  // One week (CONFIG.FETE15 FROM-TO). Each region whose League you've won opens a day apart (OPEN, 7 AM Pacific):
+  // you pick one shiny starter of three (a server call - Jimmy's choice, never Mega's), then catch it in a raid
+  // like the Shiny Raid (your 2 + ally trainers, 1% a Ball, a Master Ball by the 150th try). Catching it opens the
+  // next region. Mega: tells you when a region is open to pick, then picks the team in the game's own engine,
+  // starts the raid and lets the game retry until it's caught.
+  const F = () => E.get('Fete15');
+  const t = (f, d = null) => { try { return f(); } catch { return d; } };
+  const regName = (k) => (k ? k[0].toUpperCase() + k.slice(1) : '?');
+  const C = () => E.get('CONFIG')?.RAID || {};
+  // the region to work on: one being fought, else the first picked and not caught
+  function target() {
+    const f = F(); if (!f) return null;
+    const regs = t(() => f.regions(), []) || [];
+    const ev = S().adv?.event; if (ev?.raid && ev.date === 'fete15') return { reg: ev.reg, st: 'run', on: true };
+    for (const r of regs) { const st = t(() => f.state(r.key)); if (st === 'run') return { reg: r.key, st }; }
+    for (const r of regs) { const st = t(() => f.state(r.key)); if (st === 'ready') return { reg: r.key, st }; }
+    for (const r of regs) { const st = t(() => f.state(r.key)); if (st === 'soon' || st === 'wait' || st === 'locked') return { reg: r.key, st }; }
+    return null;
+  }
+  const fete15 = {
+    uses: 'screen',
+    label: () => 'Trainer Count Event (shiny starters)',
+    sprite: () => { const x = target(); return x ? t(() => F().picked(x.reg)?.id) : null; },
+    progress: () => { const f = F(); const regs = t(() => f.regions(), []) || []; return regs.length ? { have: regs.filter((r) => t(() => f.done(r.key), false)).length, need: regs.length, unit: 'starters' } : null; },
+    check(g) {
+      const f = F(); if (!f) return { state: 'wait', why: 'not in this game version' };
+      if (!t(() => f.open(), false)) { const to = Date.parse(E.get('CONFIG')?.FETE15?.TO || ''); return to && Date.now() > to ? { state: 'done', why: 'the event is over' } : { state: 'wait', why: 'the event is not open' }; }
+      if (!E.get('Cloud')?.user) return { state: 'wait', why: 'sign in to the game (the event needs your account)' };
+      const x = target();
+      if (!x) return { state: 'done', why: 'every region\'s starter is caught' };
+      if (x.st === 'run') return { state: 'ready', why: null };
+      if (x.st === 'ready') {
+        if (g && g.askPick !== x.reg) { g.askPick = x.reg; Plan.save(); try { Notify.send('ready', `Trainer Count Event: pick your ${regName(x.reg)} starter`, `${t(() => F().starters(x.reg).map((id) => name(id)).join(', '), '')} - pick one on Mega's Now screen or in the game (Raids), then Mega catches it`); } catch (__e) { __h('70-plan-24-fete:37', __e); } }
+        return { state: 'wait', why: `pick your ${regName(x.reg)} starter (Now › Trainer Count Event, or Raids in the game)` };
+      }
+      if (x.st === 'soon') return { state: 'wait', why: `${regName(x.reg)} opens ${DexInfo.clock(+t(() => f.openAt(x.reg), 0))}` };
+      if (x.st === 'wait') return { state: 'wait', why: `catch the previous region's starter first` };
+      if (x.st === 'locked') return { state: 'wait', why: `win the ${regName(x.reg)} League first` };
+      return { state: 'wait', why: x.st };
+    },
+    async step(g) {
+      const f = F(), R = E.get('Raids'), A = 'Adventure';
+      const x = target(); if (!x || x.st !== 'run') return 'waiting';
+      const reg = x.reg, p = t(() => f.picked(reg)); if (!p) return 'waiting for your pick';
+      const ev = S().adv?.event;
+      if (ev?.raid && ev.date === 'fete15' && ev.reg === reg) return `raid on · shiny ${name(p.id)} (${regName(reg)}) · try ${t(() => f.tries(reg), '?')} · Master Ball gauge ${t(() => f.pity(reg), 0)} / ${+C().PITY || 150}`;
+      // the team: simulated in the game's own engine, once per region (kept on the goal)
+      g.pick = g.pick || {};
+      const gone = (g.pick[reg]?.mine || []).some((u) => GoalKit.awayNow().has(u) || !E.read('Game.getMon', null, u));
+      if (!g.pick[reg] || gone) {
+        let boss = p.id; try { boss = +p.id; } catch (__e) { __h('70-plan-24-fete:55', __e); }
+        const r = await GoalTypes.raidPick(reg, boss, C(), { fete: true });
+        g.pick[reg] = r; Plan.save();
+        Log.add(`Trainer Count Event (${regName(reg)}): simulated ${r.tested} teams vs shiny ${name(boss)} - best: ${r.mine.map((u) => name(E.read('Game.getMon', {}, u)?.id)).join(' & ')} + ${r.allyNames.join(' & ')} (${Math.round(r.ko * 100)}% KOs ${r.engine ? "in the game's own engine" : 'in the simulator'})`);
+      }
+      const pk = g.pick[reg];
+      { const why = Guard.team(pk.mine, { need: +C().MINE || 2, minLevel: 70 }); if (why) return Guard.stop('the Trainer Count Event raid', why); }
+      const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams['fete15:' + reg] = pk.mine.slice();
+      (pk.allies || []).slice(0, +C().ALLIES || 2).forEach((k, i) => { try { R.setPick(reg, i, k); } catch (__e) { __h('70-plan-24-fete:63', __e); } });
+      try { E.call('Game.save'); } catch (__e) { __h('70-plan-24-fete:64', __e); }
+      let ok = false; try { ok = E.call(A + '.startFete15', reg) !== false; } catch (e) { Log.add('Trainer Count Event: the game refused to start (' + (e?.message || e) + ')'); }
+      try { E.call('App.refresh'); } catch (__e) { __h('70-plan-24-fete:66', __e); }
+      if (ok && S().adv?.event?.date === 'fete15') { Log.add(`Trainer Count Event: started the ${regName(reg)} raid vs shiny ${name(p.id)}`); return `started the ${regName(reg)} raid`; }
+      return 'could not start the raid - see the log';
+    },
+  };
+  // pick a starter (from Jimmy's tap on the Now card, after a confirm): the game's own server call
+  async function fetePick(reg, id) {
+    const f = F(); if (!f) return 'not in this game version';
+    const r = await f.pick(reg, +id).catch((e) => ({ error: e?.message || e }));
+    if (r?.error) { Log.add(`Trainer Count Event: the game refused the ${regName(reg)} pick (${r.error})`); return `the game said: ${r.error}`; }
+    Log.add(`Trainer Count Event: picked shiny ${name(r.id)} for ${regName(reg)}`);
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-24-fete:77', __e); }
+    return `picked ${name(r.id)}`;
+  }
+  Object.assign(GoalTypes, { fete15, fetePick });
 })();
 
 /* ===================================================================================================
