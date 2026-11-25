@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.16.8
+// @version      2.16.9
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.16.8';
+const VERSION = '2.16.9';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3673,6 +3673,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .qact{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px} .qact button{all:unset;cursor:pointer;padding:5px 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--well);color:var(--ink);font-size:var(--t-s)}
 .qact button:hover:enabled{border-color:var(--acc)} .qact button:disabled{opacity:.4;cursor:default} .qact .rm{color:#f1b3bc}
 .wrap .btn.dimb{opacity:.55}
+.wrap .csec{border-top:1px solid var(--line);margin-top:12px;padding-top:12px} .wrap .csec:first-child{border-top:0;margin-top:0;padding-top:0} .wrap .csec h3{font-size:var(--t-m);margin-bottom:4px}
 
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
@@ -5160,8 +5161,8 @@ Views.elite = (esc, ui = {}) => {
   const beaten = d.rows.reduce((t, r) => t + r.best, 0), total = d.rows.length * d.tiers.length;
   let h = `<div class="card"><h3>Elite Legendaries</h3>
     <div>${d.rows.length} legendaries · <b>${beaten}</b> of ${total} tiers beaten</div>
-    <div class="dim" style="margin-top:6px">You must knock it out - no catching. Tiers unlock one after another and get harder: more HP and power, your status moves land less often, and its poison / burn hits harder. Tiers 1, 2 and 4 give a Legendary gem of its type (to rank up your legendaries of that type), 3 and 5 a frame. A loss locks that legendary's elite fights for ${d.freezeMin} min.</div>
-    <div class="note dim" style="margin-top:8px">Simulate a tier to see the best team, then "Add: Beat Its Tiers" - Mega fights tier after tier (the game retries a lost fight by itself), simulating each new tier first, and tells you on your phone when one falls.</div></div>`;
+    <div class="dim" style="margin-top:6px">You must knock it out - no catching. Tiers unlock one after another and get harder: more HP and power, your status moves land less often, and its poison / burn hits harder. Tiers 1, 2 and 4 give a Legendary gem of its type (to rank up your legendaries of that type), 3 and 5 a frame. A lost fight is retried by the game itself, as often as it takes.</div>
+    <div class="note dim" style="margin-top:8px">Odds come from the game's own battle engine (real tries played in a throwaway copy of your save). "Add: Beat Its Tiers" - Mega fights tier after tier, simulating each new tier first; a tier under 10% waits, and one not beaten in 15 min is set aside for 2 h so the next Elite goal can run. Your phone hears when one falls.</div></div>`;
   // Easiest Next Tier (Jimmy 2026-11-23, like the League screen): every legendary's next tier simulated in the
   // background, one at a time (~2 s each, kept 3 h), best odds first. Tap one to open it below.
   {
@@ -5249,7 +5250,11 @@ Views.gems = (esc) => {
     const MODES = [['legendary', 'Legendary'], ['elite', 'Elite'], ['league', 'Gyms & League']];
     const bar = `<div class="snav">${MODES.map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="sim-mode" data-mode="${k}">${l}</button>`).join('')}</div>`;
     if (!w.ok) return bar + '<div class="note">Waiting for the game engine.</div>';
-    return bar + (mode === 'elite' ? Views.elite(esc, ui) : mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
+    // Sim › Elite (2.16.9, Jimmy 2026-11-25): everything Elite, as two cards - Elite Legendaries and Elite League,
+    // each one card with its parts as sections. Sim › Gym / League keeps the story gyms only.
+    const oneCard = (html, cls) => html.trim() ? `<div class="card ${cls}">${html.replace(/<div class="card"( data-sec="[^"]*")?( style="[^"]*")?>/g, '<div class="csec">')}</div>` : '';
+    if (mode === 'elite') return bar + oneCard(Views.elite(esc, ui), 'elite-leg') + oneCard((() => { try { return Views.eliteLeague(esc); } catch { return ''; } })(), 'elite-lg');
+    return bar + (mode === 'league' ? Views.league(esc) : legendary(w, ui, esc));
   };
 }
 
@@ -5577,15 +5582,21 @@ Views.league = (esc) => {
   // the recorder for the simulator rebuild: every real gym / League fight, as the game ran it
   { const n = (() => { try { return BossLog.count; } catch { return null; } })(), c = (() => { try { return BossLog.current; } catch { return null; } })();
     h += `<div class="card"><h3>Fight Recorder</h3><div>${c ? `<b class="ok">● Recording now:</b> ${esc(Casing.names(String(c.trainer || 'a boss')))}${c.replay ? ' (a replay)' : ''}` : 'Waiting for the next gym or League fight.'}</div><div class="dim" style="margin-top:4px">${n == null ? 'Counting…' : `${n} real fight${n === 1 ? '' : 's'} recorded so far`} - the leader's real team, levels and HP, your team, and the result. The new simulator has to match these before it's used.</div></div>`; }
+  return h || `<div class="note">Nothing here yet.</div>`;
+};
+
+// Elite League (2.16.9, Jimmy 2026-11-25): moved to Sim › Elite - one card, below the Elite legendaries
+Views.eliteLeague = (esc) => {
+  let h = '';
   // ---- Elite League ----
   const L = LeagueInfo.league();
   if (L.length) {
     const won = L.reduce((t, r) => t + r.best, 0);
     h += `<div class="card"><h3>Elite League</h3><div>${won} of ${L.length * 5} tiers won</div>
       <div class="dim" style="margin-top:6px">Each region's Elite Four + Champion again at Lv 100, in tiers 1-5, one after another. <b>Every tier pays once: a Legendary gem</b> you pick from that League's types; tiers 3 and 5 also give a frame.</div>
-      <div class="note dim" style="margin-top:8px">Every trainer Pokémon is ranked as high as the tier, and there's a Pokémon Center before each one - win all five in a row to win the tier. The odds below are Mega's gym simulator with the best 6 it finds for that tier (any region's Pokémon can join). "Add: Win Its Tiers" fights tier after tier with that team, reminds you on your phone to pick each gem, and steps back if a tier is lost 10 times.</div></div>`;
+      <div class="note dim" style="margin-top:8px">Every trainer Pokémon is ranked as high as the tier, and there's a Pokémon Center before each one - win all five in a row to win the tier. The odds below are whole League runs played in the game's own battle engine, with the best 6 Mega finds for that tier (any region's Pokémon can join). "Add: Win Its Tiers" fights tier after tier with that team, reminds you on your phone to pick each gem, and steps back if a tier is lost 10 times.</div></div>`;
     // the next tier of each League, easiest first (sims run one at a time; a sim is kept 3 h)
-    const runs = EliteSim.leagueRunning, rer = () => { const n = Date.now(); if (n - (Views.__lgRer || 0) < 2000 && EliteSim.leagueRunning.size) return; Views.__lgRer = n; setTimeout(() => { try { UI.refresh(); } catch (__e) { __h('64-leagueview:141', __e); } }, 0); };
+    const runs = EliteSim.leagueRunning, rer = () => { const n = Date.now(); if (n - (Views.__lgRer || 0) < 2000 && EliteSim.leagueRunning.size) return; Views.__lgRer = n; setTimeout(() => { try { UI.refresh(); } catch (__e) { __h('64-leagueview:147', __e); } }, 0); };
     const open = L.filter((r) => r.next);
     for (const r of open) if (!EliteSim.leagueFresh(r.key, r.next)) EliteSim.leagueQueue(r.key, r.next, rer);
     const pctS = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
@@ -5609,7 +5620,7 @@ Views.league = (esc) => {
           return `<button class="btn${inPlan ? '' : ' gold'}" data-act="league-add" data-reg="${r.key}" ${inPlan ? 'disabled' : ''}>${inPlan ? 'In Your Plan' : 'Add: Win Its Tiers'}</button>`; })() : ''}</div>`;
     }
   }
-  return h || `<div class="note">Nothing here yet.</div>`;
+  return h;
 };
 
 /* ---------------------------------------------------------------------------------------------
