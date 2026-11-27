@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.16
+// @version      2.20.17
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.16';
+const VERSION = '2.20.17';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1849,6 +1849,8 @@ const Calib = (() => {
  * ------------------------------------------------------------------------------------------- */
 // rank badge like the game's (Jimmy 2026-11-23): a Roman numeral in its pixel font "Jersey 15", gold with a dark outline
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+// a Pokémon's shiny mark and rank badge, the same everywhere (2.20.17, Jimmy 2026-11-27 - as on the Axsiom card)
+const MT = (m) => (m?.shiny ? ' ✨' : '') + RK(m?.rank);
 const RK = (n) => (+n > 0 ? `<span class="rkn" title="Rank ${+n}">${ROMAN[+n] || +n}</span>` : '');
 const Views = (() => {
   const row = (k, v, cls = '') => `<div class="row"><span class="k">${k}</span><span class="v ${cls}">${v}</span></div>`;
@@ -1920,7 +1922,7 @@ const Views = (() => {
       <button class="btn" data-act="n-test">Send a test</button><button class="btn" data-act="n-week">Send the Week So Far</button><button class="btn" data-act="n-new">New topic</button>
       <div class="note dim" style="margin-top:8px">Uses the free <b>ntfy</b> app: on your iPhone install ntfy, tap +, "Subscribe to topic", type the topic above exactly. Mega took over Alakazam 4.x's topic, so if 4.x alerts reach your phone, these will too - then turn off "Send alerts to my phone" in 4.x so you don't get everything twice.</div></div>`;
     try { const r = XpChap.rank().slice(0, 6), best = r[0];
-      h += `<div class="card"><h3>📈 Leveling Chapters</h3><div class="dim" style="font-size:var(--t-s)">XP per hour = the game's XP formula for each chapter's wild Pokémon x the wins per hour Mega measures while training there. Close calls (within 10%) get a 10-minute check before Mega settles. Estimates for chapters with a leader you might lose to count less (your strongest six simulated against that leader).</div>${r.map((x) => `<div class="row"><span class="k">${x === best ? '⭐ ' : ''}${esc(x.name)} <span class="dim">Lv ${x.top}</span></span><span class="v">${XpChap.fmt(x.xpHr)} XP/h <span class="dim">· ${XpChap.fmt(x.perWin)}/win · ${Math.round(x.rate)} wins/h ${x.real ? 'measured' : x.learned ? `wins measured (${x.min} min)` : 'estimated'}${x.risk < 0.995 ? ` · <span class="warn">x${x.risk.toFixed(2)} for the chance of losing to the leader</span>` : ''}</span></span></div>`).join('') || '<div class="dim">No chapters yet.</div>'}</div>`; } catch (__e) { __h('50-views:78', __e); }
+      h += `<div class="card"><h3>📈 Leveling Chapters</h3><div class="dim" style="font-size:var(--t-s)">XP per hour = the game's XP formula for each chapter's wild Pokémon x the wins per hour Mega measures while training there. Close calls (within 10%) get a 10-minute check before Mega settles. Estimates for chapters with a leader you might lose to count less (your strongest six simulated against that leader).</div>${r.map((x) => `<div class="row"><span class="k">${x === best ? '⭐ ' : ''}${esc(x.name)} <span class="dim">Lv ${x.top}</span></span><span class="v">${XpChap.fmt(x.xpHr)} XP/h <span class="dim">· ${XpChap.fmt(x.perWin)}/win · ${Math.round(x.rate)} wins/h ${x.real ? 'measured' : x.learned ? `wins measured (${x.min} min)` : 'estimated'}${x.risk < 0.995 ? ` · <span class="warn">x${x.risk.toFixed(2)} for the chance of losing to the leader</span>` : ''}</span></span></div>`).join('') || '<div class="dim">No chapters yet.</div>'}</div>`; } catch (__e) { __h('50-views:80', __e); }
     // ---- health: self-test + every swallowed error, by place ----
     try {
       const T = Health.test, R = Health.recent(), when = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
@@ -1935,7 +1937,7 @@ const Views = (() => {
       h += R.slice(0, 8).map((x) => `<div class="row"><span class="k" style="font-size:var(--t-s)">${esc(x.site)} ×${x.n}</span><span class="v dim" style="font-size:var(--t-s)">${esc(x.msg || '')} · ${esc(when(x.last))}</span></div>`).join('');
       if (R.length) h += `<button class="btn" data-act="health-clear">Clear the Error List</button>`;
       h += `<div class="note dim" style="margin-top:8px">Mega checks every goal, planner and screen against your save after each update. A new version that fails is rolled back to the one before by itself, and your phone gets an alert. A goal that keeps failing (5 errors in 30 min) alerts you too.</div></div>`;
-    } catch (__e) { __h('50-views:93', __e); }
+    } catch (__e) { __h('50-views:95', __e); }
     { const U = Updater.info, av = Updater.available;
       h += `<div class="card"><h3>⬆ Updates</h3><div class="row"><span class="k">This version</span><span class="v">${esc(VERSION)}</span></div><div class="row"><span class="k">Newest on GitHub</span><span class="v ${U.err ? 'bad' : ''}">${U.err ? 'could not check: ' + esc(U.err) : U.latest ? esc(U.latest) + (av ? ' <span class="ok">· ready</span>' : ' · up to date') : 'checking…'}</span></div>${U.checkedAt ? `<div class="row"><span class="k">Checked</span><span class="v dim">${new Date(U.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></div>` : ''}
         ${av ? `<button class="btn" data-act="update">New Update ${esc(av)}</button>` : ''}<button class="btn" data-act="update-check">Check now</button>
@@ -1943,9 +1945,9 @@ const Views = (() => {
         <label class="chk"><input type="checkbox" data-act="update-continue" ${Updater.autoContinue ? 'checked' : ''}> Press Continue on the title screen after a reload</label>
         <button class="btn" data-act="update-tm">Install in Tampermonkey too</button>
         <div class="note dim" style="margin-top:8px">Mega checks every 10 minutes and downloads a new version by itself; it runs the next time the game reloads (Mega reloads it at a safe moment - not during a zone, raid, tower or league - or use Reload Game on Kinesis). A version that fails to start is skipped and this one keeps running. "Install in Tampermonkey too" makes it permanent there (optional - Tampermonkey also catches up by itself).</div></div>`; }
-    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:var(--t-s)">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:101', __e); }
+    try { h += `<div class="card"><h3>🔗 Goal Chains</h3><label class="chk"><input type="checkbox" data-act="chains-on" ${Chains.on ? 'checked' : ''}> When a legendary is locked, add the goals it needs (catches, items, a Pokédex, a League)</label><div class="dim" style="font-size:var(--t-s)">Checked every 30 minutes. A goal you remove isn't added back for the same legendary. Things Mega can't do (braille doors, trainer counts) show as "needs you" on the goal.</div></div>`; } catch (__e) { __h('50-views:103', __e); }
     { // text size (2.13.5: moved here from the header, so the header keeps its fold button inside the panel)
-      let i = 2; try { i = JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').scaleIdx ?? 2; } catch (__e) { __h('50-views:103', __e); }
+      let i = 2; try { i = JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').scaleIdx ?? 2; } catch (__e) { __h('50-views:105', __e); }
       const pct = [100, 110, 120, 132, 145, 160][Math.max(0, Math.min(5, i))];
       h += `<div class="card"><h3>🔠 Text size</h3><div class="row"><span class="k">Mega's text</span><span class="v"><b>${pct}%</b></span></div><div class="btns"><button class="btn" data-act="smaller" ${i <= 0 ? 'disabled' : ''}>A− Smaller</button><button class="btn" data-act="bigger" ${i >= 5 ? 'disabled' : ''}>A+ Bigger</button></div><div class="dim" style="font-size:var(--t-s);margin-top:6px">The panel gets wider with bigger text, up to about 40% of the screen.</div></div>`;
     }
@@ -1973,7 +1975,7 @@ const Views = (() => {
       <div class="note dim" style="margin-top:8px">One at a time, only for the goal that's running, never replacing a stronger one: Enigma + Razz while catching a missing Pokémon in the wild, Golden Razz (or Razz) at a legendary or special encounter, Pinap while leveling, Lansat while farming money, Starf + Nanab while hunting a shiny, Rowap while chasing a roaming legendary (it doubles how long it stays put).</div>
       ${berryRows(esc)}</div>`;
     h += (() => {
-      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:131', __e); }
+      let L = []; try { L = MoveTune.list(); } catch (__e) { __h('50-views:133', __e); }
       const nm = (id) => { try { return Casing.names(Engine.get('Game.DEX')[id].name); } catch { return '#' + id; } };
       return `<div class="card"><h3>🥋 Moves</h3>
       <label class="chk"><input type="checkbox" data-act="movetune" ${MoveTune.on ? 'checked' : ''}> Let Mega turn status moves on and off before boss fights</label>
@@ -2019,7 +2021,7 @@ const Views = (() => {
         if (A.statusShare != null && A.ticks.length) h += row('Damage from poison / burn', `<b>${Math.round(A.statusShare * 100)}%</b> <span class="dim">of all damage dealt</span>`);
         h += row('Counter-hit on one of yours', A.counter ? `${Math.round(A.counter)} <span class="dim">(${A.counterN})</span>` : '-');
         h += `<div style="margin-top:6px;font-weight:700;color:var(--ink)">Your damage per action</div>`;
-        for (const t of A.attackers) h += `<div class="row"><span class="k" style="display:flex;align-items:center;gap:6px"><img src="${Engine.sprite(t.id)}" width="28" height="28" style="image-rendering:pixelated">${esc(World.dex.name(t.id))}${t.shiny ? ' ✨' : ''}${t.rank ? ` r${t.rank}` : ''}</span><span class="v">${t.avg ? Math.round(t.avg) : '-'} <span class="dim">· ${t.n} actions${t.missRate ? `, ${Math.round(t.missRate * 100)}% no damage` : ''}</span></span></div>`;
+        for (const t of A.attackers) h += `<div class="row"><span class="k" style="display:flex;align-items:center;gap:6px"><img src="${Engine.sprite(t.id)}" width="28" height="28" style="image-rendering:pixelated">${esc(World.dex.name(t.id))}${MT(t)}${t.rank ? ` r${t.rank}` : ''}</span><span class="v">${t.avg ? Math.round(t.avg) : '-'} <span class="dim">· ${t.n} actions${t.missRate ? `, ${Math.round(t.missRate * 100)}% no damage` : ''}</span></span></div>`;
       }
       h += `</div>`;
     }
@@ -2785,7 +2787,7 @@ Views.legends = (w, ui, esc) => {
     // team: current zone team, simulated best, real record
     const cur = sel.roam ? (Engine.get('Game.S')?.team || []).slice(0, 6) : Engine.read('Game.zoneTeam', [], sel.id) || [];
     const saved = Legends.sims()[sel.id];
-    const teamRow = (uids) => `<div class="grid">${uids.map((u) => { const m = mon(u); return m ? `<div class="mon"><img src="${Engine.sprite(m.id)}" alt="">${name(m.id)}${m.shiny ? ' ✨' : ''}<br><span class="dim">Lv ${m.level}</span></div>` : `<div class="mon unk"><span class="dim">away</span></div>`; }).join('')}</div>`;
+    const teamRow = (uids) => `<div class="grid">${uids.map((u) => { const m = mon(u); return m ? `<div class="mon"><img src="${Engine.sprite(m.id)}" alt="">${name(m.id)}${MT(m)}<br><span class="dim">Lv ${m.level}</span></div>` : `<div class="mon unk"><span class="dim">away</span></div>`; }).join('')}</div>`;
     h += `<div class="card"><h3>${sel.roam ? 'Your team now' : 'Zone team now'}</h3>${cur.length ? teamRow(cur) : '<div class="note">No team set for this zone yet.</div>'}`;
     if (ui.real && ui.real.id === sel.id && ui.real.cur) h += `<div class="row"><span class="k">Real record</span><span class="v">${ui.real.cur.fights ? `${ui.real.cur.ko} KO · ${ui.real.cur.lost} lost (${pct(ui.real.cur.rate)})` : '<span class="dim">no recorded fights</span>'}</span></div>`;
     h += `</div>`;
@@ -4801,7 +4803,7 @@ Views.now = (w, esc, fmtIn) => {
         if (scrGoal.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(scrGoal.spot)) return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-        return `<div style="margin-top:8px" title="Training time to Lv 100: each one's XP rate while Mega trains here (last 2 h of training) - time Mega spends on other goals comes on top">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
+        return `<div style="margin-top:8px" title="Training time to Lv 100: each one's XP rate while Mega trains here (last 2 h of training) - time Mega spends on other goals comes on top">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${MT(r)}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
       })()}
       ${(() => { // Axsiom Plan / Giant Chasm: what this run brought in
         if (scrGoal.type !== 'discord' || !['axsiom', 'mix'].includes(scrGoal.spot)) return '';
@@ -4816,7 +4818,7 @@ Views.now = (w, esc, fmtIn) => {
     h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:var(--t-s);font-weight:700;letter-spacing:.04em">WORKING ON NOW · IDLE</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">
       ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
       <div style="flex:1;min-width:0"><div style="font-size:var(--t-m);font-weight:800">${g ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</div>
-      ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${RK(m.rank)}${m.shiny ? ' ✨' : ''} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
+      ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${RK(m.rank)}${MT(m)} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
       ${I.line ? `<div class="dim" style="margin-top:8px">${esc(I.line)}</div>` : ''}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
   } else {
@@ -4939,7 +4941,7 @@ Views.now = (w, esc, fmtIn) => {
     if (R.length) {
       const M = (x) => (x >= 1e6 ? (x / 1e6).toFixed(1) + ' M' : Math.round(x / 1e3) + ' k');
       const have = ['exp-candy-s', 'exp-candy-m', 'exp-candy-big', 'exp-candy-xl'].map((k) => [k, +E.read('Game.itemCount', 0, k) || 0]).filter(([, n]) => n);
-      h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${R.length}</span></h3><div class="dim" style="font-size:var(--t-s);margin-bottom:4px">Past ${((g.candyAt || GoalTypes.CANDY_AT) / 1e6).toFixed(1)} M XP per level, so battling is slow: feed these Exp. Candies. Discord tier-list picks first.</div>${R.slice(0, 8).map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(0,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${esc(Casing.names(E.get('Game.DEX')?.[r.id]?.name || '#' + r.id))}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><span>${r.tier ? '<span class="ok" style="font-size:var(--t-s)">Discord pick</span>' : ''}</span><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${M(r.left)} XP to 100</span></div>`).join('')}${R.length > 8 ? `<div class="dim" style="margin-top:4px">+ ${R.length - 8} more</div>` : ''}${have.length ? `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">You have: ${have.map(([k, n]) => `${esc(Casing.names(E.get('CONFIG')?.ITEMS?.[k]?.name || k))} ×${n}`).join(' · ')}</div>` : ''}</div>`;
+      h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${R.length}</span></h3><div class="dim" style="font-size:var(--t-s);margin-bottom:4px">Past ${((g.candyAt || GoalTypes.CANDY_AT) / 1e6).toFixed(1)} M XP per level, so battling is slow: feed these Exp. Candies. Discord tier-list picks first.</div>${R.slice(0, 8).map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(0,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${esc(Casing.names(E.get('Game.DEX')?.[r.id]?.name || '#' + r.id))}</b>${MT(r)}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><span>${r.tier ? '<span class="ok" style="font-size:var(--t-s)">Discord pick</span>' : ''}</span><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${M(r.left)} XP to 100</span></div>`).join('')}${R.length > 8 ? `<div class="dim" style="margin-top:4px">+ ${R.length - 8} more</div>` : ''}${have.length ? `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">You have: ${have.map(([k, n]) => `${esc(Casing.names(E.get('CONFIG')?.ITEMS?.[k]?.name || k))} ×${n}`).join(' · ')}</div>` : ''}</div>`;
     }
   }
 
@@ -4961,7 +4963,7 @@ Views.now = (w, esc, fmtIn) => {
           <div class="${e.ready ? 'ok' : 'dim'}">${e.ready ? '● ready to hatch' : `${DayCare.left(e.left)} left · hatches ${at2(e.hatchAt)}`}</div>${e.ready ? '' : bar(pct)}</div>${e.ready ? `<button class="btn sm gold" style="width:auto;padding:10px 14px;margin:0" data-act="m-egg-hatch" data-uid="${esc(e.uid)}">🐣 Hatch</button>` : ''}</div>`;
       }
       if (dc.eggs.filter((e) => e.ready).length > 1) h += `<button class="btn gold" data-act="m-egg-hatch" data-uid="">🐣 Hatch All Ready (${dc.eggs.filter((e) => e.ready).length})</button>`;
-      if (dc.mons.length) h += `<div class="dim" style="margin-top:6px">Staying there: ${dc.mons.map((m) => `${nm(m.id)}${m.shiny ? ' ✨' : ''} Lv ${m.level}`).join(', ')}</div>`;
+      if (dc.mons.length) h += `<div class="dim" style="margin-top:6px">Staying there: ${dc.mons.map((m) => `${nm(m.id)}${MT(m)} Lv ${m.level}`).join(', ')}</div>`;
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
@@ -5123,7 +5125,7 @@ Views.blocs = (esc) => {
       else if (liked.includes(hs)) { const n = +up[hs] || 0; tip = n >= MAX - 1e-6 ? `<span class="ok">✓ ${STAT[hs]} is maxed (+20%).</span>` : `Feed it <b>${COLOUR[hs]}</b> (${STAT[hs]}): about ${Math.ceil(MAX - n)} more to reach +20%.`; }
       else tip = `It likes ${liked.map((k) => STAT[k]).join(' & ') || '—'}. Feed it <b>${COLOUR[hs]}</b> to move its liked stat to ${STAT[hs]}, the one it attacks with.`;
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><img src="${E.sprite(m.id)}" width="40" height="40" style="image-rendering:pixelated;flex:none">
-        <div style="flex:1;min-width:0"><b>${nm(m.id)}${m.shiny ? ' ✨' : ''}</b> <span class="dim">Lv ${m.level} · dislikes ${chip(t.h)}${STAT[t.h]}</span>
+        <div style="flex:1;min-width:0"><b>${nm(m.id)}${MT(m)}</b> <span class="dim">Lv ${m.level} · dislikes ${chip(t.h)}${STAT[t.h]}</span>
         <div style="font-size:var(--t-s)">${boosts || '<span class="dim">no boosts yet</span>'}</div><div style="font-size:var(--t-s)">${tip}</div></div></div>`;
     }
     h += `</div>`;
@@ -5138,7 +5140,7 @@ Views.blocs = (esc) => {
   picks.forEach((m, i) => {
     const hs = hitStat(m), n = use.get(m.uid) || 0;
     h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b><img src="${E.sprite(m.id)}" width="40" height="40" style="image-rendering:pixelated;flex:none">
-      <div style="flex:1;min-width:0"><b>${nm(m.id)}${m.shiny ? ' ✨' : ''}</b> <span class="dim">Lv ${m.level} · base ${bst(m)}${n ? ` · in ${n >= 6 ? 'many' : 'some'} of your teams` : ''}</span>
+      <div style="flex:1;min-width:0"><b>${nm(m.id)}${MT(m)}</b> <span class="dim">Lv ${m.level} · base ${bst(m)}${n ? ` · in ${n >= 6 ? 'many' : 'some'} of your teams` : ''}</span>
       <div style="font-size:var(--t-s)">Then feed ${chip(hs)}<b>${COLOUR[hs]}</b> (${STAT[hs]}, its attacking stat)${hs === 'atk' ? '' : ''}</div></div></div>`;
   });
   h += `<div class="dim" style="font-size:var(--t-s);margin-top:10px">1 in 5 draws makes its attacking stat the disliked one - check the Revealed list right after a Rainbow, and reroll that one if you have Rainbows to spare.</div></div>`;
@@ -5343,7 +5345,7 @@ Views.gems = (esc) => {
     g.top.forEach((c, i) => {
       h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b>
         <img src="${Engine.sprite(c.m.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none">
-        <div style="flex:1;min-width:0"><b>${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''}</b> <span class="ok">+${c.gain} stats</span> <span class="dim">(+${Math.round(c.pct * 100)}%)</span>
+        <div style="flex:1;min-width:0"><b>${nm(c.m.id)}${MT(c.m)}</b> <span class="ok">+${c.gain} stats</span> <span class="dim">(+${Math.round(c.pct * 100)}%)</span>
         <div class="dim" style="font-size:var(--t-s)">rank ${c.m.rank || 0} → ${c.next} · ${c.need} ${esc(c.label)} gem${c.need > 1 ? 's' : ''}${role(c) ? ' · ' + role(c) : ''}</div>
         ${EliteInfo.canEvolve(c.m.id) ? `<div class="warn" style="font-size:var(--t-s)">⚠ won't evolve any more once ranked</div>` : ''}</div></div>
         <button class="btn${i === 0 ? ' gold' : ''}" data-act="gem-rank" data-uid="${c.m.uid}" data-key="${c.key}" data-rank="${c.m.rank || 0}" data-id="${c.m.id}" data-need="${c.need}" data-label="${esc(c.label)}" data-gain="${c.gain}" data-lv="${c.m.level}" data-ev="${EliteInfo.canEvolve(c.m.id) ? 1 : 0}">Rank Up (back to Lv 5)</button>
@@ -5358,7 +5360,7 @@ Views.gems = (esc) => {
     const R = g.rows.filter((r) => tierOf(r.key) === t); if (!R.length) continue;
     const held = R.filter((r) => +r.have > 0), none = R.filter((r) => !(+r.have > 0));
     const line = (r) => { const c = r.top[0];
-      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${MT(c.m)} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
     if (held.length) h += `<div class="card" data-sec="all"><h3>${esc(EliteInfo.TIER[t])} gems <span class="dim" style="font-weight:600">· ${held.length}</span></h3>${held.map(line).join('')}</div>`;
     if (none.length) h += `<div class="card" data-sec="none"><h3>${esc(EliteInfo.TIER[t])} gems you don't have <span class="dim" style="font-weight:600">· ${none.length}</span></h3>${none.map(line).join('')}</div>`;
   }
@@ -5514,11 +5516,11 @@ const GemFocus = (() => {
     let h = '';
     // 1. Focus Pokémon
     const ch = F.choices();
-    h += `<div class="card"><h3>🎯 Focus Pokémon</h3><select class="sel" data-act="gem-focus"><option value="">Pick one of your Pokémon…</option>${ch.map((c) => `<option value="${c.uid}" ${ui.focus === c.uid ? 'selected' : ''}>${c.pick ? '★ ' : ''}${esc(c.name)}${c.shiny ? ' ✨' : ''} · Lv ${c.lv} · rank ${c.rank}</option>`).join('')}</select><div class="dim" style="font-size:var(--t-s);margin-top:4px">★ = on the Discord's gem tier lists</div>`;
+    h += `<div class="card"><h3>🎯 Focus Pokémon</h3><select class="sel" data-act="gem-focus"><option value="">Pick one of your Pokémon…</option>${ch.map((c) => `<option value="${c.uid}" ${ui.focus === c.uid ? 'selected' : ''}>${c.pick ? '★ ' : ''}${esc(c.name)}${c.shiny ? ' ✨' : ''}${c.rank ? ' ' + (ROMAN[c.rank] || c.rank) : ''} · Lv ${c.lv}</option>`).join('')}</select><div class="dim" style="font-size:var(--t-s);margin-top:4px">★ = on the Discord's gem tier lists</div>`;
     const m = ui.focus ? Engine.read('Game.getMon', null, ui.focus) : null;
     if (m) {
       const s = F.status(m), o = F.shop() || { ids: [] };
-      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:10px">${sp(m.id, 56)}<div style="flex:1"><b style="font-size:var(--t-m)">${esc(F.nameOf(m.id))}${m.shiny ? ' ✨' : ''}</b><div class="dim">Lv ${m.level} · rank ${s.rank} of ${s.max} · ${s.rank < s.max ? `${s.left} more gems to reach rank ${s.max}` : 'top rank'}</div></div></div>`;
+      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:10px">${sp(m.id, 56)}<div style="flex:1"><b style="font-size:var(--t-m)">${esc(F.nameOf(m.id))}${MT(m)}</b><div class="dim">Lv ${m.level} · rank ${s.rank} of ${s.max} · ${s.rank < s.max ? `${s.left} more gems to reach rank ${s.max}` : 'top rank'}</div></div></div>`;
       if (!s.keys.length) h += `<div class="dim" style="margin-top:8px">This one can't take gems.</div>`;
       else {
         h += `<div style="margin-top:8px"><b>Takes:</b> ${s.keys.map((x) => `${esc(x.label)} <span class="${x.have ? 'ok' : 'dim'}">(you have ${x.have})</span>`).join(' or ')}</div>`;
@@ -5549,7 +5551,7 @@ const GemFocus = (() => {
     if (W.length) {
       const row = (r) => {
         const st = r.rank >= r.max ? '<span class="ok">rank 5 ✓</span>' : r.why ? `<span class="dim">${esc(r.why)}</span>` : `<span class="ok">✓ ready for rank ${r.next}</span>`;
-        return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">· Lv ${r.m.level} · rank ${r.rank}</span><div class="dim" style="font-size:var(--t-s)">${esc(r.tag)}</div><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
+        return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)} <span class="dim">· Lv ${r.m.level}</span><div class="dim" style="font-size:var(--t-s)">${esc(r.tag)}</div><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
       };
       // the next gems worth spending: the first picks (list order) that can rank up right now
       const ready = W.filter((r) => r.rank < r.max && !r.why);
