@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.19
+// @version      2.20.20
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.19';
+const VERSION = '2.20.20';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5542,7 +5542,10 @@ const GemFocus = (() => {
       if (go.length || wait.length) {
         h += `<div class="card gemready${go.length ? '' : ' soft'}"><h3>${go.length ? `Ready to Rank Up · ${go.length}` : 'Gems in hand'}</h3>`;
         h += go.map((r) => `<div style="display:flex;gap:8px;align-items:center;margin-top:8px">${sp(r.m.id, 40)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)} <span class="dim">· Lv ${r.m.level}</span><div style="font-size:var(--t-s)">rank ${r.rank} → ${r.next} · ${r.need} × ${esc(F.label(r.key))}</div></div><button class="btn gold" style="width:auto;margin:0;flex:none" data-act="gem-rank" data-uid="${r.m.uid}" data-key="${r.key}" data-rank="${r.rank}" data-id="${r.m.id}" data-need="${r.need}" data-label="${esc(F.label(r.key))}" data-lv="${r.m.level}">Rank Up</button></div>`).join('');
-        if (wait.length) h += `<div style="margin-top:${go.length ? 10 : 4}px;font-size:var(--t-s)"><b>Gems ready, waiting on:</b> ${wait.map((r) => `${esc(r.name)}${MT(r.m)} <span class="dim">(${esc(r.why)})</span>`).join(' · ')}</div>`;
+        if (wait.length) { // grouped by what they wait on (the game says "At level 100" = it ranks up at Lv 100)
+          const by = new Map(); for (const r of wait) { const k = /level 100/i.test(r.why) ? 'Lv 100' : r.why; if (!by.has(k)) by.set(k, []); by.get(k).push(r); }
+          for (const [k, rs] of by) h += `<div style="margin-top:${go.length ? 10 : 4}px;font-size:var(--t-s)"><b>Gems ready, waiting for ${esc(k)}:</b> ${rs.slice(0, 8).map((r) => `${esc(r.name)}${MT(r.m)}`).join(', ')}${rs.length > 8 ? ` <span class="dim">+ ${rs.length - 8} more</span>` : ''}</div>`;
+        }
         h += `</div>`;
       } }
     // 1. Focus Pokémon
@@ -5592,7 +5595,7 @@ const GemFocus = (() => {
       if (gap.length) h += `<div style="margin-top:2px"><b class="warn">Top picks still at rank 0:</b> ${gap.slice(0, 5).map((r) => esc(r.name)).join(', ')}</div>`;
       // the list filter (Jimmy 2026-11-24): every tier, or one at a time
       const TIERS = [['', 'All tiers'], ['S', 'Legendary · Tier S'], ['A', 'Legendary · Tier A'], ['Pseudo', 'Pseudo-legendaries'], ['Rare', 'Top 10 Rare'], ['Uncommon', 'Top 10 Uncommon'], ['Top', "Top player's other picks"]];
-      let tf = ''; try { tf = localStorage.getItem('mega-gem-tier') || ''; } catch (__e) { __h('63-gemfocus:201', __e); }
+      let tf = ''; try { tf = localStorage.getItem('mega-gem-tier') || ''; } catch (__e) { __h('63-gemfocus:204', __e); }
       if (!TIERS.some(([k]) => k === tf)) tf = '';
       const n = (k) => (k ? W.filter((r) => r.list === k).length : W.length);
       h += `<select class="sel" data-act="gem-tier" style="margin-top:8px">${TIERS.filter(([k]) => !k || n(k)).map(([k, t]) => `<option value="${k}" ${tf === k ? 'selected' : ''}>${t} (${n(k)})</option>`).join('')}</select>`;
