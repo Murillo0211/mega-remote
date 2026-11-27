@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.17
+// @version      2.20.18
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.17';
+const VERSION = '2.20.18';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4637,7 +4637,7 @@ Views.trades = (esc) => {
   if (!open) {
     const TAG = { spare: ['ok', '✓ spare'], last: ['warn', 'your last'], busy: ['warn', 'in use'], none: ['dim', 'need it'] };
     if (T.length) o += `<div class="grid">${T.map((t) => { const [cls, txt] = TAG[t.best] || TAG.none; return `<div class="mon" data-act="tr-pick" data-id="${t.id}" data-shiny="${t.shiny ? 1 : ''}" style="cursor:pointer;${t.best === 'spare' ? 'border-color:var(--ok)' : ''}">
-      <img src="${Engine.sprite(t.id)}" loading="lazy">${t.shiny ? '✨' : ''}${nm(t.id)}
+      <img src="${Engine.sprite(t.id)}" loading="lazy">${nm(t.id)}${t.shiny ? ' ✨' : ''}
       <div style="font-size:var(--t-s)">${(t.list || []).length} offer${(t.list || []).length === 1 ? '' : 's'}</div>
       <div style="font-size:var(--t-s)"><span class="${t.can ? 'ok' : 'dim'}">${t.can} can do</span> · <span class="dim">${(t.list || []).length - t.can} can't</span></div>
       ${t.newGet ? '<div class="ok" style="font-size:var(--t-s);font-weight:800">NEW</div>' : t.newTo ? `<div class="ok" style="font-size:var(--t-s)">→ ${nm(t.to)} NEW</div>` : ''}
@@ -4649,7 +4649,7 @@ Views.trades = (esc) => {
   o = `<button class="btn sm" data-act="tr-back" style="margin:0 0 10px">‹ Back to all trades</button>
     ${Trades.openMsg ? `<div class="note" style="margin-bottom:8px">${esc(Trades.openMsg)}</div>` : ''}
     <div class="card"><div style="display:flex;gap:12px;align-items:center">${sp(t.id)}<div style="flex:1">
-    <div style="font-size:18px;font-weight:800">${t.shiny ? '✨ ' : ''}${nm(t.id)}</div>
+    <div style="font-size:18px;font-weight:800">${nm(t.id)}${t.shiny ? ' ✨' : ''}</div>
     <div>${t.newGet ? '<span class="ok">New for your Pokédex</span>' : ''}${t.newTo ? `${t.newGet ? ' · ' : ''}<span class="ok">evolves into ${nm(t.to)} when it arrives (new!)</span>` : ''}</div>
     <div>${(t.list || []).length} offer${(t.list || []).length === 1 ? '' : 's'} · <span class="${t.can ? 'ok' : 'dim'}">${t.can} you can do</span>${t.can ? ` <span class="dim">(${t.canSpare} with a spare)</span>` : ''} · <span class="dim">${(t.list || []).length - t.can} you can't</span></div>
     <div class="dim">checked ${ago(d.at)}</div></div></div>
