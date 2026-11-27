@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.25
+// @version      2.20.26
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.25';
+const VERSION = '2.20.26';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4927,7 +4927,7 @@ Views.now = (w, esc, fmtIn) => {
         const k = `u${x.kind}${x.id}`, tag = x.queued ? ' <span class="chip on" style="font-size:var(--t-s);padding:1px 7px">In queue</span>' : '';
         const act = x.kind === 'fete' ? 'data-act="task-open" data-k="fete15"' : x.queued ? 'data-act="tab" data-tab="plan"' : `data-act="rw-ask" data-k="${k}"`;
         let r = `<div class="row" ${act} style="cursor:pointer"><span class="k"><span class="faint" style="font-size:var(--t-s)">${Upcoming.verb(x) === 'fight' ? 'Fight' : Upcoming.verb(x) === 'event' ? 'Event' : 'Catch'}</span> ${esc(Upcoming.what(x))}${tag} <span class="faint" style="font-size:var(--t-s)">· ${esc(x.why)}${x.place ? ' · ' + esc(x.place) : ''}</span></span><span class="v">${when(x)}</span></div>`;
-        if (x.kind !== 'fete' && !x.queued && ask === k) r += `<div class="note" style="margin:4px 0 6px">Add <b>${x.kind === 'elite' ? `${esc(Upcoming.what(x).replace(/ · Elite tier \d+$/, ''))} Elite up to tier 5` : `Catch ${esc(Upcoming.what(x))}`}</b> to your queue?<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="up-add" data-type="${x.type}" data-json="${esc(JSON.stringify(x.data))}">Add to Queue</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
+        if (x.kind !== 'fete' && !x.queued && ask === k) r += `<div class="note" style="margin:4px 0 6px">Add <b>${x.kind === 'elite' ? `${esc(Upcoming.what(x).replace(/ · Elite tier \d+.*$/, ''))} Elite up to tier 5` : `Catch ${esc(Upcoming.what(x))}`}</b> to your queue?<div class="btns" style="margin-top:6px"><button class="btn sm gold" data-act="up-add" data-type="${x.type}" data-json="${esc(JSON.stringify(x.data))}">Add to Queue</button><button class="btn sm" data-act="rw-cancel">Cancel</button></div></div>`;
         return r;
       };
       const T = U.filter((x) => x.day === 'today'), M = U.filter((x) => x.day === 'tomorrow');
@@ -10675,7 +10675,9 @@ const Upcoming = (() => {
     cache = { at: Date.now(), items: out };
     return out;
   }
-  const what = (x) => (x.kind === 'fete' ? x.name : x.kind === 'elite' ? `${nm(x.id)} · Elite tier ${x.tier}` : nm(x.id));
+  // an Elite tier says its simulated odds when Mega has them (2.20.25: Dialga tier 3 sims 0% and was listed like any other)
+  const odds = (x) => { const r = t(() => EliteSim.legendFresh(x.id, x.tier) || EliteSim.get(`L${x.id}:${x.tier}`)); return r && typeof r.ko === 'number' ? r.ko : null; };
+  const what = (x) => { if (x.kind === 'fete') return x.name; if (x.kind !== 'elite') return nm(x.id); const o = odds(x); return `${nm(x.id)} · Elite tier ${x.tier}${o == null ? '' : ` · ${Math.round(o * 100)}% to win${o < 0.1 ? ' (too low - Mega skips it)' : ''}`}`; };
   const verb = (x) => (x.kind === 'elite' ? 'fight' : x.kind === 'fete' ? 'event' : 'catch');
   return { list, what, verb, clear: () => { cache = null; } };
 })();
