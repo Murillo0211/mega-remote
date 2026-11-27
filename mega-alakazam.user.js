@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.15
+// @version      2.20.16
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.15';
+const VERSION = '2.20.16';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -11474,7 +11474,7 @@ const GameMode = (() => {
   const on = () => Date.now() < until;
   const hold = () => { const was = on(); until = Date.now() + 45_000; if (!was) Log.add('Game Mode on the phone - Mega steps aside'); };
   const off = () => { if (on()) Log.add('Game Mode closed - Mega picks up again'); until = 0; maps.clear(); };
-  const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'CANVAS', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'VIDEO', 'AUDIO', 'META']);
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'VIDEO', 'AUDIO', 'META']);
   const SKIP_ID = new Set(['mega-alakazam', 'arena', 'mega-topline']);
   const BLOCK = /two saves|deux sauvegardes|release|relâcher|relacher|libérer|liberer|relâch|delete save|supprimer/i;
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -11497,12 +11497,22 @@ const GameMode = (() => {
   }
   // one copy of the screen; every element gets data-gm=<n> so a tap can be pressed on the real one
   function snap() {
-    const els = [];
+    const els = []; let canvasBytes = 0;
     const blockedBox = (el) => { const m = el.closest?.('#modal-root, .modal, [role=dialog]'); return !!(m && BLOCK.test(m.textContent || '') && /two saves|deux sauvegardes/i.test(m.textContent || '')); };
     function ser(n) {
       if (n.nodeType === 3) return esc(n.nodeValue);
       if (n.nodeType !== 1) return '';
       const tag = n.tagName; if (SKIP.has(tag) || SKIP_ID.has(n.id)) return '';
+      // a canvas (2.20.16 - the Underground's geode you tap to break is drawn on one): sent as a picture of what it shows
+      // now, at its size on the page; tapping the picture taps the canvas. Big ones (the battle scenery) are left out.
+      if (tag === 'CANVAS') {
+        let cs0; try { cs0 = getComputedStyle(n); } catch { return ''; }
+        if (cs0.display === 'none' || cs0.visibility === 'hidden' || !n.width || !n.height || n.width * n.height > 360_000 || canvasBytes > 400_000) return '';
+        let url = ''; try { url = n.toDataURL('image/png'); } catch { return ''; }
+        canvasBytes += url.length;
+        const r = n.getBoundingClientRect(), i = els.push(n) - 1;
+        return `<img data-gm="${i}" data-gmp="1" class="${attr(n.className || '')}" src="${url}" style="width:${Math.round(r.width) || n.width}px;height:${Math.round(r.height) || n.height}px;image-rendering:pixelated;${attr(n.getAttribute('style') || '').replace(/width:[^;]*;?|height:[^;]*;?/g, '')}">`;
+      }
       let cs; try { cs = getComputedStyle(n); } catch { return ''; }
       // the game has its own phone layout (at 640 px and below), so parts the wide screen hides stay in: only the
       // pages that aren't open (and anything marked hidden) are left out
@@ -11563,9 +11573,9 @@ const GameMode = (() => {
     hold();
     const el = find(f, i); guard(el);
     const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 };
-    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:105', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:115', __e); }
     el.dispatchEvent(new MouseEvent('mousedown', o));
-    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:107', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:117', __e); }
     el.dispatchEvent(new MouseEvent('mouseup', o));
     el.click();
     return 'ok';
