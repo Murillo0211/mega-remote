@@ -1035,6 +1035,7 @@ function mvSend(el, kind) {
   const tab = box.dataset.mvtab, data = { ...el.dataset };
   if (data.act === 'fold-card') { el.closest('.card')?.classList.toggle('folded'); return; }
   if (data.act === 'tab' && data.tab) { goTab(data.tab); window.scrollTo(0, 0); render(); return; } // a link to another of Mega's screens
+  if (data.act === 'task-open') setTimeout(() => { goTab('tasks'); window.scrollTo(0, 0); render(); }, 0); // a daily / Coming Up row: Mega picks the task, the phone goes to Tasks
   if (['gem-fuse', 'gem-buy', 'gem-reroll'].includes(data.act) && !data.sure) { askConfirm((el.textContent || '').trim() + '?').then((ok) => { if (ok) { el.dataset.sure = '1'; mvSend(el, kind); delete el.dataset.sure; } }); return; }
   // the phone's own sheets for what must be confirmed here (Mega never does these from a phone tap by itself)
   if (data.act === 'tr-open' && data.id) { openTrades(+data.id, !!data.shiny); window.scrollTo(0, 0); return; }
