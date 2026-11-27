@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.23
+// @version      2.20.24
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.23';
+const VERSION = '2.20.24';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2888,7 +2888,7 @@ Views.planAdd = (w, ui, esc) => {
   const legends = Legends.list().filter((z) => z.state !== 'done' && !Plan.has(z.id));
   const order = { open: 0, closed: 1, locked: 2 };
   if (ui.addType === 'wboss') {
-    h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>Add to plan</button>
+    h += `<button class="btn" data-act="plan-add-wboss" ${Plan.hasType('wboss') ? 'disabled' : ''}>${Plan.hasType('wboss') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Each edition: while the shield is up, uses your 3 daily attacks (the game's own pick: your strongest that haven't attacked today); when it falls, catches it like a legendary during the 24-hour window, with Golden Razz. Goes ahead of your other goals like the dailies. Elite tiers and the Elite League are added from Simulate.</div></div>`;
   } else if (ui.addType === 'item') {
     const items = DexInfo.rareItems(), it = items.find((x) => x.key === ui.addItem);
@@ -2911,16 +2911,16 @@ Views.planAdd = (w, ui, esc) => {
     <button class="btn" data-act="plan-add-money">Add to plan</button>
     <div class="note dim">You have ₽${have.toLocaleString()}. Farms the chapter that pays the most with the Pokémon that clear it fastest, keeps a Lansat Berry going, shows ₽ per hour, and puts your team and chapter back when it reaches the target.</div></div>`;
   } else if (ui.addType === 'raid') {
-    h += `<button class="btn" data-act="plan-add-raid" ${Plan.hasType('raid') ? 'disabled' : ''}>Add to plan</button>
+    h += `<button class="btn" data-act="plan-add-raid" ${Plan.hasType('raid') ? 'disabled' : ''}>${Plan.hasType('raid') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Plays today's Shiny Raid once it's drawn: picks your 2 best against the boss and the ally trainers whose Pokémon do best, starts it, and lets the game retry until you win. Uses the daily reroll only when today's boss is a shiny you already own (or clearly weak) and another region's boss would be better.</div></div>`;
   } else if (ui.addType === 'fete15') {
-    h += (typeof Views.feteBlock === 'function' ? Views.feteBlock(esc) : '') + `<button class="btn" data-act="plan-add-fete15" ${Plan.hasType('fete15') ? 'disabled' : ''}>Add to plan</button>
-    <div class="note dim">The game's 15,000 Trainers event, until Dec 1: each region whose League you've won opens a day apart (7 AM). You pick its shiny starter (on the Now screen or in the game), then Mega picks your 2 and the ally trainers in the game's own engine, starts the raid and lets the game retry until it's caught (a Master Ball by the 150th try). Catching it opens the next region.</div>`;
+    h += (typeof Views.feteBlock === 'function' ? Views.feteBlock(esc) : '') + `<button class="btn" data-act="plan-add-fete15" ${Plan.hasType('fete15') ? 'disabled' : ''}>${Plan.hasType('fete15') ? 'In your queue' : 'Add to plan'}</button>
+    <div class="note dim">The game's 15,000 Trainers event, until Dec 1: each region whose League you've won opens a day apart (7 AM). You pick its shiny starter (right here, or in the game), then Mega picks your 2 and the ally trainers in the game's own engine, starts the raid and lets the game retry until it's caught (a Master Ball by the 150th try). Catching it opens the next region.</div>`;
   } else if (ui.addType === 'tower') {
-    h += `<button class="btn" data-act="plan-add-tower" ${Plan.hasType('tower') ? 'disabled' : ''}>Add to plan</button>
+    h += `<button class="btn" data-act="plan-add-tower" ${Plan.hasType('tower') ? 'disabled' : ''}>${Plan.hasType('tower') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Plays one Battle Tower run each week (the game picks the lineup from all your Pokémon) and lets it run to the end. Goes ahead of your other goals like the other dailies.</div></div>`;
   } else if (ui.addType === 'train') {
-    h += `<button class="btn" data-act="plan-add-train" ${Plan.hasType('train') ? 'disabled' : ''}>Add to plan</button>
+    h += `<button class="btn" data-act="plan-add-train" ${Plan.hasType('train') ? 'disabled' : ''}>${Plan.hasType('train') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Exactly what the plan does when it has nothing to do - levels your team first, then your strongest in the PC, in the chapter with the best XP per hour - but as a goal in your list: goals above it go first, goals below wait. It never finishes by itself; remove or pause it when you're done.</div></div>`;
   } else if (String(ui.addType).startsWith('discord-')) {
     const k = ui.addType.slice(8), v = (GoalTypes.discordSpots || {})[k] || {};
@@ -2928,10 +2928,10 @@ Views.planAdd = (w, ui, esc) => {
     h += `<button class="btn" data-act="plan-add-discord" data-spot="${k}">Add to plan</button>
     <div class="note dim">From the Discord's Auto-Replay Farming Guide (made on game v0.5.091 - later versions changed XP and money for older regions, so Mega's own measuring may disagree). ${WHY} While it runs, ${esc(v.where || 'the spot')} is your only loop (the game goes on to the next looped chapter after each one); your team, chapter and loops come back when you pause or remove it. It never finishes by itself.</div></div>`;
   } else if (ui.addType === 'bloc') {
-    h += `<button class="btn" data-act="plan-add-bloc" ${Plan.hasType('bloc') ? 'disabled' : ''}>Add to plan</button>
+    h += `<button class="btn" data-act="plan-add-bloc" ${Plan.hasType('bloc') ? 'disabled' : ''}>${Plan.hasType('bloc') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Once a day, after the daily reset: tries hundreds of 10-Pokémon teams with the game's own Pokéblock Boss forecast (the same team on the same day always ends the same way), then attacks with the one that empties the most bars. The attack is instant - nobody is sent away, so the 10 stay free for raids and the Underground.</div></div>`;
   } else if (ui.addType === 'candy') {
-    h += `<button class="btn" data-act="plan-add-candy" ${Plan.hasType('candy') ? 'disabled' : ''}>Add to plan</button>
+    h += `<button class="btn" data-act="plan-add-candy" ${Plan.hasType('candy') ? 'disabled' : ''}>${Plan.hasType('candy') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Runs the Candy Factory once a day as soon as it opens: reads the day's type, picks the six that beat it best, starts the run, and lets it play out. Dailies go ahead of your other goals, like in 4.x.</div></div>`;
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
@@ -2956,7 +2956,7 @@ Views.planAdd = (w, ui, esc) => {
   if (ui.addType === 'under') {
     const starts = (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })();
     h += ugSelects(ui.addFrom ?? 'auto', ui.addAim || 'deep', starts, 'add-from', 'add-aim') + `
-    <button class="btn" data-act="plan-add-ug" ${Plan.hasType('under') ? 'disabled' : ''}>Add to plan</button>
+    <button class="btn" data-act="plan-add-ug" ${Plan.hasType('under') ? 'disabled' : ''}>${Plan.hasType('under') ? 'In your queue' : 'Add to plan'}</button>
     <div class="note dim">Runs next to your other goals: brings finished expeditions home (never early), sends new ones while you have runs left today, and picks each team with the game's own expedition simulation from Pokémon your other goals and chapter team aren't using.</div></div>`;
   } else {
   h += `
@@ -4365,7 +4365,7 @@ const Trades = (() => {
     const gb = gameBoard();
     const due = () => {
       if (!data) return true;
-      if (data.failed) return Date.now() - data.at > 120_000; // the board didn't answer: try again in 2 min
+      if (data.retryAt) return Date.now() >= data.retryAt; // the board didn't answer: try again in 2 min
       if (gb && gb.at > (data.boardAt || 0) + 1000) return true; // the game just read its board
       const last = Math.max(data.at || 0, gb?.at || 0);
       return Date.now() >= last + refreshMs(); // its next read time
@@ -4416,7 +4416,7 @@ const Trades = (() => {
       targets.sort((a, b) => rk[a.best] - rk[b.best] || (b.newGet + b.newTo) - (a.newGet + a.newTo) || name(a.id).localeCompare(name(b.id)));
       data = { at: Date.now(), boardAt: useGame ? gb.at : Date.now(), fromGame: !!useGame, state: data.state, mine: mine?.data || null, targets, boardSize: rows.length };
       alerts();
-    } catch (e) { err = e?.message || String(e); if (!data) data = { at: Date.now(), targets: [], failed: true }; else data.at = Date.now() - refreshMs() + 120_000; }
+    } catch (e) { err = e?.message || String(e); if (!data) data = { at: 0, targets: [], failed: true }; data.retryAt = Date.now() + 120_000; }
     finally { busy = false; }
   }
 
@@ -4625,7 +4625,7 @@ Views.trades = (esc) => {
   const ago = (t) => { const m = Math.round((Date.now() - t) / 60_000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
   let o = `<div class="card"><h3>Trade Board</h3>
     <div class="dim">Pokémon you don't own on the board. Tap one for its offers.</div>
-    <div style="margin-top:8px">${Trades.busy ? 'Reading the board…' : d ? `Updated ${ago(d.at)}${d.fromGame ? ' with the game' : ''} · next with the game at ${DexInfo.clock(Math.max(d.boardAt || 0, Trades.gameAt() || 0) + Trades.refreshMs())}` : 'Not read yet'}${Trades.err ? ` <span class="bad">· ${esc(Trades.err)}</span>` : ''}</div>
+    <div style="margin-top:8px">${Trades.busy ? 'Reading the board…' : d?.retryAt ? `${d.at ? `Updated ${ago(d.at)} · ` : ''}<span class="bad">the board didn't answer${Trades.err ? ` (${esc(Trades.err)})` : ''}</span> · trying again ${DexInfo.clock(d.retryAt)}` : d?.at ? `Updated ${ago(d.at)}${d.fromGame ? ' with the game' : ''} · next with the game at ${DexInfo.clock(Math.max(d.boardAt || 0, Trades.gameAt() || 0) + Trades.refreshMs())}` : 'Not read yet'}</div>
     ${Trades.openMsg ? `<div class="note" style="margin-top:8px">${esc(Trades.openMsg)}</div>` : ''}
     <button class="btn" data-act="tr-refresh" ${Trades.busy ? 'disabled' : ''}>Refresh Now</button>
     <label class="chk"><input type="checkbox" data-act="tr-shiny" ${Trades.prefs.shiny ? 'checked' : ''}> Include shiny offers</label></div>`;
@@ -4743,8 +4743,9 @@ function nowRewards() {
     for (const r of E.get('STORY.REGIONS') || []) { if (!r?.key || !lz.leagueOpen(r.key)) continue; const t = +lz.leagueNext(r.key); if (!t) continue; const s = EliteSim.leagueFresh(r.key, t); if (s) out.tiers.push({ what: `${r.key[0].toUpperCase() + r.key.slice(1)} Elite League · tier ${t}`, pct: s.ko, reward: `Legendary gem${E.get('CONFIG')?.ELITE?.LEAGUE?.FRAMES?.includes(t) ? ' + frame' : ''}`, go: 'league', key: `g${r.key}`, reg: r.key, queued: Plan.goals.some((g) => !g.done && g.type === 'league' && g.reg === r.key) }); }
   } catch (__e) { __h('62-nowview:34', __e); }
   out.tiers.sort((a, b) => b.pct - a.pct);
-  try { out.ready = (EliteInfo.gems().top || []).map((c) => ({ name: nm(c.m.id), next: c.next, label: c.label })); } catch (__e) { __h('62-nowview:36', __e); }
-  try { out.shop = (GemFocus.shopHits() || []).map((x) => ({ label: x.label, price: x.price, ok: x.ok, mons: x.mons })); } catch (__e) { __h('62-nowview:37', __e); }
+  // the same list as Rank Up's green card (Discord picks, gems handed out best pick first) - 2.20.23
+  try { out.ready = GemFocus.readyRows().filter((r) => r.state === 'ready').map((c) => ({ name: nm(c.m.id), m: c.m, next: c.next, label: GemFocus.label(c.key) })); } catch (__e) { __h('62-nowview:37', __e); }
+  try { out.shop = (GemFocus.shopHits() || []).map((x) => ({ label: x.label, price: x.price, ok: x.ok, mons: x.mons })); } catch (__e) { __h('62-nowview:38', __e); }
   return out;
 }
 Views.now = (w, esc, fmtIn) => {
@@ -4762,7 +4763,7 @@ Views.now = (w, esc, fmtIn) => {
     const pc = (Views.__nowProg ||= new Map()), c = pc.get(g.id);
     let p = null;
     if (c && Date.now() - c.at < 10_000) p = c.p; // some counts scan the whole region: not every 2 s
-    else { try { p = GoalTypes[g.type]?.progress?.(g) || null; } catch (__e) { __h('62-nowview:55', __e); } pc.set(g.id, { at: Date.now(), p }); }
+    else { try { p = GoalTypes[g.type]?.progress?.(g) || null; } catch (__e) { __h('62-nowview:56', __e); } pc.set(g.id, { at: Date.now(), p }); }
     if (!p) { const m = /(?<!stop\s*)(?<![\d,])₽?([\d,]+)\s*(?:\/|of)\s*₽?([\d,]+)/i.exec(L?.line || L?.why || ''); /* not "stop 21/50" */ if (m) { const a = +m[1].replace(/,/g, ''), b = +m[2].replace(/,/g, ''); if (b > 0 && a <= b) p = { have: a, need: b }; } }
     return p;
   };
@@ -4781,11 +4782,11 @@ Views.now = (w, esc, fmtIn) => {
   const problems = [];
   if (Plan.oldOn()) problems.push('Alakazam 4.x is switched on, so the plan can\'t act (Plan tab → Switch 4.x off).');
   for (const g of open) { const L = live(g); if (/error|could not|refused|zone 3 times|did not|stuck/i.test((L.why || '') + ' ' + (L.line || ''))) problems.push(`${esc(Plan.label(g))}: ${esc(L.why || L.line)}`); }
-  try { const pend = E.get('LegendZones')?.leaguePending?.() || []; if (pend.length) problems.push(`Pick your Legendary gem in the game: Elite League ${pend.map((p) => `${esc(p.reg)} tier ${p.tier}`).join(', ')}.`); } catch (__e) { __h('62-nowview:74', __e); }
+  try { const pend = E.get('LegendZones')?.leaguePending?.() || []; if (pend.length) problems.push(`Pick your Legendary gem in the game: Elite League ${pend.map((p) => `${esc(p.reg)} tier ${p.tier}`).join(', ')}.`); } catch (__e) { __h('62-nowview:75', __e); }
   for (const f of Guard.failures()) problems.push(`Safety check: ${esc(f.label)} looks wrong (${esc(f.why)}) - goals that use it are paused until it looks right. Probably a game update.`);
   const miss = E.audit().missing || []; if (miss.length) problems.push(`${miss.length} game functions are missing after a game update - some goals may not work.`);
-  try { const ug0 = w.dailies.underground; if (ug0?.finished) problems.push(`Underground: ${ug0.finished} expedition${ug0.finished === 1 ? '' : 's'} back - collect ${ug0.finished === 1 ? 'it' : 'them'}.`); } catch (__e) { __h('62-nowview:77', __e); }
-  try { const rdy = (DayCare.info().eggs || []).filter((e) => e.ready).length; if (rdy) problems.push(`Day Care: ${rdy} egg${rdy === 1 ? '' : 's'} ready to hatch.`); } catch (__e) { __h('62-nowview:78', __e); }
+  try { const ug0 = w.dailies.underground; if (ug0?.finished) problems.push(`Underground: ${ug0.finished} expedition${ug0.finished === 1 ? '' : 's'} back - collect ${ug0.finished === 1 ? 'it' : 'them'}.`); } catch (__e) { __h('62-nowview:78', __e); }
+  try { const rdy = (DayCare.info().eggs || []).filter((e) => e.ready).length; if (rdy) problems.push(`Day Care: ${rdy} egg${rdy === 1 ? '' : 's'} ready to hatch.`); } catch (__e) { __h('62-nowview:79', __e); }
   const status = `<span style="float:right;font-size:var(--t-s);font-weight:700" class="${Plan.running ? 'ok' : 'warn'}">${Plan.running ? '● running' : '❚❚ paused'} · ${open.length} goal${open.length === 1 ? '' : 's'}</span>`;
   if (!Plan.running) h += `<button class="btn gold" data-act="plan-run" style="margin-bottom:10px">▶ Start Plan</button>`;
   if (problems.length) h += `<div class="card" style="border-color:var(--bad)"><h3>⚠️ Needs You</h3>${problems.map((p) => `<div class="warn" style="margin:4px 0">${p}</div>`).join('')}</div>`;
@@ -4847,8 +4848,8 @@ Views.now = (w, esc, fmtIn) => {
     // then why() says "day" - Mega fetches it (read-only, every 5 min at most) instead of saying "closed"
     const C = E.get('CandyRun'), now = Date.now();
     let why = d.candy.why, type = null;
-    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:140', __e); } }
-    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:141', __e); }
+    if (why === 'day' && C?.loadDay && now - (Views.__candySync || 0) > 300_000) { Views.__candySync = now; try { C.loadDay(); } catch (__e) { __h('62-nowview:141', __e); } }
+    try { why = C.why(); type = C.today?.()?.type || null; } catch (__e) { __h('62-nowview:142', __e); }
     const tname = type ? type[0].toUpperCase() + type.slice(1) : '';
     const inPlan = Plan.hasType('candy');
     h += tile('Candy Factory', d.candy.played || why === 'played' ? `<span class="ok">✔ done today</span>${tname ? ` <span class="dim">(${tname} day)</span>` : ''}`
@@ -4862,12 +4863,12 @@ Views.now = (w, esc, fmtIn) => {
     // the game only fetches the day's draw when its Raids screen opens: Mega fetches it (read-only),
     // at most every 5 min until it has today's, so this line is right without opening that screen
     const R = E.get('Raids'), now = Date.now();
-    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:155', __e); }
-    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:156', __e); } }
+    let ready = false; try { ready = !!R.ready(); } catch (__e) { __h('62-nowview:156', __e); }
+    if (!ready && R?.sync && now - (Views.__raidSync || 0) > 300_000) { Views.__raidSync = now; try { R.sync(); } catch (__e) { __h('62-nowview:157', __e); } }
     let nx = null, reg = null, boss = null, won = false, tries = 0;
-    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:158', __e); }
-    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:159', __e); } }
-    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:160', __e); } }
+    try { nx = +R.nextDay(); } catch (__e) { __h('62-nowview:159', __e); }
+    if (ready) { try { reg = R.drawn(); } catch (__e) { __h('62-nowview:160', __e); } }
+    if (reg) { try { boss = (R.lane() || []).find((x) => x.key === reg)?.boss; won = !!R.done(reg); tries = +R.tried(reg) || 0; } catch (__e) { __h('62-nowview:161', __e); } }
     const inPlan = Plan.hasType('raid'), rname = reg ? esc((E.get('STORY.REGIONS') || []).find((x) => x.key === reg)?.name || reg) : '';
     h += tile('Shiny Raid', !ready ? '<span class="dim">checking today\'s draw…</span>'
       : !reg ? `<span class="dim">no raid today${nx ? ` · next ${DexInfo.clock(nx)}` : ''}</span>`
@@ -4875,14 +4876,14 @@ Views.now = (w, esc, fmtIn) => {
       : `<span class="warn">open now: ✨ ${boss ? nm(boss) : '?'} (${rname})</span>${tries ? ` · ${tries} tries` : ''}<div class="dim">until ${DexInfo.clock(nx)}${inPlan ? '' : ' · add Shiny Raid in the Plan tab and Mega plays it'}</div>`);
   }
   if (d.tower) { const fl = S.tower?.best?.floor; h += tile('Battle Tower', `${fl ? `last run: floor ${fl} · ` : ''}resets in ${fmtIn(d.tower.weekEnds)}`); }
-  try { const dc = DayCare.info(); if (dc.used || dc.mons.length) { const rdy = dc.eggs.filter((e) => e.ready).length; h += tile('Day Care', `${dc.used} of ${dc.max || '?'} eggs${rdy ? ` · <span class="warn">${rdy} ready</span>` : ''}${dc.full ? ' · <span class="warn">incubator full</span>' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : ''}`); } } catch (__e) { __h('62-nowview:168', __e); }
-  try { const B = Object.values(S.buffs || {}).filter((b) => b && b.until > Date.now()); if (B.length) h += tile('Berries on', B.map((b) => `${esc(String(b.key).replace(/-berry$/, '').split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '))} <span class="dim">${fmtIn(b.until)}</span>`).join(' · ')); } catch (__e) { __h('62-nowview:169', __e); }
+  try { const dc = DayCare.info(); if (dc.used || dc.mons.length) { const rdy = dc.eggs.filter((e) => e.ready).length; h += tile('Day Care', `${dc.used} of ${dc.max || '?'} eggs${rdy ? ` · <span class="warn">${rdy} ready</span>` : ''}${dc.full ? ' · <span class="warn">incubator full</span>' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : ''}`); } } catch (__e) { __h('62-nowview:169', __e); }
+  try { const B = Object.values(S.buffs || {}).filter((b) => b && b.until > Date.now()); if (B.length) h += tile('Berries on', B.map((b) => `${esc(String(b.key).replace(/-berry$/, '').split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '))} <span class="dim">${fmtIn(b.until)}</span>`).join(' · ')); } catch (__e) { __h('62-nowview:170', __e); }
   h += tile('World Boss', wb.caught ? '<span class="ok">✔ caught this edition</span>' : wb.catchable ? '<span class="warn">catchable now</span>' : wb.open ? 'shield up' : '<span class="dim">closed</span>');
   { const sm = (() => { try { return History.sideMoney(); } catch { return null; } })();
     h += tile('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
   h += `</div></div>`; // the dailies grid, then the Today card
 
-  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:175', __e); }
+  try { h += Mirror.fightCard(esc); } catch (__e) { __h('62-nowview:176', __e); }
 
   // ---- dailies (2.17.2, Jimmy 2026-11-25): what's up now, straight from the game. The game's day turns over at
   // 3 PM Pacific, so a daily finished last night is "next in 2 h 48 m", not "done today" ----
@@ -4906,7 +4907,7 @@ Views.now = (w, esc, fmtIn) => {
           return `<div class="row" data-act="task-open" data-k="${d.key}" style="cursor:pointer"><span class="k">${esc(d.name)}${why ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(why)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${l}</b></span></div>`; }).join('')
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `Dailies open again ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} (in ${left(rs)})` : ''} · tap one to open its task · one phone alert per daily when it opens (Settings → phone alerts → Dailies ready)</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:199', __e); }
+  } catch (__e) { __h('62-nowview:200', __e); }
   // ---- coming up (2.19.0, Jimmy 2026-11-25): season / weather / time / moon windows opening today and tomorrow ----
   try {
     const U = Upcoming.list(), ask = Views.__rwAsk || null;
@@ -4925,7 +4926,7 @@ Views.now = (w, esc, fmtIn) => {
         + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">Catch: not in your Pokédex yet · Fight: Elite tiers left · Event: Trainer Count Event (tap to pick in Tasks). Times are when it opens; tap one to add it to your queue.</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:218', __e); }
+  } catch (__e) { __h('62-nowview:219', __e); }
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
@@ -4941,7 +4942,7 @@ Views.now = (w, esc, fmtIn) => {
     };
     if (R.tiers.length) r += `<div class="lbl" style="margin-top:2px">Easiest tiers</div>` + R.tiers.slice(0, 3).map(tierRow).join('');
     else r += `<div class="dim">No tiers rated yet - open Simulate › Elite or › League and Mega rates them.</div>`;
-    if (R.ready.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${R.ready.slice(0, 4).map((c) => `<b>${esc(c.name)}</b> <span class="dim">→ ${RK(c.next)} (${esc(c.label)})</span>`).join(' · ')}</div>`;
+    if (R.ready.length) r += `<div class="lbl" style="margin-top:8px">Ready to rank up</div><div>${R.ready.slice(0, 4).map((c) => `<b>${esc(c.name)}</b>${MT(c.m)} <span class="dim">→ ${RK(c.next)} (${esc(c.label)})</span>`).join(' · ')}${R.ready.length > 4 ? ` <span class="dim">+ ${R.ready.length - 4} more in Rank Up</span>` : ''}</div>`;
     if (R.shop.length) r += `<div class="lbl" style="margin-top:8px">Gem shop today</div><div>${R.shop.map((x) => `${esc(x.label)} <span class="${x.ok ? 'ok' : 'dim'}">${x.price ? x.price.toLocaleString() + ' shards' : ''}</span> <span class="dim">for ${esc(x.mons.slice(0, 2).join(', '))}</span>`).join(' · ')}</div>`;
     h += `<div class="card wrapk"><h3>Best Next Rewards</h3>${r}</div>`;
   }
@@ -4977,7 +4978,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:270', __e); }
+  } catch (__e) { __h('62-nowview:271', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
