@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.11
+// @version      2.20.13
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.11';
+const VERSION = '2.20.13';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -10825,23 +10825,24 @@ const Updater = (() => {
       const code = await getFile('mega-alakazam.user.js', SCRIPT);
       if (code.length < 100_000 || !new RegExp('@version\\s+' + v.replace(/\./g, '\\.') + '\\s').test(code) || !code.includes('window.__MEGA_HOT_OK')) return false;
       let used = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^mega-(next|prev)-/.test(k)) used += k.length + (localStorage.getItem(k) || '').length; }
-      if (used + code.length > 1_800_000) { err = 'not enough room in the page storage to keep the update'; return false; }
+      // 2.20.13: Mega passed 1 MB and the old 1.8 M limit refused it (the browser allows about 2.6 M characters here)
+      if (used + code.length > 2_200_000) { err = 'not enough room in the page storage to keep the update'; return false; }
       // the copy kept for a roll-back only stays when there's room for it too (2.13.4: it blocked 2.13.1-2.13.3)
-      const keepPrev = used + 2 * code.length <= 1_800_000;
-      if (!keepPrev) { try { localStorage.removeItem('mega-prev-code'); localStorage.removeItem('mega-prev-ver'); } catch (__e) { __h('79-update:34', __e); } }
+      const keepPrev = used + 2 * code.length <= 2_200_000;
+      if (!keepPrev) { try { localStorage.removeItem('mega-prev-code'); localStorage.removeItem('mega-prev-ver'); } catch (__e) { __h('79-update:35', __e); } }
       // keep the version running now (if it came this way) so a bad update can go back to it
       if (keepPrev && window.__MEGA_HOT === VERSION) { const cur = localStorage.getItem('mega-next-code'); if (cur && localStorage.getItem('mega-next-ver') === VERSION) { try { localStorage.setItem('mega-prev-code', cur); localStorage.setItem('mega-prev-ver', VERSION); } catch { localStorage.removeItem('mega-prev-code'); localStorage.removeItem('mega-prev-ver'); } } }
       localStorage.setItem('mega-next-code', code); localStorage.setItem('mega-next-ver', v);
       localStorage.setItem('mega-next-try', '0'); localStorage.removeItem('mega-next-bad');
       got = v; return true;
-    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:40', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
+    } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:41', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
   }
   const parts = (v) => String(v).split('.').map((x) => +x || 0);
   const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   async function check() {
     try {
       const m = (await getFile('mega-alakazam.meta.js', META)).match(/@version\s+(\S+)/);
-      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:47', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:47', __e); } } } }
+      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:48', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:48', __e); } } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
   }
@@ -10851,7 +10852,7 @@ const Updater = (() => {
   // at most; after that it just shows the gold button. After a reload that worked, the log says so.
   const KEY = 'mega-upd-reload';
   const memo = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
-  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:57', __e); } };
+  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:58', __e); } };
   function safe() {
     try {
       const a = E.get('Game.S')?.adv || {};
@@ -10866,16 +10867,16 @@ const Updater = (() => {
     const m = memo(), r = m[v] || { tries: 0, at: 0 };
     if (r.tries >= 4 || Date.now() - r.at < 30 * 60_000 || !safe()) return;
     m[v] = { tries: r.tries + 1, at: Date.now() }; keep(m);
-    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:72', __e); }
-    try { E.call('Game.save'); } catch (__e) { __h('79-update:73', __e); }
-    try { Decisions.save(); } catch (__e) { __h('79-update:74', __e); }
+    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:73', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('79-update:74', __e); }
+    try { Decisions.save(); } catch (__e) { __h('79-update:75', __e); }
     setTimeout(() => location.reload(), 1500);
   }
   const autoOn = () => { try { return JSON.parse(localStorage.getItem('mega-upd-auto') ?? 'true'); } catch { return true; } };
-  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:78', __e); } }
+  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:79', __e); } }
   function afterLoad() {
     const m = memo(), mine = m[VERSION];
-    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:81', __e); } }
+    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:82', __e); } }
     // first run of this version: self-test once the game is up; a failure rolls back to the version before
     if (localStorage.getItem('mega-tested-ver') !== VERSION) setTimeout(firstTest, 90_000);
   }
@@ -10885,22 +10886,22 @@ const Updater = (() => {
     if (!r.failed) { localStorage.setItem('mega-tested-ver', VERSION); return; }
     const why = (r.results || []).filter((x) => !x.warn).slice(0, 2).map((x) => `${x.name}: ${x.detail}`).join(' | ');
     if (window.__MEGA_HOT !== VERSION) { // installed through Tampermonkey: nothing to go back to here - just tell you
-      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:91', __e); }
+      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:92', __e); }
       localStorage.setItem('mega-tested-ver', VERSION); return;
     }
     const pv = localStorage.getItem('mega-prev-ver'), pc = localStorage.getItem('mega-prev-code');
     localStorage.setItem('mega-next-bad', VERSION);
     if (pv && pc && pv !== VERSION) { localStorage.setItem('mega-next-code', pc); localStorage.setItem('mega-next-ver', pv); localStorage.setItem('mega-next-try', '0'); }
     else { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); }
-    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:98', __e); }
-    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:99', __e); }
+    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:99', __e); }
+    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:100', __e); }
     reloadNow('reloading into the version before');
   }
   const E = Engine;
   // After a reload the game waits on its title screen: press its own Continue button (only that one,
   // only on the title screen). "Two saves found" is never touched - it sends a Needs You alert instead.
   const contOn = () => { try { return JSON.parse(localStorage.getItem('mega-auto-continue') ?? 'true'); } catch { return true; } };
-  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:106', __e); } }
+  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:107', __e); } }
   function autoContinue() {
     const t0 = Date.now(); let pressed = false, warned = false;
     const tick = () => {
@@ -10908,15 +10909,15 @@ const Updater = (() => {
       try {
         const txt = document.body?.innerText || '';
         if (/two saves|deux sauvegardes/i.test(txt)) {
-          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:114', __e); } }
+          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:115', __e); } }
           return setTimeout(tick, 2000);
         }
         if (!pressed && contOn() && document.body?.classList.contains('titled')) {
           const b = [...document.querySelectorAll('.title-fx .ti-go')].find((x) => /^\s*(continue|continuer)\s*$/i.test(x.textContent || ''));
-          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:119', __e); } }
+          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:120', __e); } }
         }
         if (pressed && !document.body?.classList.contains('titled')) return;
-      } catch (__e) { __h('79-update:122', __e); }
+      } catch (__e) { __h('79-update:123', __e); }
       setTimeout(tick, 700);
     };
     setTimeout(tick, 1500);
@@ -10927,11 +10928,11 @@ const Updater = (() => {
   // (you pressed Update there), Mega reloads the game so the new version runs
   function install() {
     if (got && got === latest) { reloadNow(`reloading the game to run Mega ${latest}`); return; }
-    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:133', __e); }
+    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:134', __e); }
     const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back); reloadNow(`reloading the game to run Mega ${latest}`); };
     setTimeout(() => { document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); }, 800);
   }
-  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:137', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:137', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:137', __e); } setTimeout(() => location.reload(), 1500); }
+  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:138', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:138', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:138', __e); } setTimeout(() => location.reload(), 1500); }
   return { boot, check, install, reloadNow, setAuto, setContinue, get autoContinue() { return contOn() !== false; }, get downloaded() { return got; }, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
 })();
 
@@ -11466,7 +11467,7 @@ const GameMode = (() => {
   const SKIP_ID = new Set(['mega-alakazam', 'arena', 'mega-topline']);
   const BLOCK = /two saves|deux sauvegardes|release|relâcher|relacher|libérer|liberer|relâch|delete save|supprimer/i;
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const LIST_MAX = 90;
+  const LIST_MAX = 2500; // elements in one long list (the Pokédex screen is ~3,000 in all and fine)
   const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + ':' + s.length; };
   const KEEP = ['class', 'style', 'alt', 'title', 'aria-label', 'role', 'type', 'placeholder', 'colspan', 'rowspan', 'width', 'height', 'viewBox', 'd', 'fill', 'stroke', 'points', 'x', 'y', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'x2', 'y1', 'y2', 'transform', 'stroke-width', 'opacity', 'min', 'max', 'step'];
@@ -11515,10 +11516,11 @@ const GameMode = (() => {
       // a very long list (Trades' species picker: ~640 Pokémon, ~7,000 elements, ~1 MB a frame) is cut to its first
       // LIST_MAX entries - the phone couldn't take the whole frame and showed nothing; the game's own search box
       // above it narrows the list, and the copy follows (2.20.11)
-      let inner = '', kids = 0, cut = 0;
-      const many = n.childElementCount > LIST_MAX + 20;
+      // (2.20.12: cut by size, not count - the Trades grid's ~300 offers are light and must all stay)
+      let inner = '', used = 0, cut = 0;
+      const many = n.childElementCount > 60 && n.querySelectorAll('*').length > LIST_MAX;
       for (const c of n.childNodes) {
-        if (many && c.nodeType === 1 && ++kids > LIST_MAX) { cut++; continue; }
+        if (many && c.nodeType === 1) { if (used > LIST_MAX) { cut++; continue; } used += 1 + c.querySelectorAll('*').length; }
         inner += ser(c);
       }
       if (cut) inner += `<div style="grid-column:1/-1;width:100%;padding:10px;text-align:center;opacity:.75;font-size:13px">+ ${cut} more - type in the search box to find one</div>`;
@@ -11550,9 +11552,9 @@ const GameMode = (() => {
     hold();
     const el = find(f, i); guard(el);
     const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 };
-    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:104', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:105', __e); }
     el.dispatchEvent(new MouseEvent('mousedown', o));
-    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:106', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:107', __e); }
     el.dispatchEvent(new MouseEvent('mouseup', o));
     el.click();
     return 'ok';
