@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.10
+// @version      2.20.11
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.10';
+const VERSION = '2.20.11';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -11466,6 +11466,7 @@ const GameMode = (() => {
   const SKIP_ID = new Set(['mega-alakazam', 'arena', 'mega-topline']);
   const BLOCK = /two saves|deux sauvegardes|release|relâcher|relacher|libérer|liberer|relâch|delete save|supprimer/i;
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const LIST_MAX = 90;
   const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + ':' + s.length; };
   const KEEP = ['class', 'style', 'alt', 'title', 'aria-label', 'role', 'type', 'placeholder', 'colspan', 'rowspan', 'width', 'height', 'viewBox', 'd', 'fill', 'stroke', 'points', 'x', 'y', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'x2', 'y1', 'y2', 'transform', 'stroke-width', 'opacity', 'min', 'max', 'step'];
@@ -11478,7 +11479,7 @@ const GameMode = (() => {
     for (const s of document.styleSheets) {
       const n = s.ownerNode; if (!n || n.closest?.('#mega-alakazam') || /^mega-/.test(n.id || '')) continue; // Mega's own (the panel dock moves the game over)
       if (s.href) { links.push(s.href); order.push({ href: s.href }); continue; }
-      try { const t = [...s.cssRules].map((r) => r.cssText).join('\n'); text.push(t); order.push({ text: t }); } catch (__e) { __h('82-gamemode:32', __e); }
+      try { const t = [...s.cssRules].map((r) => r.cssText).join('\n'); text.push(t); order.push({ text: t }); } catch (__e) { __h('82-gamemode:33', __e); }
     }
     return { links, order, text: text.join('\n'), html: attr(document.documentElement.className || ''), hstyle: attr(document.documentElement.getAttribute('style') || ''), body: attr(document.body.className || '') };
   }
@@ -11511,7 +11512,16 @@ const GameMode = (() => {
       if (t === 'textarea') return `<textarea${a}>${esc(n.value)}</textarea>`;
       if (t === 'select') return `<select${a}>${[...n.options].map((o) => `<option value="${attr(o.value)}"${o.selected ? ' selected' : ''}>${esc(o.text)}</option>`).join('')}</select>`;
       if (t === 'img' || t === 'br' || t === 'hr') return `<${t}${a}>`;
-      let inner = ''; for (const c of n.childNodes) inner += ser(c);
+      // a very long list (Trades' species picker: ~640 Pokémon, ~7,000 elements, ~1 MB a frame) is cut to its first
+      // LIST_MAX entries - the phone couldn't take the whole frame and showed nothing; the game's own search box
+      // above it narrows the list, and the copy follows (2.20.11)
+      let inner = '', kids = 0, cut = 0;
+      const many = n.childElementCount > LIST_MAX + 20;
+      for (const c of n.childNodes) {
+        if (many && c.nodeType === 1 && ++kids > LIST_MAX) { cut++; continue; }
+        inner += ser(c);
+      }
+      if (cut) inner += `<div style="grid-column:1/-1;width:100%;padding:10px;text-align:center;opacity:.75;font-size:13px">+ ${cut} more - type in the search box to find one</div>`;
       return `<${t}${a}>${inner}</${t}>`;
     }
     const parts = [];
@@ -11540,9 +11550,9 @@ const GameMode = (() => {
     hold();
     const el = find(f, i); guard(el);
     const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 };
-    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:94', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:104', __e); }
     el.dispatchEvent(new MouseEvent('mousedown', o));
-    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:96', __e); }
+    try { el.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerId: 1, isPrimary: true })); } catch (__e) { __h('82-gamemode:106', __e); }
     el.dispatchEvent(new MouseEvent('mouseup', o));
     el.click();
     return 'ok';
