@@ -1016,10 +1016,6 @@ async function tradePost(uid) {
   cmd('trade.post', { ok: true, want: tr.want, give: m.uid, friends: tr.friends }, 'Post trade', (res) => { if (/^posted/.test(res)) { tr.mode = null; tr.want = null; tr.opts = null; render(); } });
 }
 
-function vGems() {
-  const g = snap.gems; if (!g) return `<div class="card">No gem data.</div>`;
-  return `<div class="card"><h3>Strongest Get Stronger</h3><div class="dim">${g.total} gems. Tap Rank Up on one: you'll see exactly what it costs before anything happens. Ranking up sends the Pokémon back to Lv 5 (its stats are higher at every level after).</div>${g.top.map(([id, gain, label, need, r, sh, bst, uid, key, lv, ev], i) => `<div class="flex" style="margin-top:10px"><b class="dim" style="width:18px">${i + 1}</b>${img(id, 44)}<div class="grow"><b>${N(id)}</b>${sh ? ' ✨' : ''}${RK(r)} <span class="ok">+${gain} stats</span><div class="dim" style="font-size:13px">${bst ? `base ${bst} · ` : ''}rank ${r} → ${r + 1} · ${need} ${esc(label)} gem${need > 1 ? 's' : ''}</div></div>${uid ? `<button class="btn" data-x="gemRank" data-u="${esc(uid)}" data-k="${esc(key)}" data-r="${r}" data-n="${need}" data-i="${id}" data-lv="${lv || ''}" data-g="${gain}" data-lb="${esc(label)}" data-ev="${ev ? 1 : 0}">Rank Up</button>` : ''}</div>`).join('') || '<div class="dim">Nothing ready to rank up.</div>'}</div>`;
-}
 // ---- Mega's own screens (Settings, Fights), shown as Mega draws them; buttons press Mega's buttons on the PC.
 // This keeps Kinesis and Mega the same: anything those screens get, the phone gets too.
 const MV = { html: {}, at: {}, busy: {} };
