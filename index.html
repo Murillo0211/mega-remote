@@ -606,7 +606,7 @@ function vBox() {
     <div class="flex" style="gap:8px"><select id="bxSort">${[['level', 'Sort: Level'], ['newest', 'Sort: Newest'], ['rank', 'Sort: Rank'], ['name', 'Sort: Name'], ['dex', 'Sort: Pokédex No.']].map(([k, l]) => `<option value="${k}" ${bx.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <select id="bxType"><option value="">All types</option>${TYPES.map((t) => `<option value="${t}" ${bx.type === t ? 'selected' : ''}>${cap1(t)}</option>`).join('')}</select></div>
     <div class="dim" style="margin-top:8px">${list.length === tot ? '' : `${list.length} match · `}tap one for details</div>
-    <div class="boxgrid">${list.slice(0, bx.show).map((m) => { const w = WHERE[m[5].replace('b', '')]; return `<div class="bx ${bx.sel === m[0] ? 'sel' : ''}" data-x="bxOpen" data-v="${esc(m[0])}">${w ? `<span class="tag">${w[1]}</span>` : ''}<img src="${SPRITE(m[1])}" loading="lazy" alt=""><div>${esc(D.nm[m[1]] || '#' + m[1])}</div><div class="dim">Lv ${m[2]}${RK(m[3])}${m[4] ? ' ✨' : ''}${/b/.test(m[5]) ? ' 💛' : ''}</div></div>`; }).join('')}</div>
+    <div class="boxgrid">${list.slice(0, bx.show).map((m) => { const w = WHERE[m[5].replace('b', '')]; return `<div class="bx ${bx.sel === m[0] ? 'sel' : ''}" data-x="bxOpen" data-v="${esc(m[0])}">${w ? `<span class="tag">${w[1]}</span>` : ''}<img src="${SPRITE(m[1])}" loading="lazy" alt=""><div>${esc(D.nm[m[1]] || '#' + m[1])}${m[4] ? ' ✨' : ''}${RK(m[3])}</div><div class="dim">Lv ${m[2]}${/b/.test(m[5]) ? ' 💛' : ''}</div></div>`; }).join('')}</div>
     ${list.length > bx.show ? `<button class="btn" data-x="bxMore">Show More (${list.length - bx.show})</button>` : ''}
     <button class="btn" data-x="bxReload">⟳ Refresh</button></div>`;
   // outside screen: the details open above the box; unfolded: beside it
@@ -617,7 +617,7 @@ function boxDetail() {
   const I = bx.info;
   if (!I) return `<div class="card"><div class="dim">Loading…</div></div>`;
   const names = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'], mx = Math.max(...I.stats, 1);
-  return `<div class="card" id="bxDetail"><div class="flex">${img(I.id, 72)}<div class="grow"><b style="font-size:19px">${esc(I.name)}${I.shiny ? ' ✨' : ''}${I.buddy ? ' 💛' : ''}</b><div class="dim">${esc(I.genus || '')}</div><div>${I.types.map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="bxClose">✕</button></div>
+  return `<div class="card" id="bxDetail"><div class="flex">${img(I.id, 72)}<div class="grow"><b style="font-size:19px">${esc(I.name)}${I.shiny ? ' ✨' : ''}${RK(I.rank)}${I.buddy ? ' 💛' : ''}</b><div class="dim">${esc(I.genus || '')}</div><div>${I.types.map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-x="bxClose">✕</button></div>
     ${row('Level', `${I.level}${I.cap > I.level ? ` <span class="dim">(cap ${I.cap})</span>` : ''}`)}
     ${I.rank ? row('Rank', RK(I.rank)) : ''}
     ${row('Where', esc(I.where))}
@@ -640,7 +640,7 @@ function loadTeam() { tm.loading = true; cmd('team.get', {}, 'Load your Pokémon
 function vTeam() {
   if (!tm.data) { if (!tm.loading) loadTeam(); return `<div class="card"><h3>Change Team</h3><div class="dim">Loading your Pokémon from your PC…</div><button class="btn" data-tab="now">← Back</button></div>`; }
   const by = new Map(tm.data.opts.map((x) => [x[0], x])); for (const x of tm.data.team) by.set(x[0], x);
-  const card = (x, big) => `${img(x[1], big ? 48 : 40)}<div style="font-size:12px;line-height:1.2">${N(x[1])}</div><div class="dim" style="font-size:11px">Lv ${x[2]}${RK(x[3])}${x[4] ? ' ✨' : ''}</div>`;
+  const card = (x, big) => `${img(x[1], big ? 48 : 40)}<div style="font-size:12px;line-height:1.2">${N(x[1])}${x[4] ? ' ✨' : ''}${RK(x[3])}</div><div class="dim" style="font-size:11px">Lv ${x[2]}</div>`;
   let h = `<div class="tmwrap"><div class="card"><h3>Change Team</h3><div class="dim" style="font-size:13px">Tap a slot, then tap a Pokémon below to put it there. Pokémon in the Underground aren't listed.</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const x = by.get(tm.draft[i]); return `<div data-x="tmSlot" data-v="${i}" style="padding:6px;border-radius:12px;border:2px solid ${tm.slot === i ? 'var(--acc)' : 'var(--line)'};min-height:86px">${x ? card(x, true) + `<div data-x="tmDrop" data-v="${i}" class="dim" style="font-size:12px;margin-top:2px">✕ remove</div>` : '<div class="dim" style="padding-top:26px">empty</div>'}</div>`; }).join('')}</div>
     ${tm.data.busy?.length ? `<div class="warn" style="margin-top:8px">Mega is running ${esc(tm.data.busy.join(', '))} - it may use its own team for that and put yours back after.</div>` : ''}
