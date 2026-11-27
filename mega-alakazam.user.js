@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.18
+// @version      2.20.19
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.18';
+const VERSION = '2.20.19';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3566,6 +3566,15 @@ a{color:var(--acc)}
 .note{font-size:var(--t-s);color:var(--ink);background:var(--well);border:1px solid var(--line);border-radius:var(--r-m);padding:var(--s2) var(--s3);margin:0 0 var(--s3)}
 .note.warn,.card.warn{border-color:color-mix(in srgb,var(--warn) 55%,var(--line))}
 .card.ok{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+/* ready to rank up (2.20.19): green card, READY / GEMS ✓ pills, green edge on the pick rows */
+.card.gemready{border:2px solid var(--ok);background:color-mix(in srgb,var(--ok) 12%,var(--card))}
+.card.gemready h3{color:var(--ok)}
+.card.gemready.soft{border-color:color-mix(in srgb,var(--ok) 50%,var(--line));background:color-mix(in srgb,var(--ok) 6%,var(--card))}
+.pill.rdy{background:var(--ok);color:#06210f} .pill.gms{background:color-mix(in srgb,var(--ok) 25%,transparent);color:var(--ok)}
+.gemrow{border-left:4px solid transparent;padding-left:6px;border-radius:6px}
+.gemrow.go{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent)}
+.gemrow.gems{border-left-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.tabs .tcount{display:inline-block;min-width:16px;margin-left:5px;padding:0 5px;border-radius:999px;background:var(--ok);color:#06210f;font-size:var(--t-xs);font-weight:800;line-height:16px;text-align:center}
 
 /* ---- rows: label on the left, value on the right; a long value drops below, full width ---- */
 .row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;column-gap:var(--s3);row-gap:2px;padding:7px 0;border-top:1px solid var(--line)}
@@ -4143,7 +4152,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const z = scale();
     wrap.innerHTML = `<div class="panel" style="width:${Math.round(width() / z)}px;zoom:${z}"><div class="grip" title="Drag to resize"></div>
       <div class="hd"><img src="${MEGA_ICON}" width="34" height="36" alt="" class="ver" title="Mega Alakazam v${esc(VERSION)}"><span class="vtip">v${esc(VERSION)}</span><span class="t">Mega Alakazam</span><span class="vtag">${esc(VERSION)}</span><span class="dot ${cls}" title="${esc(tip)} · v${esc(VERSION)}"></span><span style="flex:1"></span>${Updater.available ? `<button class="fold upd" data-act="update" title="Reloads the game into Mega ${esc(Updater.available)}">Update ${esc(Updater.available)}</button>` : ''}<button class="fold" data-act="toggle" title="Fold to a thin rail">‹</button></div>
-      <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}</button>`).join('')}</div>
+      <div class="tabs">${tabList().map(([k, l]) => `<button data-act="tab" data-tab="${k}" class="${prefs.tab === k ? 'on' : ''}" title="Drag to rearrange">${l}${k === 'rank' ? (() => { const n = GemFocus.readyCount(); return n ? `<span class="tcount" title="${n} ready to rank up">${n}</span>` : ''; })() : ''}</button>`).join('')}</div>
       <div class="body"></div><div class="foot"></div></div>`;
     const grip = root?.querySelector('.grip'), panel = root?.querySelector('.panel');
     grip.onpointerdown = (e) => {
@@ -5504,7 +5513,21 @@ const GemFocus = (() => {
     return owned().map((m) => ({ uid: m.uid, name: nameOf(m.id), lv: m.level, rank: m.rank || 0, shiny: !!m.shiny, pick: picks.has(nameOf(m.id)) }))
       .sort((a, b) => (b.pick - a.pick) || a.name.localeCompare(b.name) || b.rank - a.rank || b.lv - a.lv);
   }
-  return { status, fuseFor, shop, price, shards, watchRows, shopHits, watchShop, boot, fuse, buy, reroll, choices, label, TIER, nameOf };
+  // ready to rank up (Jimmy 2026-11-27): the Discord picks and the Focus Pokémon that have the gems in hand.
+  //  ready = gems + nothing else in the way (the game's own rankOf says yes) · gems = enough gems, but something else first (level, Underground)
+  function readyRows() {
+    let rows = []; try { rows = watchRows(); } catch (__e) { __h('63-gemfocus:125', __e); }
+    try { const f = localStorage.getItem('mega-gem-focus'); const m = f && owned().find((x) => x.uid === f); if (m && !rows.some((r) => r.m.uid === m.uid)) rows.push({ ...status(m), name: nameOf(m.id) }); } catch (__e) { __h('63-gemfocus:126', __e); }
+    const out = [];
+    for (const r of rows) {
+      if (r.rank >= r.max) continue;
+      const enough = r.keys.some((x) => x.have >= r.need);
+      if (!r.why) out.push({ ...r, state: 'ready' }); else if (enough) out.push({ ...r, state: 'gems' });
+    }
+    return out;
+  }
+  function readyCount() { try { return readyRows().filter((r) => r.state === 'ready').length; } catch { return 0; } }
+  return { readyRows, readyCount, status, fuseFor, shop, price, shards, watchRows, shopHits, watchShop, boot, fuse, buy, reroll, choices, label, TIER, nameOf };
 })();
 
 // ---- the Gems tab: Focus Pokémon, the shop, the Discord picks - above the gem lists that were already there ----
@@ -5514,6 +5537,14 @@ const GemFocus = (() => {
     const F = GemFocus, ui = Views.gemUi || (Views.gemUi = { focus: (() => { try { return localStorage.getItem('mega-gem-focus') || ''; } catch { return ''; } })() });
     const sp = (id, n = 44) => `<img src="${Engine.sprite(id)}" width="${n}" height="${n}" style="image-rendering:pixelated;flex:none">`;
     let h = '';
+    // ready-to-rank-up banner (Jimmy 2026-11-27): big and green at the top, so it can't be missed
+    { const R = F.readyRows(), go = R.filter((r) => r.state === 'ready'), wait = R.filter((r) => r.state === 'gems');
+      if (go.length || wait.length) {
+        h += `<div class="card gemready${go.length ? '' : ' soft'}"><h3>${go.length ? `Ready to Rank Up · ${go.length}` : 'Gems in hand'}</h3>`;
+        h += go.map((r) => `<div style="display:flex;gap:8px;align-items:center;margin-top:8px">${sp(r.m.id, 40)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)} <span class="dim">· Lv ${r.m.level}</span><div style="font-size:var(--t-s)">rank ${r.rank} → ${r.next} · ${r.need} × ${esc(F.label(r.key))}</div></div><button class="btn gold" style="width:auto;margin:0;flex:none" data-act="gem-rank" data-uid="${r.m.uid}" data-key="${r.key}" data-rank="${r.rank}" data-id="${r.m.id}" data-need="${r.need}" data-label="${esc(F.label(r.key))}" data-lv="${r.m.level}">Rank Up</button></div>`).join('');
+        if (wait.length) h += `<div style="margin-top:${go.length ? 10 : 4}px;font-size:var(--t-s)"><b>Gems ready, waiting on:</b> ${wait.map((r) => `${esc(r.name)}${MT(r.m)} <span class="dim">(${esc(r.why)})</span>`).join(' · ')}</div>`;
+        h += `</div>`;
+      } }
     // 1. Focus Pokémon
     const ch = F.choices();
     h += `<div class="card"><h3>🎯 Focus Pokémon</h3><select class="sel" data-act="gem-focus"><option value="">Pick one of your Pokémon…</option>${ch.map((c) => `<option value="${c.uid}" ${ui.focus === c.uid ? 'selected' : ''}>${c.pick ? '★ ' : ''}${esc(c.name)}${c.shiny ? ' ✨' : ''}${c.rank ? ' ' + (ROMAN[c.rank] || c.rank) : ''} · Lv ${c.lv}</option>`).join('')}</select><div class="dim" style="font-size:var(--t-s);margin-top:4px">★ = on the Discord's gem tier lists</div>`;
@@ -5551,17 +5582,17 @@ const GemFocus = (() => {
     if (W.length) {
       const row = (r) => {
         const st = r.rank >= r.max ? '<span class="ok">rank 5 ✓</span>' : r.why ? `<span class="dim">${esc(r.why)}</span>` : `<span class="ok">✓ ready for rank ${r.next}</span>`;
-        return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)} <span class="dim">· Lv ${r.m.level}</span><div class="dim" style="font-size:var(--t-s)">${esc(r.tag)}</div><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
+        const go = r.rank < r.max && !r.why, gems = !go && r.rank < r.max && r.keys.some((x) => x.have >= r.need);
+        return `<div class="${go ? 'gemrow go' : gems ? 'gemrow gems' : ''}" style="display:flex;gap:8px;align-items:center;margin-top:6px">${sp(r.m.id, 36)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)}${go ? ' <span class="pill rdy">READY</span>' : gems ? ' <span class="pill gms">GEMS ✓</span>' : ''} <span class="dim">· Lv ${r.m.level}</span><div class="dim" style="font-size:var(--t-s)">${esc(r.tag)}</div><div style="font-size:var(--t-s)">${r.keys.map((x) => `${esc(x.label)} ${x.have}`).join(' · ')} · ${st}</div></div><button class="btn sm" data-act="gem-focus-pick" data-uid="${r.m.uid}" style="width:auto;margin:0;flex:none">Focus</button></div>`;
       };
       // the next gems worth spending: the first picks (list order) that can rank up right now
       const ready = W.filter((r) => r.rank < r.max && !r.why);
       const gap = W.filter((r) => r.rank === 0 && r.m.level >= 100 && (r.leg ? r.list === 'S' : r.pts >= 70));
       h += `<div class="card"><h3>📋 Discord Picks</h3><div class="dim" style="margin-bottom:4px">The Discord's two gem tier lists (rerun for game v0.5.161, Nov 24): Elite allows one Legendary, so the legendary list fills that slot and the rare &amp; uncommon list the other five. Each rank costs its number in gems (rank 5 = 15 in all) and sends the Pokémon back to Lv 5.</div>`;
-      if (ready.length) h += `<div style="margin-top:4px"><b class="ok">Ready now:</b> ${ready.slice(0, 4).map((r) => esc(r.name)).join(', ')}</div>`;
       if (gap.length) h += `<div style="margin-top:2px"><b class="warn">Top picks still at rank 0:</b> ${gap.slice(0, 5).map((r) => esc(r.name)).join(', ')}</div>`;
       // the list filter (Jimmy 2026-11-24): every tier, or one at a time
       const TIERS = [['', 'All tiers'], ['S', 'Legendary · Tier S'], ['A', 'Legendary · Tier A'], ['Pseudo', 'Pseudo-legendaries'], ['Rare', 'Top 10 Rare'], ['Uncommon', 'Top 10 Uncommon'], ['Top', "Top player's other picks"]];
-      let tf = ''; try { tf = localStorage.getItem('mega-gem-tier') || ''; } catch (__e) { __h('63-gemfocus:179', __e); }
+      let tf = ''; try { tf = localStorage.getItem('mega-gem-tier') || ''; } catch (__e) { __h('63-gemfocus:201', __e); }
       if (!TIERS.some(([k]) => k === tf)) tf = '';
       const n = (k) => (k ? W.filter((r) => r.list === k).length : W.length);
       h += `<select class="sel" data-act="gem-tier" style="margin-top:8px">${TIERS.filter(([k]) => !k || n(k)).map(([k, t]) => `<option value="${k}" ${tf === k ? 'selected' : ''}>${t} (${n(k)})</option>`).join('')}</select>`;
@@ -11054,7 +11085,7 @@ const Remote = (() => {
     const nm = Object.fromEntries([...ids].map((id) => [id, D[id]?.name || '#' + id]));
     return {
       v: 1, at: Date.now(), ver: VERSION, stat: UI.statusFor(), run: Plan.running, top: Casing.names(Plan.top || ''), old: Plan.oldOn() ? 1 : 0,
-      nm, goals, done, idle, tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: History.homeMoney(), side: History.sideMoney(), dex, trades, gems, carriers: (Plan.goals.some((g) => g.type === 'discord' && !g.done) ? (() => { try { return GoalTypes.carrierChoices(30).map((c) => [c.uid, c.name]); } catch { return []; } })() : undefined), ugStarts: (() => { try { return E.get('Underground').starts() || [1]; } catch { return [1]; } })(),
+      nm, goals, done, idle, gemReady: (() => { try { return GemFocus.readyCount(); } catch { return 0; } })(), tabs: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').tabOrder || null; } catch { return null; } })(), theme: (() => { try { return JSON.parse(localStorage.getItem('mega-alakazam-ui') || '{}').theme || 'auto'; } catch { return 'auto'; } })(), where: Casing.names(where), foes, team, today, money: History.homeMoney(), side: History.sideMoney(), dex, trades, gems, carriers: (Plan.goals.some((g) => g.type === 'discord' && !g.done) ? (() => { try { return GoalTypes.carrierChoices(30).map((c) => [c.uid, c.name]); } catch { return []; } })() : undefined), ugStarts: (() => { try { return E.get('Underground').starts() || [1]; } catch { return [1]; } })(),
       log: (Log.lines || []).slice(-15).map((l) => [l.at, Casing.names(l.text)]),
       set: { berries: Berries.on, idle: Plan.idleOn, alerts: !!Notify.cfg.on },
       gemPick: (() => { try { return (E.get('LegendZones')?.leaguePending?.() || []).map((p) => [p.reg, p.tier]); } catch { return []; } })(),
