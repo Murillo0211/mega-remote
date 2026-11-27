@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.24
+// @version      2.20.25
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.24';
+const VERSION = '2.20.25';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1634,8 +1634,16 @@ const BossLog = (() => {
   const maxHp = (m) => safe(() => +E.read('Game.maxHp', 0, m), 0);
   const teamNow = () => (S().team || []).slice(0, 6).map(mon).filter(Boolean);
 
+  // training laps against a leader already beaten (the chapter on loop) come round every few minutes: one of them an
+  // hour is kept, the rest are skipped - they used to fill the 300-fight store and run a 300-fight estimate each lap
+  const lastReplay = {}; let skipUid = null;
   function begin(b) {
     const a = S().adv || {}, team = teamNow(), g = b.gym || {};
+    if (b.enemies[0].uid === skipUid) return;
+    const isReplay = +a.chapter < +a.unlocked || (Array.isArray(a.loops) && a.loops.map(Number).includes(+a.chapter));
+    const who = String(b.trainer || g.leader || '?');
+    if (isReplay && Date.now() - (lastReplay[who] || 0) < 3_600_000) { skipUid = b.enemies[0].uid; return; }
+    if (isReplay) lastReplay[who] = Date.now();
     const foes = b.enemies.map((e) => ({ uid: e.uid, id: +e.id, level: +e.level, hpMult: e.hpMult ?? null, maxHp: maxHp(e), hp: +e.hp, statMult: e.statMult ?? null }));
     const fresh = (m) => { const c = { ...m }; delete c.hp; delete c.curHp; return c; };
     const simFoes = foes.map((f) => ({ id: f.id, level: f.level }));
@@ -1652,12 +1660,14 @@ const BossLog = (() => {
       by: safe(() => (Plan.oldOn() ? 'old helper' : Plan.running ? 'Mega' : 'you (plan paused)'), null),
       stats0: { battles: +(S().stats?.battles ?? NaN), wins: +(S().stats?.wins ?? NaN), badges: (a.badges || []).length },
       startHp: null, // filled below: share of the team's HP left at the start (0-1)
-      replay: +a.chapter < +a.unlocked, // a leader you've already beaten (Mega's training loops)
+      // a leader you've already beaten (Mega's training loops): an earlier chapter, or the last one on loop (2.20.25: the
+      // last chapter can't unlock a later one, so every Goyah lap in Giant Chasm was logged as a new boss fight)
+      replay: isReplay,
       tl: [], complete: +b.turn === 0,
     };
     { const hp = cur.team.reduce((x, t) => x + (t.hp || 0), 0), mx = cur.team.reduce((x, t) => x + (t.maxHp || 0), 0); cur.startHp = mx ? +(hp / mx).toFixed(3) : null; }
     sample(b);
-    if (!cur.replay) try { Log.add(`recording ${cur.trainer || 'a boss'} fight (${cur.foes.length} Pokémon, power ×${cur.gym.power}, edge ${cur.edge}) - old-helper simulator ${cur.est.oldSim == null ? '?' : Math.round(cur.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:68', __e); }
+    if (!cur.replay) try { Log.add(`recording ${cur.trainer || 'a boss'} fight (${cur.foes.length} Pokémon, power ×${cur.gym.power}, edge ${cur.edge}) - old-helper simulator ${cur.est.oldSim == null ? '?' : Math.round(cur.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:78', __e); }
   }
   function sample(b) {
     const s = { t: Date.now() - cur.at, turn: +b.turn, e: b.enemies.map((e) => +e.hp), a: cur.team.map((t) => { const m = mon(t.uid); return m ? curHp(m) : 0; }), on: (b.allies || []).map((u) => cur.team.findIndex((t) => t.uid === u)), of: (b.foes || []).map((u) => b.enemies.findIndex((e) => e.uid === u)) };
@@ -1677,7 +1687,7 @@ const BossLog = (() => {
     f.ended = reason; f.ms = Date.now() - f.at; f.turns = lastT ? lastT.turn : 0;
     f.foesLeft = lastT ? lastT.e.filter((h) => h > 0).length : null;
     try { await put(f); } catch (e) { console.warn('[Mega Alakazam] could not store boss fight', e); }
-    if (!f.replay) try { Log.add(`recorded: ${f.trainer || 'boss'} - ${f.outcome}${f.outcome === 'lost' ? ` (${f.foesLeft} of ${f.foes.length} of their Pokémon still standing)` : ''} in ${f.turns} turns; the old-helper simulator had said ${f.est.oldSim == null ? '?' : Math.round(f.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:88', __e); }
+    if (!f.replay) try { Log.add(`recorded: ${f.trainer || 'boss'} - ${f.outcome}${f.outcome === 'lost' ? ` (${f.foesLeft} of ${f.foes.length} of their Pokémon still standing)` : ''} in ${f.turns} turns; the old-helper simulator had said ${f.est.oldSim == null ? '?' : Math.round(f.est.oldSim * 100) + '%'}`); } catch (__e) { __h('41-bosslog:98', __e); }
   }
   function poll() {
     const b = S().adv?.battle;
@@ -1695,7 +1705,7 @@ const BossLog = (() => {
         if (f.outcome === 'left' && f.foesLeft > 0) { f.outcome = 'lost'; f.fixed = 'left->lost (2.7.4: leader still standing)'; await put(f); }
         if (f.startHp == null && f.team?.length) { const hp = f.team.reduce((x, t) => x + (t.hp || 0), 0), mx = f.team.reduce((x, t) => x + (t.maxHp || 0), 0); f.startHp = mx ? +(hp / mx).toFixed(3) : null; await put(f); }
       }
-    } catch (__e) { __h('41-bosslog:106', __e); }
+    } catch (__e) { __h('41-bosslog:116', __e); }
   }, 4000);
   return { all, poll, get current() { return cur; }, get count() { return count; } };
 })();
