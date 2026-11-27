@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.26
+// @version      2.20.27
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.26';
+const VERSION = '2.20.27';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3320,7 +3320,7 @@ const Sub = (() => {
     now: [['main', 'Overview', null], ['care', 'Day Care', /day care/], ['more', 'Pokédex & Team', /^(pokédex|team|trades)$/]],
     act: [['hist', 'History', /^history/], ['goals', 'Goals', null], ['stats', 'Stats', /^(money|pokédex|pokedex|total levels|shinies|lv 100)/], ['log', 'Log', /^log\b/]],
     plan: [['goals', 'Active', null], ['wait', 'Waiting', /^\0$/], ['done', 'Done', /^done\b/], ['did', 'What Mega Did', /^what mega did/]],
-    gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^(gems|strongest get stronger)$/], ['all', 'Held', null], ['none', 'Not Held', /^\0$/]],
+    gems: [['focus', 'Focus', /focus pokémon/], ['shop', 'Shop', /gem shop/], ['picks', 'Discord Picks', /discord picks/], ['rank', 'Rank Up', /^gems$/], ['all', 'Held', null], ['none', 'Not Held', /^\0$/]],
     blocs: [['blocks', 'Pokéblocks', /^pokéblocks/], ['boss', 'Boss', /boss/], ['rev', 'Revealed', /^revealed/], ['rain', 'Rainbow', /rainbow/]],
     engine: [['phone', 'Phone', /phone alerts|kinesis|popups|connection/], ['plan', 'Plan', /leveling chapters|goal chains|when the plan is idle|berries|moves/], ['look', 'Look', /^tabs$|top bar|text size/], ['health', 'Health', null]],
     fights: [['leg', 'Legendaries', null], ['other', 'Trainers & Others', null]],
@@ -5357,31 +5357,24 @@ Views.gems = (esc) => {
   let h = `<div class="card"><h3>Gems</h3>
     <div><b>${g.total}</b> gems · ${EliteInfo.TIER.map((t, i) => `${t} ${g.byTier[i]}`).join(' · ')}${g.spent ? ` · ${g.spent} spent so far` : ''}</div>
     <div class="dim" style="margin-top:6px">A gem ranks up a Pokémon of its type and rarity: ×1.15 to every stat per rank (and it never evolves again), up to rank ${g.max} (about ×2). Rank 1 costs 1 gem, rank 2 costs 2, and so on. The Pokémon must be Lv 100, and it goes back to <b>Lv 5</b> - so spend them on the ones that fight the most, and plan to level them again.</div>
-    <div class="note dim" style="margin-top:8px">Suggestions only - Mega doesn't spend gems. Strongest first: highest base stats get the gem, then the biggest stat gain.</div></div>`;
+    <div class="note dim" style="margin-top:8px">Suggestions only - Mega doesn't spend gems. The Discord's tier lists decide who gets them first.</div></div>`;
   if (EliteInfo.msg) h = `<div class="note" style="margin-bottom:8px">${esc(EliteInfo.msg)}</div>` + h;
   if (!g.rows.length) return h + `<div class="note">No gems yet. They come from the Underground and from elite legendary tiers 1, 2 and 4.</div>`;
   const role = (c) => (c.use >= 2 ? 'your team' : c.use ? 'a legend team' : '');
-  if (g.top.length) {
-    h += `<div class="card" style="border-color:var(--ok)"><h3>Strongest Get Stronger</h3><div class="dim" style="margin-bottom:4px">Ready to rank up today: highest base stats first, then the biggest stat gain. Ranking up sends it back to Lv 5</div>`;
-    g.top.forEach((c, i) => {
-      h += `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><b class="dim" style="width:18px">${i + 1}</b>
-        <img src="${Engine.sprite(c.m.id)}" width="44" height="44" style="image-rendering:pixelated;flex:none">
-        <div style="flex:1;min-width:0"><b>${nm(c.m.id)}${MT(c.m)}</b> <span class="ok">+${c.gain} stats</span> <span class="dim">(+${Math.round(c.pct * 100)}%)</span>
-        <div class="dim" style="font-size:var(--t-s)">rank ${c.m.rank || 0} → ${c.next} · ${c.need} ${esc(c.label)} gem${c.need > 1 ? 's' : ''}${role(c) ? ' · ' + role(c) : ''}</div>
-        ${EliteInfo.canEvolve(c.m.id) ? `<div class="warn" style="font-size:var(--t-s)">⚠ won't evolve any more once ranked</div>` : ''}</div></div>
-        <button class="btn${i === 0 ? ' gold' : ''}" data-act="gem-rank" data-uid="${c.m.uid}" data-key="${c.key}" data-rank="${c.m.rank || 0}" data-id="${c.m.id}" data-need="${c.need}" data-label="${esc(c.label)}" data-gain="${c.gain}" data-lv="${c.m.level}" data-ev="${EliteInfo.canEvolve(c.m.id) ? 1 : 0}">Rank Up (back to Lv 5)</button>
-        <button class="btn" data-act="gem-open" data-uid="${c.m.uid}">Open in Game</button>`;
-    });
-    h += `</div>`;
-  }
+  // (2.20.27, Jimmy 2026-11-27: "on the rank up, I rather go discord choice") - the Strongest Get Stronger card (highest
+  // base stats first) is gone; the green Ready to Rank Up card and Discord Picks decide, and each gem line below names
+  // the Discord pick that takes it first.
   // one line per gem, grouped by rarity (Jimmy 2026-11-23: a card each made this 29 screens long). The best
   // Pokémon for it is on the line; tap it to open that Pokémon in the game.
   const tierOf = (k) => +String(k).split(':')[1] || 0;
   for (let t = EliteInfo.TIER.length - 1; t >= 0; t--) {
     const R = g.rows.filter((r) => tierOf(r.key) === t); if (!R.length) continue;
     const held = R.filter((r) => +r.have > 0), none = R.filter((r) => !(+r.have > 0));
-    const line = (r) => { const c = r.top[0];
-      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
+    // who a gem goes to: the first Discord pick (list order) it fits; nobody on the lists → the strongest that can use it
+    const picks = (() => { try { return GemFocus.watchRows().filter((p) => p.rank < p.max); } catch { return []; } })(), U = Engine.get('Underground');
+    const pickFor = (key) => { for (const p of picks) { if (!p.keys.some((x) => x.k === key)) continue; const ro = (() => { try { return U.rankOf(p.m, key); } catch { return null; } })(); if (ro) return { m: p.m, next: ro.next, why: ro.why || null, pick: true }; } return null; };
+    const line = (r) => { const c = pickFor(r.key) || r.top[0];
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${c.pick ? ' <span class="pill gms">Discord</span>' : ''}${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
     if (held.length) h += `<div class="card" data-sec="all"><h3>${esc(EliteInfo.TIER[t])} gems <span class="dim" style="font-weight:600">· ${held.length}</span></h3>${held.map(line).join('')}</div>`;
     if (none.length) h += `<div class="card" data-sec="none"><h3>${esc(EliteInfo.TIER[t])} gems you don't have <span class="dim" style="font-weight:600">· ${none.length}</span></h3>${none.map(line).join('')}</div>`;
   }
