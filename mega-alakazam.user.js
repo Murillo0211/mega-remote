@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.21
+// @version      2.20.22
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.21';
+const VERSION = '2.20.22';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4876,7 +4876,7 @@ Views.now = (w, esc, fmtIn) => {
   }
   if (d.tower) { const fl = S.tower?.best?.floor; h += tile('Battle Tower', `${fl ? `last run: floor ${fl} · ` : ''}resets in ${fmtIn(d.tower.weekEnds)}`); }
   try { const dc = DayCare.info(); if (dc.used || dc.mons.length) { const rdy = dc.eggs.filter((e) => e.ready).length; h += tile('Day Care', `${dc.used} of ${dc.max || '?'} eggs${rdy ? ` · <span class="warn">${rdy} ready</span>` : ''}${dc.full ? ' · <span class="warn">incubator full</span>' : dc.nextEgg != null ? ` · next egg in ${DayCare.left(dc.nextEgg)}` : ''}`); } } catch (__e) { __h('62-nowview:168', __e); }
-  try { const B = Object.values(S.buffs || {}).filter((b) => b && b.until > Date.now()); if (B.length) h += tile('Berries on', B.map((b) => `${esc(Casing.names((E.get('CONFIG')?.BUFF_BERRIES?.[b.key]?.name) || b.key)).replace(/^Baie /, '')} <span class="dim">${fmtIn(b.until)}</span>`).join(' · ')); } catch (__e) { __h('62-nowview:169', __e); }
+  try { const B = Object.values(S.buffs || {}).filter((b) => b && b.until > Date.now()); if (B.length) h += tile('Berries on', B.map((b) => `${esc(String(b.key).replace(/-berry$/, '').split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '))} <span class="dim">${fmtIn(b.until)}</span>`).join(' · ')); } catch (__e) { __h('62-nowview:169', __e); }
   h += tile('World Boss', wb.caught ? '<span class="ok">✔ caught this edition</span>' : wb.catchable ? '<span class="warn">catchable now</span>' : wb.open ? 'shield up' : '<span class="dim">closed</span>');
   { const sm = (() => { try { return History.sideMoney(); } catch { return null; } })();
     h += tile('Money', `₽${(+(() => { try { return History.homeMoney(); } catch { return S.money || 0; } })()).toLocaleString()}${sm ? ` <span class="dim">· ${esc(sm.name)} wallet ₽${sm.money.toLocaleString()}</span>` : ''}`); }
@@ -4896,7 +4896,8 @@ Views.now = (w, esc, fmtIn) => {
         if (d.state === 'ready') return ['Ready', 'gold'];
         if (d.state === 'run') return ['Going', 'ok'];
         if (d.state === 'wait') return ['Waiting', 'warn'];
-        const at = d.week ? wk : d.key === 'fete15' ? 0 : rs; // the event's regions open at 7 AM (shown in its line)
+        if (d.state === 'load') return ['Loading…', 'dim'];
+        const at = 'at' in d ? d.at : d.week ? wk : d.key === 'fete15' ? 0 : rs; // the event's regions open at 7 AM (shown in its line)
         return [at ? `in ${left(at)}` : d.state === 'done' ? 'Done' : 'Not now', 'dim'];
       };
       h += `<div class="card dcard${nReady ? ' hot' : ''}"><h3>Dailies${nReady ? ` <span class="chip on" style="font-size:var(--t-s);padding:1px 8px">${nReady} ready</span>` : ''}</h3>`
@@ -4905,7 +4906,7 @@ Views.now = (w, esc, fmtIn) => {
           return `<div class="row" data-act="task-open" data-k="${d.key}" style="cursor:pointer"><span class="k">${esc(d.name)}${why ? ` <span class="faint" style="font-size:var(--t-s)">· ${esc(why)}</span>` : ''}${d.state === 'ready' && !inQ ? ' <span class="warn" style="font-size:var(--t-s)">· not in your queue</span>' : ''}</span><span class="v"><b class="${cls}">${l}</b></span></div>`; }).join('')
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">${rs ? `Dailies open again ${new Date(rs).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} (in ${left(rs)})` : ''} · tap one to open its task · one phone alert per daily when it opens (Settings → phone alerts → Dailies ready)</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:198', __e); }
+  } catch (__e) { __h('62-nowview:199', __e); }
   // ---- coming up (2.19.0, Jimmy 2026-11-25): season / weather / time / moon windows opening today and tomorrow ----
   try {
     const U = Upcoming.list(), ask = Views.__rwAsk || null;
@@ -4924,7 +4925,7 @@ Views.now = (w, esc, fmtIn) => {
         + `<div class="lbl" style="margin-top:8px">Tomorrow</div>${M.length ? M.map(row).join('') : '<div class="dim">Nothing new opens tomorrow.</div>'}`
         + `<div class="dim" style="font-size:var(--t-s);margin-top:6px">Catch: not in your Pokédex yet · Fight: Elite tiers left · Event: Trainer Count Event (tap to pick in Tasks). Times are when it opens; tap one to add it to your queue.</div></div>`;
     }
-  } catch (__e) { __h('62-nowview:217', __e); }
+  } catch (__e) { __h('62-nowview:218', __e); }
   // ---- best next rewards ----
   { const R = nowRewards(), pc = (x) => (x >= 0.995 ? '99+' : x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%';
     const col = (x) => (x >= 0.6 ? 'ok' : x >= 0.25 ? 'warn' : 'bad');
@@ -4976,7 +4977,7 @@ Views.now = (w, esc, fmtIn) => {
       h += eggForecast(dc, nm, at2);
       h += `</div>`;
     }
-  } catch (__e) { __h('62-nowview:269', __e); }
+  } catch (__e) { __h('62-nowview:270', __e); }
 
   // ---- 4. up next ----
   // up next: not the ones that can't happen for now (zone closed, locked behind another catch)
@@ -5541,7 +5542,7 @@ const GemFocus = (() => {
     // ready-to-rank-up banner (Jimmy 2026-11-27): big and green at the top, so it can't be missed
     { const R = F.readyRows(), go = R.filter((r) => r.state === 'ready'), wait = R.filter((r) => r.state === 'gems');
       if (go.length || wait.length) {
-        h += `<div class="card gemready${go.length ? '' : ' soft'}"><h3>${go.length ? `Ready to Rank Up · ${go.length}` : 'Gems in hand'}</h3>`;
+        h += `<div class="card gemready${go.length ? '' : ' soft'}" data-sec="lead"><h3>${go.length ? `Ready to Rank Up · ${go.length}` : 'Gems in hand'}</h3>`;
         h += go.map((r) => `<div style="display:flex;gap:8px;align-items:center;margin-top:8px">${sp(r.m.id, 40)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)} <span class="dim">· Lv ${r.m.level}</span><div style="font-size:var(--t-s)">rank ${r.rank} → ${r.next} · ${r.need} × ${esc(F.label(r.key))}</div></div><button class="btn gold" style="width:auto;margin:0;flex:none" data-act="gem-rank" data-uid="${r.m.uid}" data-key="${r.key}" data-rank="${r.rank}" data-id="${r.m.id}" data-need="${r.need}" data-label="${esc(F.label(r.key))}" data-lv="${r.m.level}">Rank Up</button></div>`).join('');
         if (wait.length) { // grouped by what they wait on (the game says "At level 100" = it ranks up at Lv 100)
           const by = new Map(); for (const r of wait) { const k = /level 100/i.test(r.why) ? 'Lv 100' : /underground/i.test(r.why) ? 'it to come back from the Underground' : r.why; if (!by.has(k)) by.set(k, []); by.get(k).push(r); }
@@ -7763,18 +7764,21 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
         try { E.call('Adventure.toggleLoop', best.ch); g.restore.loopAdded = best.ch; Plan.save(); Log.add(`turned on loop for ${best.name} so training stays there`); } catch (__e) { __h('70-plan-03-level:205', __e); }
       }
       const berry = Berries.keep('xp', 'training');
-      return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + g.uids.filter((u) => lvl(u) != null).map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${Math.min(g.target || 100, capOf(u))}`).join(', ');
+      return `training in ${best.name}${best.scout ? ' (10-min XP check)' : ''}${best.xpHr ? ` ~${XpChap.fmt(best.xpHr)} XP/h` : ''}${berry} · ` + (() => { // the ones still leveling; the ones already there are just counted (2.20.22: "Garchomp 100/100" read as still training)
+        const tg = (u) => Math.min(g.target || 100, capOf(u)), have = g.uids.filter((u) => lvl(u) != null), left = have.filter((u) => lvl(u) < tg(u)), done = have.length - left.length;
+        return left.map((u) => `${name(E.read('Game.getMon', {}, u)?.id)} ${lvl(u)}/${tg(u)}`).join(', ') + (done ? `${left.length ? ' · ' : ''}${done} at Lv ${g.target || 100} ✔` : '');
+      })();
     },
     // put things back: your team, the loop setting, and the chapter you were in
     finish(g) {
       const r = g.restore; if (!r) return;
-      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:213', __e); }
+      try { if (r.loopAdded != null && E.read('Adventure.isLooping', false, r.loopAdded)) E.call('Adventure.toggleLoop', r.loopAdded); } catch (__e) { __h('70-plan-03-level:216', __e); }
       if (r.loops) GoalTypes.loopsBack(r.loops);
-      if (r.autoSwitch !== undefined) { try { S().autoSwitch = r.autoSwitch; E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:215', __e); } }
-      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:216', __e); }
+      if (r.autoSwitch !== undefined) { try { S().autoSwitch = r.autoSwitch; E.call('Game.save'); } catch (__e) { __h('70-plan-03-level:218', __e); } }
+      try { const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u)); if (back.length && back.join() !== (S().team || []).join()) setChapterTeam(back); } catch (__e) { __h('70-plan-03-level:219', __e); }
       const back = (r.team || []).filter((u) => E.read('Game.getMon', null, u));
       if (back.length) setChapterTeam(back);
-      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:219', __e); } }
+      if (!S().adv?.zone && r.chapter != null && +S().adv?.chapter !== +r.chapter) { try { E.call('Adventure.setChapter', +r.chapter); } catch (__e) { __h('70-plan-03-level:222', __e); } }
       g.restore = null; Plan.save();
       Log.add(`${level.label(g)}: done - your team, buddy and chapter are back`);
     },
@@ -10483,11 +10487,13 @@ const Dailies = (() => {
   const t = (f, d = null) => { try { return f(); } catch { return d; } };
   const name = (id) => t(() => Casing.names(E.get('Game.DEX')[id].name), '#' + id);
   const day = () => t(() => E.get('Raids').dateKey(), new Date().toISOString().slice(0, 10));
-  // state: ready (up and not done) · run (going now) · done (finished for today) · closed (not today) · off (locked)
+  // state: ready (up and not done) · run (going now) · done (finished for today) · closed (not today) · load (the game is still fetching today's) · off (locked)
   const LIST = [
     { key: 'raid', icon: '✨', name: 'Shiny Raid', read() {
       const R = E.get('Raids'); if (!R || !t(() => R.unlocked(), false)) return { state: 'off' };
-      const reg = t(() => R.drawn()); if (!reg) return { state: 'closed', line: 'not drawn yet' };
+      const reg = t(() => R.drawn());
+      // no draw yet = the game hasn't fetched today's draw (right after 3 PM, or before the Raids screen is opened): ask for it
+      if (!reg) { if (Date.now() - (this.ask || 0) > 2 * 60_000) { this.ask = Date.now(); try { R.sync(); } catch (__e) { __h('76-dailies:18', __e); } } return { state: 'load', line: "loading today's draw…" }; }
       const ev = E.get('Game.S')?.adv?.event;
       if (ev?.raid && ev.reg === reg && ev.date !== 'fete15') return { state: 'run', line: 'raid going' };
       if (t(() => R.done(reg), false)) return { state: 'done', line: 'caught' };
@@ -10500,8 +10506,9 @@ const Dailies = (() => {
       // the game's own reason: 'played' (done), 'day' (today's boss isn't loaded yet), anything else = not now
       const w = t(() => B.why());
       if (w === 'played') return { state: 'done' };
-      if (w === 'day' && Date.now() - (this.ask || 0) > 5 * 60_000) { this.ask = Date.now(); try { B.loadDay(); } catch (__e) { __h('76-dailies:29', __e); } } // ask the game for today's boss (the Pokéblock goal does the same)
-      if (w) return { state: 'closed', line: w === 'day' ? "today's boss not loaded yet" : String(w) };
+      if (w === 'day' && Date.now() - (this.ask || 0) > 5 * 60_000) { this.ask = Date.now(); try { B.loadDay(); } catch (__e) { __h('76-dailies:31', __e); } } // ask the game for today's boss (the Pokéblock goal does the same)
+      if (w === 'day') return { state: 'load', line: "loading today's boss…" };
+      if (w) return { state: 'closed', line: String(w) };
       const d = t(() => B.today());
       return { state: 'ready', line: d?.boss ? `today: ${name(d.boss)}` : '' };
     } },
@@ -10510,7 +10517,9 @@ const Dailies = (() => {
       const w = t(() => C.why());
       if (w === 'running') return { state: 'run' };
       if (w === 'played') return { state: 'done' };
-      if (w === 'day') return { state: 'closed', line: 'closed today' };
+      // the game's why(): 'day' = today's type isn't loaded yet (not "closed"): ask for it; 'team' = none of your Pokémon fit today's type
+      if (w === 'day') { if (Date.now() - (this.ask || 0) > 2 * 60_000) { this.ask = Date.now(); try { C.loadDay(); } catch (__e) { __h('76-dailies:43', __e); } } return { state: 'load', line: "loading today's type…" }; }
+      if (w === 'team') return { state: 'closed', line: "none of your Pokémon fit today's type" };
       if (w === 'locked') return { state: 'off' };
       return { state: 'ready' };
     } },
@@ -10523,8 +10532,13 @@ const Dailies = (() => {
     { key: 'wboss', icon: '🌍', name: 'World Boss', read() {
       const W = E.get('WorldBoss'); if (!W || !t(() => W.open(), false)) return { state: 'off' };
       if (t(() => W.resting(), false)) return { state: 'closed', line: 'resting' };
-      const left = +t(() => W.left(), 0);
-      return left > 0 ? { state: 'ready', line: `${left} attack${left === 1 ? '' : 's'} left` } : { state: 'done' };
+      // the same reading as the World Boss goal: only the shield phase takes attacks (3 a day), the capture phase is one
+      // catch per edition; 'soon' with no edition number = the game hasn't asked its server yet (after a reload): ask it
+      const st = t(() => W.state(), {}) || {};
+      if ((!st.phase || st.phase === 'soon') && !st.n) { if (Date.now() - (this.ask || 0) > 2 * 60_000) { this.ask = Date.now(); try { W.refresh(); } catch (__e) { __h('76-dailies:60', __e); } } return { state: 'load', line: 'loading this round…' }; }
+      if (st.phase === 'shield') { const left = +t(() => W.left(st), 0); return left > 0 ? { state: 'ready', line: `${left} attack${left === 1 ? '' : 's'} left` } : { state: 'done' }; }
+      if (st.phase === 'capture') return t(() => W.caught(st), false) ? { state: 'done', line: 'caught this round', at: +st.next || 0 } : { state: 'ready', line: 'catch phase' };
+      return { state: 'closed', line: 'next round', at: +st.next || 0 };
     } },
     // the Trainer Count Event (until Dec 1): a region open to pick, or a picked starter not caught yet
     { key: 'fete15', icon: '🎉', name: 'Trainer Count Event', read() {
@@ -10562,12 +10576,12 @@ const Dailies = (() => {
       if (x.state !== 'ready') continue;
       const id = x.week ? 'w' + wk : d;
       if (told[x.key] === id) continue;
-      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:91', __e); }
-      try { Notify.send('ready', `${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:92', __e); }
+      told[x.key] = id; try { localStorage.setItem(KEY, JSON.stringify(told)); } catch (__e) { __h('76-dailies:101', __e); }
+      try { Notify.send('ready', `${x.name} is ready`, `${x.line ? x.line + ' · ' : ''}${x.week ? 'new week' : 'up for today'}${Plan.goals.some((g) => !g.done && !g.paused && g.type === x.key) ? ' - Mega will run it' : ' - not in your queue'}`); } catch (__e) { __h('76-dailies:102', __e); }
     }
   }
   let timer = null;
-  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:96', __e); } }, 30_000); }
+  function boot() { if (!timer) timer = setInterval(() => { try { tick(); } catch (__e) { __h('76-dailies:106', __e); } }, 30_000); }
   return { list, resetAt, tick, boot };
 })();
 
