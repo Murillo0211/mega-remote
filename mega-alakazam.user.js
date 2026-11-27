@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.14
+// @version      2.20.15
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.14';
+const VERSION = '2.20.15';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4801,7 +4801,7 @@ Views.now = (w, esc, fmtIn) => {
         if (scrGoal.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(scrGoal.spot)) return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-        return `<div style="margin-top:8px" title="Training time to Lv 100: each one's XP rate while Mega trains here (last 45 min) - time Mega spends on other goals comes on top">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
+        return `<div style="margin-top:8px" title="Training time to Lv 100: each one's XP rate while Mega trains here (last 2 h of training) - time Mega spends on other goals comes on top">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${r.shiny ? ' ✨' : ''}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
       })()}
       ${(() => { // Axsiom Plan / Giant Chasm: what this run brought in
         if (scrGoal.type !== 'discord' || !['axsiom', 'mix'].includes(scrGoal.spot)) return '';
@@ -9974,17 +9974,23 @@ const Plan = (() => {
   const xpNeed = (m, l) => +safe(() => E.get('Game').xpForNext(l, m), 0) || 0;
   const xpTotal = (m) => { let t = 0; for (let l = 1; l < m.level; l++) t += xpNeed(m, l); return t + (+m.xp || 0); };
   const xpTo100 = (m) => { if (m.level >= 100) return 0; let t = Math.max(0, xpNeed(m, m.level) - (+m.xp || 0)); for (let l = m.level + 1; l < 100; l++) t += xpNeed(m, l); return t; };
-  const xpLog = new Map(); // uid -> [[t, total, rank]]
+  // uid -> [[t, total, rank]] - kept in the page's storage (2.20.15): a reload used to start the measuring over, and a
+  // few minutes of fights swing a lot (the rate after a reload read 40% off the hour before)
+  const XKEY = 'mega-xp-log', WIN = 2 * 3600e3;
+  const xpLog = new Map((() => { try { return Object.entries(JSON.parse(localStorage.getItem(XKEY) || '{}')); } catch { return []; } })());
+  let xpSaved = 0;
+  const saveXp = () => { if (Date.now() - xpSaved < 60e3) return; xpSaved = Date.now(); try { localStorage.setItem(XKEY, JSON.stringify(Object.fromEntries([...xpLog].filter(([, L]) => L.length && Date.now() - L[L.length - 1][0] < WIN)))); } catch (__e) { __h('70-plan-23-discord:150', __e); } };
   function sampleXp(g) {
     const now = Date.now();
     for (const u of new Set([...(S().team || []), ...(g.job?.uids || []), ...(g.job?.extra || [])])) {
       const m = E.read('Game.getMon', null, u); if (!m) continue;
       const tot = xpTotal(m), r = +(m.rank || 0), L = xpLog.get(u) || [];
       if (L.length && (tot < L[L.length - 1][1] || r !== L[L.length - 1][2])) L.length = 0; // ranked up / reset
-      if (!L.length || now - L[L.length - 1][0] > 15e3) L.push([now, tot, r]);
-      while (L.length > 2 && now - L[0][0] > 45 * 60e3) L.shift();
+      if (!L.length || now - L[L.length - 1][0] > 30e3) L.push([now, Math.round(tot), r]);
+      while (L.length > 2 && now - L[0][0] > WIN) L.shift();
       xpLog.set(u, L);
     }
+    saveXp();
   }
   function focusRow(g) {
     let R = []; try { R = trainRows(g); } catch { return null; }
@@ -10004,10 +10010,10 @@ const Plan = (() => {
       // XP per ms while it's actually training here (2.20.14, Jimmy 2026-11-26: the time felt off): only the stretches
       // where Mega was on this goal count - a gap between two samples longer than a minute is time spent on another
       // goal (a daily, a raid, an Elite fight) or a reload, and used to drag the rate down and stretch the estimate.
-      // Over the last 45 min (was 20), after 3 min of training.
+      // Over the last 2 h of training (was 20 min), kept across reloads, after 10 min of training.
       const L = xpLog.get(u) || [];
-      let dx = 0, dt = 0; for (let i = 1; i < L.length; i++) { const t = L[i][0] - L[i - 1][0]; if (t <= 60e3) { dt += t; dx += L[i][1] - L[i - 1][1]; } }
-      const rate = dt >= 180e3 ? dx / dt : null;
+      let dx = 0, dt = 0; for (let i = 1; i < L.length; i++) { const t = L[i][0] - L[i - 1][0]; if (t <= 90e3) { dt += t; dx += L[i][1] - L[i - 1][1]; } }
+      const rate = dt >= 600e3 ? dx / dt : null;
       const left = xpTo100(m), eta = m.level >= 100 ? 0 : rate > 0 ? left / rate : null;
       return { uid: u, id: m.id, shiny: !!m.shiny, rank: +(m.rank || 0), level: m.level, pct: Math.min(1, (m.level + frac) / 100), eta, perH: rate ? rate * 3.6e6 : null };
     }).filter(Boolean);
@@ -10038,7 +10044,7 @@ const Plan = (() => {
   }
   // ---- Ready for Candy ----
   const CANDY_AT = 5.5e6; // XP to the next level where battling stops paying (the chart author's ~5-6 M)
-  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:209', __e); } return o; };
+  const tierOrder = () => { const o = new Map(); try { GemFocus.watchRows().forEach((r, i) => o.set(r.m?.uid, i)); } catch (__e) { __h('70-plan-23-discord:215', __e); } return o; };
   const awaySet = () => new Set((E.read('Game.underMons', []) || []).map((m) => m.uid));
   const capFor = (m) => Math.min(100, +E.read('Game.capFor', 100, m) || 100);
   const slow = (m, at) => xpNeed(m, m.level) >= at;
@@ -10066,12 +10072,12 @@ const Plan = (() => {
     g.candyTold = [...told, ...fresh.map((r) => r.uid)].slice(-200); Plan.save();
     const nm = fresh.map((r) => name(r.id)).join(', ');
     Log.add(`Ready for candy: ${nm} (next level needs ${(fresh[0].next / 1e6).toFixed(1)} M XP)`);
-    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:237', __e); }
+    try { Notify.send('win', 'Ready for candy', `${nm} ${fresh.length === 1 ? 'is' : 'are'} past ${((g.candyAt || CANDY_AT) / 1e6).toFixed(1)} M XP per level - battling is slow now. Use Exp. Candies (Mega's Now tab lists them).`); } catch (__e) { __h('70-plan-23-discord:243', __e); }
   }
   // your carrier choice per spot, kept across goals (localStorage mega-discord-carrier: { spot: uid })
   const MEMO = 'mega-discord-carrier';
   function carrierMemo() { try { return JSON.parse(localStorage.getItem(MEMO) || '{}') || {}; } catch { return {}; } }
-  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:242', __e); } Plan.save(); }
+  function setCarrier(g, uid) { g.carrier = uid || null; if (g.job) g.job.carriersFor = null; const m = carrierMemo(); if (g.carrier) m[g.spot] = g.carrier; else delete m[g.spot]; try { localStorage.setItem(MEMO, JSON.stringify(m)); } catch (__e) { __h('70-plan-23-discord:248', __e); } Plan.save(); }
   Object.assign(GoalTypes, { discord, carrierChoices, setCarrier, trainRows, etaText, candyReady, CANDY_AT, runTake, soloLoop, loopsBack, discordSpots: SPOTS, discordSpot: spotOf });
 })();
 
