@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.27
+// @version      2.20.28
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.27';
+const VERSION = '2.20.28';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -5372,7 +5372,10 @@ Views.gems = (esc) => {
     const held = R.filter((r) => +r.have > 0), none = R.filter((r) => !(+r.have > 0));
     // who a gem goes to: the first Discord pick (list order) it fits; nobody on the lists → the strongest that can use it
     const picks = (() => { try { return GemFocus.watchRows().filter((p) => p.rank < p.max); } catch { return []; } })(), U = Engine.get('Underground');
-    const pickFor = (key) => { for (const p of picks) { if (!p.keys.some((x) => x.k === key)) continue; const ro = (() => { try { return U.rankOf(p.m, key); } catch { return null; } })(); if (ro) return { m: p.m, next: ro.next, why: ro.why || null, pick: true }; } return null; };
+    const pickFor = (key) => { // the first pick that can take it now, else the first pick that will (same order as the green card)
+      let wait = null;
+      for (const p of picks) { if (!p.keys.some((x) => x.k === key)) continue; const ro = (() => { try { return U.rankOf(p.m, key); } catch { return null; } })(); if (!ro) continue; const c = { m: p.m, next: ro.next, why: ro.why || null, pick: true }; if (!c.why) return c; wait = wait || c; }
+      return wait; };
     const line = (r) => { const c = pickFor(r.key) || r.top[0];
       return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${c.pick ? ' <span class="pill gms">Discord</span>' : ''}${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
     if (held.length) h += `<div class="card" data-sec="all"><h3>${esc(EliteInfo.TIER[t])} gems <span class="dim" style="font-weight:600">· ${held.length}</span></h3>${held.map(line).join('')}</div>`;
