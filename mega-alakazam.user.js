@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.20
+// @version      2.20.21
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.20';
+const VERSION = '2.20.21';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2021,7 +2021,7 @@ const Views = (() => {
         if (A.statusShare != null && A.ticks.length) h += row('Damage from poison / burn', `<b>${Math.round(A.statusShare * 100)}%</b> <span class="dim">of all damage dealt</span>`);
         h += row('Counter-hit on one of yours', A.counter ? `${Math.round(A.counter)} <span class="dim">(${A.counterN})</span>` : '-');
         h += `<div style="margin-top:6px;font-weight:700;color:var(--ink)">Your damage per action</div>`;
-        for (const t of A.attackers) h += `<div class="row"><span class="k" style="display:flex;align-items:center;gap:6px"><img src="${Engine.sprite(t.id)}" width="28" height="28" style="image-rendering:pixelated">${esc(World.dex.name(t.id))}${MT(t)}${t.rank ? ` r${t.rank}` : ''}</span><span class="v">${t.avg ? Math.round(t.avg) : '-'} <span class="dim">· ${t.n} actions${t.missRate ? `, ${Math.round(t.missRate * 100)}% no damage` : ''}</span></span></div>`;
+        for (const t of A.attackers) h += `<div class="row"><span class="k" style="display:flex;align-items:center;gap:6px"><img src="${Engine.sprite(t.id)}" width="28" height="28" style="image-rendering:pixelated">${esc(World.dex.name(t.id))}${MT(t)}</span><span class="v">${t.avg ? Math.round(t.avg) : '-'} <span class="dim">· ${t.n} actions${t.missRate ? `, ${Math.round(t.missRate * 100)}% no damage` : ''}</span></span></div>`;
       }
       h += `</div>`;
     }
@@ -4812,7 +4812,7 @@ Views.now = (w, esc, fmtIn) => {
         if (scrGoal.type !== 'discord' || !['xp', 'axsiom', 'mix'].includes(scrGoal.spot)) return '';
         const R = (() => { try { return GoalTypes.trainRows(scrGoal); } catch { return []; } })(); if (!R.length) return '';
         const nm = (id) => esc(Casing.names(Engine.get('Game.DEX')?.[id]?.name || '#' + id));
-        return `<div style="margin-top:8px" title="Training time to Lv 100: each one's XP rate while Mega trains here (last 2 h of training) - time Mega spends on other goals comes on top">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${MT(r)}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
+        return `<div style="margin-top:8px" title="Training time to Lv 100: each one's XP rate while Mega trains here (last 2 h of training) - time Mega spends on other goals comes on top">${R.map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(24px,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${nm(r.id)}</b>${MT(r)} <span class="dim">Lv</span> ${r.level}</span><div class="bar" style="margin:0"><i style="width:${(r.pct * 100).toFixed(1)}%"></i></div><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${GoalTypes.etaText(r.eta)}</span></div>`).join('')}</div>`;
       })()}
       ${(() => { // Axsiom Plan / Giant Chasm: what this run brought in
         if (scrGoal.type !== 'discord' || !['axsiom', 'mix'].includes(scrGoal.spot)) return '';
@@ -4827,7 +4827,7 @@ Views.now = (w, esc, fmtIn) => {
     h += `<div class="card"><h3>Today ${status}</h3><div class="dim" style="font-size:var(--t-s);font-weight:700;letter-spacing:.04em">WORKING ON NOW · IDLE</div><div style="display:flex;gap:12px;align-items:center;margin-top:6px">
       ${lead ? `<img src="${E.sprite(lead.id)}" width="64" height="64" style="image-rendering:pixelated;flex:none;background:var(--well);border-radius:12px">` : '<span style="font-size:34px">💤</span>'}
       <div style="flex:1;min-width:0"><div style="font-size:var(--t-m);font-weight:800">${g ? 'Leveling while every goal waits' : 'Parked - nothing to level'}</div>
-      ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${RK(m.rank)}${MT(m)} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
+      ${g ? `<div>${g.uids.map((u) => { const m = E.read('Game.getMon', null, u); return m ? `${nm(m.id)}${MT(m)} <b>Lv ${m.level}</b>` : ''; }).filter(Boolean).join(' · ')}</div>` : ''}</div></div>
       ${I.line ? `<div class="dim" style="margin-top:8px">${esc(I.line)}</div>` : ''}
       ${where ? `<div class="dim" style="margin-top:6px">📍 ${where}${fight ? ' · ' + fight : ''}</div>` : ''}`;
   } else {
@@ -4950,7 +4950,7 @@ Views.now = (w, esc, fmtIn) => {
     if (R.length) {
       const M = (x) => (x >= 1e6 ? (x / 1e6).toFixed(1) + ' M' : Math.round(x / 1e3) + ' k');
       const have = ['exp-candy-s', 'exp-candy-m', 'exp-candy-big', 'exp-candy-xl'].map((k) => [k, +E.read('Game.itemCount', 0, k) || 0]).filter(([, n]) => n);
-      h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${R.length}</span></h3><div class="dim" style="font-size:var(--t-s);margin-bottom:4px">Past ${((g.candyAt || GoalTypes.CANDY_AT) / 1e6).toFixed(1)} M XP per level, so battling is slow: feed these Exp. Candies. Discord tier-list picks first.</div>${R.slice(0, 8).map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(0,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${esc(Casing.names(E.get('Game.DEX')?.[r.id]?.name || '#' + r.id))}</b>${MT(r)}${RK(r.rank)} <span class="dim">Lv</span> ${r.level}</span><span>${r.tier ? '<span class="ok" style="font-size:var(--t-s)">Discord pick</span>' : ''}</span><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${M(r.left)} XP to 100</span></div>`).join('')}${R.length > 8 ? `<div class="dim" style="margin-top:4px">+ ${R.length - 8} more</div>` : ''}${have.length ? `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">You have: ${have.map(([k, n]) => `${esc(Casing.names(E.get('CONFIG')?.ITEMS?.[k]?.name || k))} ×${n}`).join(' · ')}</div>` : ''}</div>`;
+      h += `<div class="card"><h3>🍬 Ready for Candy <span class="dim" style="font-weight:600">· ${R.length}</span></h3><div class="dim" style="font-size:var(--t-s);margin-bottom:4px">Past ${((g.candyAt || GoalTypes.CANDY_AT) / 1e6).toFixed(1)} M XP per level, so battling is slow: feed these Exp. Candies. Discord tier-list picks first.</div>${R.slice(0, 8).map((r) => `<div style="display:grid;grid-template-columns:26px max-content minmax(0,1fr) max-content;gap:8px;align-items:center;margin-top:3px"><img src="${Engine.sprite(r.id)}" width="26" height="26" style="image-rendering:pixelated"><span style="white-space:nowrap"><b>${esc(Casing.names(E.get('Game.DEX')?.[r.id]?.name || '#' + r.id))}</b>${MT(r)} <span class="dim">Lv</span> ${r.level}</span><span>${r.tier ? '<span class="ok" style="font-size:var(--t-s)">Discord pick</span>' : ''}</span><span class="dim" style="font-size:var(--t-s);white-space:nowrap">${M(r.left)} XP to 100</span></div>`).join('')}${R.length > 8 ? `<div class="dim" style="margin-top:4px">+ ${R.length - 8} more</div>` : ''}${have.length ? `<div class="dim" style="margin-top:6px;font-size:var(--t-s)">You have: ${have.map(([k, n]) => `${esc(Casing.names(E.get('CONFIG')?.ITEMS?.[k]?.name || k))} ×${n}`).join(' · ')}</div>` : ''}</div>`;
     }
   }
 
@@ -5369,7 +5369,7 @@ Views.gems = (esc) => {
     const R = g.rows.filter((r) => tierOf(r.key) === t); if (!R.length) continue;
     const held = R.filter((r) => +r.have > 0), none = R.filter((r) => !(+r.have > 0));
     const line = (r) => { const c = r.top[0];
-      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${MT(c.m)} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)"><div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(r.label.split(' · ')[0])}</b> <span class="dim">×${r.have}</span>${c ? ` · <img src="${Engine.sprite(c.m.id)}" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle"> ${nm(c.m.id)}${c.m.shiny ? ' ✨' : ''} <span class="dim">${c.m.rank ? RK(c.m.rank) : 'unranked'} → ${RK(c.next)}</span> <span class="${c.why ? 'dim' : 'ok'}" style="font-size:var(--t-s)">${c.why ? esc(c.why) : '✓ ready'}</span>${r.more + r.top.length > 1 ? ` <span class="faint" style="font-size:var(--t-s)">+${r.more + r.top.length - 1}</span>` : ''}` : ' <span class="faint">· nobody can use it yet</span>'}</div>${c ? `<button class="btn sm" data-act="gem-open" data-uid="${c.m.uid}" style="width:auto;margin:0">Open</button>` : ''}</div>`; };
     if (held.length) h += `<div class="card" data-sec="all"><h3>${esc(EliteInfo.TIER[t])} gems <span class="dim" style="font-weight:600">· ${held.length}</span></h3>${held.map(line).join('')}</div>`;
     if (none.length) h += `<div class="card" data-sec="none"><h3>${esc(EliteInfo.TIER[t])} gems you don't have <span class="dim" style="font-weight:600">· ${none.length}</span></h3>${none.map(line).join('')}</div>`;
   }
@@ -5526,7 +5526,8 @@ const GemFocus = (() => {
     }
     return out;
   }
-  function readyCount() { try { return readyRows().filter((r) => r.state === 'ready').length; } catch { return 0; } }
+  let rcAt = 0, rcN = 0; // the tab badge asks on every redraw: worked out at most every 5 s
+  function readyCount() { if (Date.now() - rcAt < 5000) return rcN; rcAt = Date.now(); try { rcN = readyRows().filter((r) => r.state === 'ready').length; } catch { rcN = 0; } return rcN; }
   return { readyRows, readyCount, status, fuseFor, shop, price, shards, watchRows, shopHits, watchShop, boot, fuse, buy, reroll, choices, label, TIER, nameOf };
 })();
 
@@ -5543,7 +5544,7 @@ const GemFocus = (() => {
         h += `<div class="card gemready${go.length ? '' : ' soft'}"><h3>${go.length ? `Ready to Rank Up · ${go.length}` : 'Gems in hand'}</h3>`;
         h += go.map((r) => `<div style="display:flex;gap:8px;align-items:center;margin-top:8px">${sp(r.m.id, 40)}<div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${MT(r.m)} <span class="dim">· Lv ${r.m.level}</span><div style="font-size:var(--t-s)">rank ${r.rank} → ${r.next} · ${r.need} × ${esc(F.label(r.key))}</div></div><button class="btn gold" style="width:auto;margin:0;flex:none" data-act="gem-rank" data-uid="${r.m.uid}" data-key="${r.key}" data-rank="${r.rank}" data-id="${r.m.id}" data-need="${r.need}" data-label="${esc(F.label(r.key))}" data-lv="${r.m.level}">Rank Up</button></div>`).join('');
         if (wait.length) { // grouped by what they wait on (the game says "At level 100" = it ranks up at Lv 100)
-          const by = new Map(); for (const r of wait) { const k = /level 100/i.test(r.why) ? 'Lv 100' : r.why; if (!by.has(k)) by.set(k, []); by.get(k).push(r); }
+          const by = new Map(); for (const r of wait) { const k = /level 100/i.test(r.why) ? 'Lv 100' : /underground/i.test(r.why) ? 'it to come back from the Underground' : r.why; if (!by.has(k)) by.set(k, []); by.get(k).push(r); }
           for (const [k, rs] of by) h += `<div style="margin-top:${go.length ? 10 : 4}px;font-size:var(--t-s)"><b>Gems ready, waiting for ${esc(k)}:</b> ${rs.slice(0, 8).map((r) => `${esc(r.name)}${MT(r.m)}`).join(', ')}${rs.length > 8 ? ` <span class="dim">+ ${rs.length - 8} more</span>` : ''}</div>`;
         }
         h += `</div>`;
@@ -5595,7 +5596,7 @@ const GemFocus = (() => {
       if (gap.length) h += `<div style="margin-top:2px"><b class="warn">Top picks still at rank 0:</b> ${gap.slice(0, 5).map((r) => esc(r.name)).join(', ')}</div>`;
       // the list filter (Jimmy 2026-11-24): every tier, or one at a time
       const TIERS = [['', 'All tiers'], ['S', 'Legendary · Tier S'], ['A', 'Legendary · Tier A'], ['Pseudo', 'Pseudo-legendaries'], ['Rare', 'Top 10 Rare'], ['Uncommon', 'Top 10 Uncommon'], ['Top', "Top player's other picks"]];
-      let tf = ''; try { tf = localStorage.getItem('mega-gem-tier') || ''; } catch (__e) { __h('63-gemfocus:204', __e); }
+      let tf = ''; try { tf = localStorage.getItem('mega-gem-tier') || ''; } catch (__e) { __h('63-gemfocus:205', __e); }
       if (!TIERS.some(([k]) => k === tf)) tf = '';
       const n = (k) => (k ? W.filter((r) => r.list === k).length : W.length);
       h += `<select class="sel" data-act="gem-tier" style="margin-top:8px">${TIERS.filter(([k]) => !k || n(k)).map(([k, t]) => `<option value="${k}" ${tf === k ? 'selected' : ''}>${t} (${n(k)})</option>`).join('')}</select>`;
@@ -6421,7 +6422,7 @@ const Mirror = (() => {
       ${chips([['all', 'All'], ['shiny', '✨ Shiny'], ['l100', 'Lv 100'], ['under100', 'Under 100'], ['ranked', '★ Ranked'], ['busy', 'Team / Away']], B.f, 'm-box-f')}
       <div style="display:flex;gap:8px"><select class="sel" data-msel="sort">${[['level', 'Sort: Level'], ['newest', 'Sort: Newest'], ['rank', 'Sort: Rank'], ['name', 'Sort: Name'], ['dex', 'Sort: Pokédex No.']].map(([k, l]) => `<option value="${k}" ${B.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <select class="sel" data-msel="type"><option value="">All types</option>${TYPES.map((t) => `<option value="${t}" ${B.type === t ? 'selected' : ''}>${cap1(t)}</option>`).join('')}</select></div>
-      <div class="grid">${list.slice(0, B.show).map(({ m, where, buddy }) => `<div class="mon" data-act="m-box-open" data-uid="${esc(m.uid)}" style="cursor:pointer;position:relative;${B.sel === m.uid ? 'border-color:var(--acc);box-shadow:0 0 0 2px var(--focus)' : ''}">${ic[where] ? `<span style="position:absolute;top:3px;right:5px;font-size:var(--t-s)">${ic[where]}</span>` : ''}<img src="${E.sprite(m.id)}" loading="lazy">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${RK(m.rank)}${m.shiny ? ' ✨' : ''}${buddy ? ' 💛' : ''}</div></div>`).join('') || '<div class="dim">Nothing matches.</div>'}</div>
+      <div class="grid">${list.slice(0, B.show).map(({ m, where, buddy }) => `<div class="mon" data-act="m-box-open" data-uid="${esc(m.uid)}" style="cursor:pointer;position:relative;${B.sel === m.uid ? 'border-color:var(--acc);box-shadow:0 0 0 2px var(--focus)' : ''}">${ic[where] ? `<span style="position:absolute;top:3px;right:5px;font-size:var(--t-s)">${ic[where]}</span>` : ''}<img src="${E.sprite(m.id)}" loading="lazy">${esc(nmRaw(m.id))}${MT(m)}<div class="dim">Lv ${m.level}${buddy ? ' 💛' : ''}</div></div>`).join('') || '<div class="dim">Nothing matches.</div>'}</div>
       ${list.length > B.show ? `<button class="btn" data-act="m-box-more">Show More (${list.length - B.show})</button>` : ''}</div>`;
     return h;
   }
@@ -6436,7 +6437,7 @@ const Mirror = (() => {
     const stats = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].map((k) => Math.round(+st[k] || 0)), mx = Math.max(...stats, 1), names = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'];
     const lvGoal = Plan.goals.some((g) => !g.done && g.type === 'level' && (g.uids || []).includes(uid));
     const team = (S0.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
-    return `<div class="card" style="border-color:var(--acc)"><div style="display:flex;gap:12px;align-items:center">${sp(m.id, 72)}<div style="flex:1"><div style="font-size:19px;font-weight:800">${esc(d.name || '#' + m.id)}${m.shiny ? ' ✨' : ''}${S0.buddy?.uid === uid ? ' 💛' : ''}</div><div class="dim">${esc(d.genus || '')}</div><div>${(d.types || []).map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-act="m-box-close">✕</button></div>
+    return `<div class="card" style="border-color:var(--acc)"><div style="display:flex;gap:12px;align-items:center">${sp(m.id, 72)}<div style="flex:1"><div style="font-size:19px;font-weight:800">${esc(d.name || '#' + m.id)}${MT(m)}${S0.buddy?.uid === uid ? ' 💛' : ''}</div><div class="dim">${esc(d.genus || '')}</div><div>${(d.types || []).map(cap1).join(' / ')}</div></div><button class="btn sm" style="width:auto;padding:8px 12px" data-act="m-box-close">✕</button></div>
       ${row('Level', `${m.level}${cap > m.level ? ` <span class="dim">(cap ${cap})</span>` : ''}`)}${m.rank ? row('Rank', RK(m.rank)) : ''}${row('Where', where)}
       ${m.where ? row('Caught', `${esc(Casing.names(m.where))}${m.caughtAt ? ` <span class="dim">· ${new Date(m.caughtAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}`) : ''}${m.ot ? row('From', esc(m.ot)) : ''}
       <div class="dim" style="margin-top:8px;font-weight:700">STATS</div>
@@ -6516,7 +6517,7 @@ const Mirror = (() => {
     const T = ui.tm, S0 = S();
     if (!T.draft) { T.draft = [...(S0.team || [])]; T.slot = Math.min(T.draft.length, 5); }
     const mon = (u) => E.read('Game.getMon', null, u);
-    const cell = (m, big) => `<img src="${E.sprite(m.id)}" style="width:${big ? 48 : 40}px;height:${big ? 48 : 40}px">${esc(nmRaw(m.id))}<div class="dim">Lv ${m.level}${RK(m.rank)}${m.shiny ? ' ✨' : ''}</div>`;
+    const cell = (m, big) => `<img src="${E.sprite(m.id)}" style="width:${big ? 48 : 40}px;height:${big ? 48 : 40}px">${esc(nmRaw(m.id))}${MT(m)}<div class="dim">Lv ${m.level}</div>`;
     const busy = Plan.goals.filter((g) => !g.done && Plan.live(g.id)?.state === 'running' && GoalTypes[g.type]?.uses === 'screen').map((g) => Plan.label(g));
     let h = `<div class="card"><h3>Change Team</h3><div class="dim">Click a slot, then a Pokémon below. Pokémon in the Underground aren't listed.</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">${[0, 1, 2, 3, 4, 5].map((i) => { const m = T.draft[i] && mon(T.draft[i]); return `<div class="mon" data-act="m-tm-slot" data-v="${i}" style="cursor:pointer;min-height:80px;${T.slot === i ? 'border:2px solid var(--acc)' : ''}">${m ? cell(m, true) + `<div class="dim" data-act="m-tm-drop" data-v="${i}" style="cursor:pointer">✕ remove</div>` : '<div class="dim" style="padding-top:24px">empty</div>'}</div>`; }).join('')}</div>
