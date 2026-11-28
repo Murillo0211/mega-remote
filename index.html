@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kinesis">
+<meta name="kbuild" content="1795853447">
 <meta name="theme-color" content="#120f24">
 <title>Kinesis</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jersey+15&display=swap" rel="stylesheet">
@@ -1117,6 +1118,22 @@ async function pushOff() {
   try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { await fetch(RELAY + '/push/unsub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }); await sub.unsubscribe(); } toast('Alerts off on this phone'); } catch (e) { toast('Could not turn off: ' + (e.message || e)); }
   refreshPush();
 }
+// self-update (Jimmy 2026-11-28: a new button did nothing because the phone still had the old page open): every 3 min and
+// whenever the app comes back to the front, ask for the page again; a newer build reloads by itself - never while a
+// confirm sheet is open or something is being typed
+const KBUILD = document.querySelector('meta[name=kbuild]')?.content || 'dev';
+async function kUpdate() {
+  if (KBUILD === 'dev') return;
+  try {
+    const t = await (await fetch(location.pathname + '?k=' + Date.now(), { cache: 'no-store' })).text();
+    const b = (t.match(/<meta name="kbuild" content="([^"]+)"/) || [])[1];
+    if (!b || b === KBUILD) return;
+    if (document.querySelector('.sheet') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
+    location.reload();
+  } catch {}
+}
+setInterval(kUpdate, 180_000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') kUpdate(); });
 if (RELAY && 'serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then((r) => { if (r) r.update().catch(() => {}); }).catch(() => {});
 
 // ---- Activity: the whole log, graphs from Mega's history, and "while you were away" ----
