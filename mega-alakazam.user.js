@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.28
+// @version      2.20.29
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.28';
+const VERSION = '2.20.29';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -9619,6 +9619,10 @@ const Plan = (() => {
         if (g.paused) { live[g.id] = { state: 'paused', why: null }; continue; }
         if (c.state !== 'ready') { live[g.id] = { state: 'wait', why: c.why }; if (!waitSince.has(g.id)) waitSince.set(g.id, { at: Date.now(), why: c.why }); else waitSince.get(g.id).why = c.why; continue; }
         { const gb = Guard.blocks(g.type); if (gb) { live[g.id] = { state: 'wait', why: `did not start - safety check: ${gb} (probably a game update; waits until it looks right)` }; continue; } }
+        // parked (2.20.29, Jimmy 2026-11-27): a screen goal that is only waiting for its Pokémon to come back (Underground
+        // or a trade) lets the goals below it use the screen meanwhile; it gets a fresh try every 90 s and takes over as
+        // soon as they're home
+        { const pk = parked.get(g.id); if (pk && T.uses === 'screen' && Date.now() < pk.until) { live[g.id] = { state: 'wait', why: `${pk.why} - the next task runs meanwhile` }; continue; } }
         if (T.uses === 'screen' && screenTaken) { live[g.id] = { state: 'queued', why: `after ${name(screenTaken)}` }; continue; }
         if (T.uses === 'screen') screenTaken = g;
         if (g.type === 'legend' && failsFor === g.foe && fails >= 3) { live[g.id] = { state: 'wait', why: 'could not enter the zone 3 times - see the log, then press ▶ to retry' }; continue; }
@@ -9643,7 +9647,9 @@ const Plan = (() => {
         const ws = waitSince.get(g.id);
         if (ws && Date.now() - ws.at > 30 * 60_000) { Log.add(`started: ${name(g)} (was waiting: ${ws.why || 'its conditions'})`); Notify.send('daily', `Started: ${name(g)}`, `It was waiting ${Math.round((Date.now() - ws.at) / 3_600_000 * 10) / 10} h: ${ws.why || 'its conditions'}`); }
         waitSince.delete(g.id);
-        try { Blackbox.mark('goal ' + g.type + ' ' + (g.foe || g.item || '')); live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); fillTeam(); }
+        try { Blackbox.mark('goal ' + g.type + ' ' + (g.foe || g.item || '')); live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); fillTeam();
+          if (type(g).uses === 'screen' && AWAY.test(String(live[g.id].line || ''))) { if (!parked.has(g.id)) Log.add(`${name(g)}: its Pokémon are away - the next task uses the screen until they're back`); parked.set(g.id, { until: Date.now() + 90_000, why: String(live[g.id].line).replace(/^(⏳\s*)?waiting:?\s*/i, 'waiting: ') }); }
+          else parked.delete(g.id); }
         catch (e) { live[g.id] = { state: 'wait', why: 'error: ' + (e?.message || e) }; Log.add(`${name(g)}: error - ${e?.message || e}`); Health.goalErr(g, e, name(g)); }
       }
       // idle only after 2 min with no screen goal, so a goal that waits a moment between runs doesn't flip-flop
@@ -9678,6 +9684,8 @@ const Plan = (() => {
   // wanders into new story chapters) and puts everything back when a real goal needs the screen.
   let idleLine = '', freeSince = 0;
   const waitSince = new Map(); // goal id -> when it started waiting and why (for the "Started" alert)
+  const parked = new Map(); // goal id -> { until, why }: waiting for its Pokémon to come back, the next task runs meanwhile
+  const AWAY = /are away \(Underground or a trade\)|to come back from the Underground|waiting for the Underground teams/i;
   const idleOn = () => st.idleLevel !== false;
   async function idleStep() {
     const L = GoalTypes.level;
@@ -9702,14 +9710,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:242', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:250', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:249', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:257', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -9732,7 +9740,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:272', __e); }
+    } catch (__e) { __h('70-plan-20-engine:280', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -9747,7 +9755,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:287', __e); }
+    } catch (__e) { __h('70-plan-20-engine:295', __e); }
   }
   function formGoals() {
     try {
@@ -9757,7 +9765,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:297', __e); }
+    } catch (__e) { __h('70-plan-20-engine:305', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
