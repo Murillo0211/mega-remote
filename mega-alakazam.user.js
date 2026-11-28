@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-alpha.3
+// @version      3.0.0-alpha.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-alpha.3';
+const VERSION = '3.0.0-alpha.4';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -9890,11 +9890,14 @@ const Plan = (() => {
       // background goals don't use the battle screen's team: Underground shows its own way, the rest nothing
       if (type(g)?.uses === 'background') return g.type === 'under' ? { uids: [], win: null, how: "the game's own expedition simulation" } : null;
       let uids = (S0.team || []).slice(0, 6), win = null, how = '';
-      if (g.type === 'legend' || g.type === 'elite') { const zt = E.read('Game.zoneTeam', [], g.foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[g.foe]; if (sim?.final) { win = sim.final.ko; how = 'simulated'; } }
+      // a zone (legend / Elite / the World Boss's catch): the zone's own team, and its saved sim with where it came from
+      // (3.0 alpha: the saved sims keep .ko, not .final - the odds never showed; the World Boss catch showed the road team)
+      const zoneInfo = (foe) => { const zt = E.read('Game.zoneTeam', [], foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[foe], ko = sim ? (sim.ko ?? sim.final?.ko) : null; if (ko != null && sim.uids?.join() === zt.join()) { win = ko; how = `${sim.engine ? "the game's engine" : "Mega's own estimate"}, simulated ${DexInfo.clock(+sim.at || Date.now())}`; } else how = zt.length ? 'the zone team (no simulation for it yet)' : how; };
+      if (g.type === 'legend' || g.type === 'elite') zoneInfo(g.foe);
       else if (g.type === 'raid' && g.pick) { uids = g.pick.mine || uids; win = g.pick.ko ?? null; how = 'simulated with ally trainers'; }
       else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; how = "the game's win estimate"; }
       else if (g.type === 'special' && g.boss) { win = g.boss.win; how = 'simulated for this encounter'; }
-      else if (g.type === 'wboss') how = "the game's pick - the most damage possible (damage grows with total power)";
+      else if (g.type === 'wboss') { const st = (() => { try { return E.get('WorldBoss').state() || {}; } catch { return {}; } })(); if (st.phase === 'capture') { const z = GoalKit.wbZone(); if (z) zoneInfo(z.id); } else how = "the game's pick - the most damage possible (damage grows with total power)"; }
       else if (g.type === 'under') how = "the game's own expedition simulation";
       else if (g.type === 'candy') how = 'simulated floor by floor';
       else if (['level', 'money', 'wild', 'souls', 'loot', 'shinyWild'].includes(g.type)) how = 'best carriers for this chapter';
@@ -9936,14 +9939,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:253', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:256', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:260', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:263', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -9966,7 +9969,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:283', __e); }
+    } catch (__e) { __h('70-plan-20-engine:286', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -9981,7 +9984,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:298', __e); }
+    } catch (__e) { __h('70-plan-20-engine:301', __e); }
   }
   function formGoals() {
     try {
@@ -9991,7 +9994,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:308', __e); }
+    } catch (__e) { __h('70-plan-20-engine:311', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
