@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-alpha.4
+// @version      3.0.0-alpha.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-alpha.4';
+const VERSION = '3.0.0-alpha.5';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -4568,7 +4568,9 @@ const Trades = (() => {
         E.call('Cloud.trades.state').catch(() => ({ data: null })),
         E.call('Cloud.trades.mine').catch(() => ({ data: null })),
       ]);
-      if (sp?.error) throw new Error(sp.error.message || 'the trade board did not answer');
+      // the board's own rate limit answers "soon:47" (ask again in 47 s): not a failure, just a short wait (3.0 alpha)
+      { const soon = /^soon:(\d+)/.exec(String(sp?.error?.message ?? sp?.error ?? '')); if (soon) { const e = new Error(`the board asks to wait ${soon[1]} s`); e.soon = +soon[1]; throw e; } }
+      if (sp?.error) throw new Error(sp.error.message || sp.error || 'the trade board did not answer');
       data = { ...(data || {}), state: state?.data || null };
       const st = stock(); // again, now with the "too new" list
       const rows = (sp.data || []).map(([id, shiny, offers, canDo]) => ({ id: +id, shiny: !!shiny, offers: +offers || 0, canDo: +canDo || 0 }));
@@ -4599,7 +4601,7 @@ const Trades = (() => {
       targets.sort((a, b) => rk[a.best] - rk[b.best] || (b.newGet + b.newTo) - (a.newGet + a.newTo) || name(a.id).localeCompare(name(b.id)));
       data = { at: Date.now(), boardAt: useGame ? gb.at : Date.now(), fromGame: !!useGame, state: data.state, mine: mine?.data || null, targets, boardSize: rows.length };
       alerts();
-    } catch (e) { err = e?.message || String(e); if (!data) data = { at: 0, targets: [], failed: true }; data.retryAt = Date.now() + 120_000; try { Problems.add({ key: 'trade-board', what: `The Trade Board didn't answer (${err})`, did: `tries again at ${DexInfo.clock(data.retryAt)}` }); } catch (__e) { __h('61-trades:176', __e); } }
+    } catch (e) { err = e?.message || String(e); if (!data) data = { at: 0, targets: [], failed: true }; data.retryAt = Date.now() + (e?.soon ? (e.soon + 3) * 1000 : 120_000); if (!e?.soon) try { Problems.add({ key: 'trade-board', what: `The Trade Board didn't answer (${err})`, did: `tries again at ${DexInfo.clock(data.retryAt)}` }); } catch (__e) { __h('61-trades:178', __e); } }
     finally { busy = false; }
   }
 
@@ -4613,7 +4615,7 @@ const Trades = (() => {
       Notify.send('trade', `Trade for ${what}${t.shiny ? ' (shiny)' : ''}`, `${o.who} wants ${o.j.any ? 'a shiny ' : ''}${name(o.j.want)} - you have ${o.j.n}, give your Lv ${o.j.give.level}. Offer ends ${DexInfo.clock(o.until)}.`);
       Log.add(`trade board: ${what} for a spare ${name(o.j.want)} (${o.who})`);
     }
-    try { localStorage.setItem(SEEN, JSON.stringify(seen)); } catch (__e) { __h('61-trades:190', __e); }
+    try { localStorage.setItem(SEEN, JSON.stringify(seen)); } catch (__e) { __h('61-trades:192', __e); }
   }
 
   // ---- open an offer on the game's own Trades screen ----
@@ -4686,7 +4688,7 @@ const Trades = (() => {
     if (tradeBusy) return 'error: another trade is running';
     tradeBusy = true;
     const S0 = () => E.get('Game.S') || {}, prev = E.get('App')?.current || 'adventure';
-    const fail = async (why) => { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:263', __e); } return 'not traded - ' + why; };
+    const fail = async (why) => { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:265', __e); } return 'not traded - ' + why; };
     try {
       if (S0().tradeIn) return 'not traded - a trade is already waiting in the game (finish it there first)';
       const m = (S0().mons || []).find((x) => x.uid === give); if (!m) return 'not traded - that Pokémon is not in your PC any more';
@@ -4716,7 +4718,7 @@ const Trades = (() => {
           const gameFee = /none/i.test(feeTxt) ? 0 : +feeTxt.replace(/,/g, '');
           if (gameFee !== +fee) return await fail(`the fee is ₽${money(gameFee)}, not ₽${money(fee)}`);
           if (/you're missing|you are missing|missing/i.test(t)) return await fail('not enough money for the fee');
-          if (dry) { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:293', __e); } return `dry run ok - the game's confirmation matched (give ${giveName} Lv ${lv}, fee ₽${money(gameFee)}); nothing was traded`; }
+          if (dry) { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:295', __e); } return `dry run ok - the game's confirmation matched (give ${giveName} Lv ${lv}, fee ₽${money(gameFee)}); nothing was traded`; }
           primary.click(); confirmed = true; break;
         }
         if (/shiny/i.test(t) && primary && m.shiny) { primary.click(); await sleep(900); continue; } // the game's "you're giving a shiny" check - approved on the phone
@@ -4727,8 +4729,8 @@ const Trades = (() => {
       const done = await until(() => { const s = S0(); return (+s.money < money0 || s.tradeIn || !(s.mons || []).some((x) => x.uid === give)) ? true : null; }, 20000);
       await sleep(1500);
       const msg = txt(modal());
-      await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:304', __e); }
-      try { E.call('Game.save'); } catch (__e) { __h('61-trades:305', __e); }
+      await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:306', __e); }
+      try { E.call('Game.save'); } catch (__e) { __h('61-trades:307', __e); }
       refresh(true);
       if (!done) return `sent to the game - no result yet${msg ? ' (' + msg.slice(0, 80) + ')' : ''}; check the Trades screen on the PC`;
       Log.add(`phone: traded your ${giveName} Lv ${lv} to ${who} for ${shiny ? 'a shiny ' : ''}${name(id)} (fee ₽${money(fee)})`);
@@ -4747,7 +4749,7 @@ const Trades = (() => {
     if (tradeBusy) return 'error: another trade is running';
     tradeBusy = true;
     const S0 = () => E.get('Game.S') || {}, prev = E.get('App')?.current || 'adventure';
-    const fail = async (why) => { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:324', __e); } return 'not posted - ' + why; };
+    const fail = async (why) => { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:326', __e); } return 'not posted - ' + why; };
     try {
       if (S0().tradeOut) return 'not posted - you already have an offer posted (one at a time)';
       const m = (S0().mons || []).find((x) => x.uid === give); if (!m) return 'not posted - that Pokémon is not in your PC any more';
@@ -4775,11 +4777,11 @@ const Trades = (() => {
       if (!d) return await fail('the game did not show its confirmation');
       const t = txt(d);
       if (!new RegExp(`${giveName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} leaves your`, 'i').test(t)) return await fail('the game wanted to post a different Pokémon');
-      if (dry) { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:352', __e); } return `dry run ok - the game's confirmation named your ${giveName} Lv ${lv}; nothing was posted`; }
+      if (dry) { await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:354', __e); } return `dry run ok - the game's confirmation named your ${giveName} Lv ${lv}; nothing was posted`; }
       if (friends) { const fo = [...d.querySelectorAll('label, button, input')].find((x) => /friends only/i.test(txt(x.closest('label') || x))); fo?.click(); await sleep(300); }
       d.querySelector('.btn.primary').click();
       const ok = await until(() => (S0().tradeOut ? true : null), 15000);
-      await sleep(800); await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:356', __e); }
+      await sleep(800); await closeAll(); try { E.call('App.show', prev); } catch (__e) { __h('61-trades:358', __e); }
       refresh(true);
       if (!ok) return 'sent to the game - no result yet; check the Trades screen on the PC';
       Log.add(`phone: posted a trade - your ${giveName} Lv ${lv} for ${name(want)}${friends ? ' (friends only)' : ''}`);
