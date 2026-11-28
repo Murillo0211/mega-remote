@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-beta.5
+// @version      3.0.0-beta.6
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-beta.5';
+const VERSION = '3.0.0-beta.6';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7653,10 +7653,17 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       // already inside, but with a different team than planned (a new search, or the game dropped
       // someone): switch between fights - set the team, then leave and re-enter (re-entering heals)
       const sim = Legends.sims()[id], zt = E.read('Game.zoneTeam', [], id) || [];
-      if (sim && !vs && !(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u))) {
+      const differs = sim && !(zt.length === sim.uids.length && sim.uids.every((u, i) => zt[i] === u));
+      // a catch zone starts the next fight right after the last one, so "between fights" may never be seen (3.0 beta,
+      // World Boss): after 2 min of waiting, switch at the very start of a fight (its first turns) - that gives up one
+      // fresh try at most
+      if (!differs) g.switchWait = 0; else if (!g.switchWait) g.switchWait = Date.now();
+      const early = vs && +(b?.turn ?? 99) <= 1 && differs && Date.now() - (g.switchWait || Date.now()) > 120_000;
+      if (sim && (!vs || early) && differs) {
+        g.switchWait = 0;
         const r = setTeam(id, sim.uids);
         if (!r.ok) return 'waiting: ' + r.why;
-        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:73', __e); }
+        try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-01-legend:80', __e); }
         await new Promise((x) => setTimeout(x, 600));
         await ctx.enter(id, true);
         return `switched to the planned team (${sim.uids.length} Pokémon) and re-entered`;
