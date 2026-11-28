@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-beta.2
+// @version      3.0.0-beta.3
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-beta.2';
+const VERSION = '3.0.0-beta.3';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3168,6 +3168,21 @@ Views.queue = (w, ui, esc) => {
   let h = `<div class="qhead"><div><h2>Task queue</h2><p>${open.length} to do · ${done.length} finished</p></div><button class="qbtn" data-act="tab" data-tab="tasks">New task</button></div>`;
   const notice = !Plan.running ? 'Mega is stopped - press Start Mega to run the queue.' : Plan.oldOn() ? 'Alakazam 4.x is switched on, so the queue can\'t act.' : nextUp ? `Next · ${Plan.label(nextUp)}` : '';
   if (notice) h += `<p class="qnote">${esc(notice)}${Plan.oldOn() ? ' <button class="qbtn" data-act="oldoff">Switch 4.x off</button>' : ''}</p>`;
+  // the next few hours (3.0 beta): in order - what runs now, then each task with when it can start and why
+  if (Plan.running && open.length) {
+    const rows = [];
+    for (const g of open) {
+      const L = Plan.live(g.id) || {}, bg = GoalTypes[g.type]?.uses === 'background';
+      let when = '', why = '';
+      if (g.paused) { when = 'paused'; why = 'you paused it'; }
+      else if (L.state === 'running') { when = 'now'; why = bg ? 'runs alongside' : (L.line || ''); }
+      else if (L.state === 'queued') { when = 'after the task above'; why = L.why || ''; }
+      else if (L.need?.away?.length) { const t = Math.max(...L.need.away.map((x) => +x.back || 0)); when = t ? `~${DexInfo.clock(t)}` : 'when they are back'; why = `waits for ${L.need.away.map((x) => x.name || 'a Pokémon').join(', ')}`; }
+      else { when = 'waiting'; why = L.why || ''; }
+      rows.push(`<div class="row"><span class="k"><b>${esc(Plan.label(g))}</b><div class="dim" style="font-size:var(--t-s)">${esc(why)}</div></span><span class="v">${esc(when)}</span></div>`);
+    }
+    h += `<div class="card"><h3>Next few hours</h3>${rows.join('')}</div>`;
+  }
   h += `<ol class="qlist">`;
   if (!open.length) h += `<li class="qempty">Nothing in the queue. Pick a task on the Tasks tab, then Start Now or Add to Queue.</li>`;
   open.forEach((g, i) => {
