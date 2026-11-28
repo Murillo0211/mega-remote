@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.30
+// @version      2.20.31
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.30';
+const VERSION = '2.20.31';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -11345,7 +11345,7 @@ const Remote = (() => {
     // ---- actions from Kinesis ----
     // Mega's own screens on the phone (Settings, Fights): the HTML, and a button press on them
     'ui.html': async (a, rid) => { replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab)) } }; return 'ok'; },
-    'ui.act': async (a, rid) => { await UI.mvAct(a); replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab || 'engine')) } }; return 'ok'; },
+    'ui.act': async (a, rid) => { const r0 = await UI.mvAct(a); if (r0 === 'confirm on the phone') Log.add(`phone: "${a?.data?.act}" needs the phone's own confirm - an old Kinesis page? close and reopen Kinesis`); replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab || 'engine')) } }; return 'ok'; },
     // rank up a Pokémon with a gem - only from your tap and a confirmation on the phone; the game's own
     // rank-up (Underground.rankUp): rank +1, back to Lv 5. Mega never spends gems by itself.
     'gem.rank': (a) => {
