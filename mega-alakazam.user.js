@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.33
+// @version      3.0.0-alpha.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.33';
+const VERSION = '3.0.0-alpha.1';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -79,6 +79,7 @@ const Health = (() => {
   const streak = {}; // goal id -> [times]
   function goalErr(g, e, label) {
     record('goal:' + g.type, e);
+    try { Problems.add({ key: 'goal:' + g.id, what: `${label} stopped with an error: ${msgOf(e)}`, did: 'skipped that step and tries again on the next check (every few seconds)' }); } catch (x) {}
     const t = (streak[g.id] || []).filter((x) => Date.now() - x < 30 * 60_000); t.push(Date.now()); streak[g.id] = t;
     if (t.length >= 5 && Date.now() - (g.healthAlertAt || 0) > 2 * 3.6e6) {
       g.healthAlertAt = Date.now(); try { Plan.save(); } catch (x) {}
@@ -2669,6 +2670,7 @@ const DayCare = (() => {
     }
     const B = { 'berry-oran': 'Oran', 'berry-pecha': 'Pecha', 'berry-sitrus': 'Sitrus', 'belue-berry': 'Belue' };
     const txt = Object.entries(used).map(([k, v]) => `${v} ${B[k] || k}`).join(', ') || 'no berries';
+    if (/would not/.test(why)) try { Problems.add({ key: 'egg-fill', what: `Fill the incubator stopped early: ${why}`, did: `made ${laid.length} egg${laid.length === 1 ? '' : 's'} first, nothing else was spent` }); } catch (__e) { __h('57-daycare:98', __e); }
     Log.add(`Day Care: filled the incubator - ${laid.length} egg${laid.length === 1 ? '' : 's'}${laid.length ? ` (${laid.join(', ')})` : ''}, used ${txt}; stopped: ${why}`);
     return { ok: true, laid, used, why };
   }
@@ -2882,6 +2884,94 @@ Views.legends = (w, ui, esc) => {
   return h;
 };
 
+/* ---------------------------------------------------------------------------------------------
+ * Need card (3.0 alpha, Jimmy 2026-11-28): a task that waits for Pokémon says exactly who, where
+ * and until when - and what Jimmy can do about it:
+ *   · Wait          - nothing to do, the next task runs meanwhile and this one takes over when they're back
+ *   · Next-best     - a fresh team from who's home, played in the game's own engine, with its odds; "Use it"
+ *                     (a zone / World Boss) - or, for a daily that waits for the Underground, "Go now with who's
+ *                     home" (its own two scores side by side)
+ *   · Recall bay N  - ends that expedition now: the game keeps the floors already cleared (their loot and XP),
+ *                     the rest of the run is lost. Shows exactly how many floors.
+ * Every button that changes something asks first (PC: a confirm box · Kinesis: its own sheet).
+ * ------------------------------------------------------------------------------------------- */
+const NeedCard = (() => {
+  const E = Engine;
+  const nm = (id) => E.get('Game.DEX')?.[id]?.name || '#' + id;
+  const alts = {}; // goal id -> { busy, at, ko, uids, err } - a "next-best team" found on request
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+  const inMin = (t) => { const m = Math.max(0, Math.round((t - Date.now()) / 60000)); return m < 60 ? `in ${m} min` : `in ${Math.floor(m / 60)} h ${m % 60} min`; };
+
+  function render(g, L, esc) {
+    const n = L?.need; if (!n?.away?.length) return '';
+    const rows = n.away.map((x) => {
+      if (x.gone) return `<div class="nrow"><b>A Pokémon from the planned team</b> <span class="bad">is no longer in your PC (traded or released)</span> - the team has to be simulated again</div>`;
+      const where = x.bay ? `Underground bay ${x.bay}` : 'the Underground';
+      const back = x.back ? `back ${DexInfo.clock(x.back)} (${inMin(x.back)})` : 'back time unknown';
+      const fl = x.floor != null && x.floors ? ` · on floor ${x.floor} of ${x.floors}` : '';
+      return `<div class="nrow">${x.id ? `<img src="${E.sprite(x.id)}" width="28" height="28" style="image-rendering:pixelated;vertical-align:middle">` : ''} <b>${esc(x.name || 'a Pokémon')}</b> - ${where}, ${back}${fl}</div>`;
+    }).join('');
+    // the choices
+    const btns = [];
+    const a = alts[g.id];
+    if (n.alt?.kind === 'gate') {
+      btns.push(`<button class="btn sm"  data-act="need-go" data-ask="Go now with who's home? Mega stops waiting for the Underground teams." data-id="${g.id}" style="width:auto;margin:0">Go now with who's home</button>`);
+    } else if (n.alt?.kind === 'zone') {
+      if (a?.busy) btns.push(`<button class="btn sm" disabled style="width:auto;margin:0">Simulating in the game's engine…</button>`);
+      else if (a?.uids) btns.push(`<button class="btn sm gold"  data-act="need-use" data-ask="Use the next-best team from who's home (${Math.round(a.ko * 100)}% in the game's engine)? Mega stops waiting and goes with it now." data-id="${g.id}" data-ko="${Math.round(a.ko * 100)}" style="width:auto;margin:0">Use the next-best team (${Math.round(a.ko * 100)}%)</button>`);
+      else btns.push(`<button class="btn sm" data-act="need-find" data-id="${g.id}" style="width:auto;margin:0">Find the next-best team from who's home</button>`);
+    }
+    const bays = [...new Map(n.away.filter((x) => x.slot).map((x) => [x.slot, x])).values()];
+    for (const x of bays) {
+      const left = x.floors && x.floor != null ? x.floors - x.floor : null;
+      const ask = `Recall Underground bay ${x.bay} now? ${left != null ? `It's on floor ${x.floor} of ${x.floors}: you keep the loot and XP of the ${x.floor} floors it cleared and give up the other ${left}.` : 'You keep what it cleared so far and give up the rest of the run.'} This can't be undone.`;
+      btns.push(`<button class="btn sm" data-act="need-recall" data-ask="${esc(ask)}" data-slot="${esc(x.slot)}" data-bay="${x.bay}" data-floor="${x.floor ?? ''}" data-floors="${x.floors ?? ''}" style="width:auto;margin:0">Recall bay ${x.bay}${left != null ? ` (gives up ${left} floor${left === 1 ? '' : 's'})` : ''}</button>`);
+    }
+    let alt = '';
+    if (n.alt?.kind === 'gate' && n.alt.home) alt = `<div class="dim" style="font-size:var(--t-s);margin-top:4px">With who's home: ${esc(n.alt.home)} · with them back: ${esc(n.alt.full || '?')}</div>`;
+    if (n.alt?.kind === 'zone' && a?.uids) alt = `<div class="dim" style="font-size:var(--t-s);margin-top:4px">Next-best from who's home: ${a.uids.map((u) => esc(nm(E.read('Game.getMon', null, u)?.id))).join(', ')} - ${Math.round(a.ko * 100)}% in the game's engine (${ago(a.at)})</div>`;
+    if (a?.err) alt += `<div class="bad" style="font-size:var(--t-s)">${esc(a.err)}</div>`;
+    return `<div class="needc"><div class="lbl">Waiting for</div>${rows}${alt}
+      <div class="dim" style="font-size:var(--t-s);margin-top:4px">Meanwhile the next task in your queue runs. You can wait, or:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${btns.join('')}</div></div>`;
+  }
+
+  // ---- the buttons (all from Jimmy's tap) ----
+  async function find(id, redraw) {
+    const g = Plan.goal(id), foe = g ? (g.type === 'wboss' ? GoalKit.wbZone()?.id : g.foe) : null; if (!foe) return;
+    alts[id] = { busy: true }; redraw?.();
+    try {
+      const r = await Sim.search(+foe, {}); // who's home only; zones and the World Boss play in the game's engine
+      alts[id] = { at: Date.now(), ko: r.final.ko, uids: r.team.map((m) => m.uid), r, foe: +foe, engine: !!r.engine };
+      if (!r.engine) alts[id].err = "the game's engine couldn't play it - this is Mega's own estimate";
+      Log.add(`${Plan.label(g)}: next-best team from who's home - ${Math.round(r.final.ko * 100)}%${r.engine ? " in the game's engine" : " (Mega's estimate)"}`);
+    } catch (e) { alts[id] = { err: 'the simulation failed: ' + (e?.message || e) }; }
+    redraw?.();
+  }
+  function use(id) {
+    const a = alts[id], g = Plan.goal(id); if (!a?.r || !g) return 'nothing to use';
+    Legends.saveSim(a.foe, a.r); delete alts[id]; Plan.unpark(id);
+    Log.add(`${Plan.label(g)}: using the next-best team from who's home (${Math.round(a.ko * 100)}%) - your tap`);
+    return 'ok';
+  }
+  function goNow(id) {
+    const g = Plan.goal(id); if (!g?.gate) return 'nothing to change';
+    g.gate = { ...g.gate, go: true, why: "you chose to go with who's home" }; Plan.save(); Plan.unpark(id);
+    Log.add(`${Plan.label(g)}: going now with who's home - your tap`);
+    return 'ok';
+  }
+  function recall(slot) {
+    const U = E.get('Underground'), b = (U?.slots?.() || []).find((x) => x.id === slot); if (!b) return 'that expedition is already back';
+    let p = null; try { p = U.progress(b); } catch (__e) { __h('58-needcard:79', __e); }
+    if (!U.recall(slot)) return 'the game would not recall it';
+    let r = null; try { r = U.collect(slot); } catch (__e) { __h('58-needcard:81', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('58-needcard:82', __e); } try { E.call('App.refresh'); } catch (__e) { __h('58-needcard:82', __e); }
+    Log.add(`Underground bay ${b.bay}: recalled by your tap at floor ${r?.floor ?? p?.floor ?? '?'} of ${b.res?.floors ?? '?'}${r ? ` - ${(b.mons || []).map((m) => nm(m.id)).join(', ')} are home` : ''}`);
+    return 'ok';
+  }
+  return { render, find, use, goNow, recall };
+})();
+
 // Underground settings: where a run starts and what it's after (used on the add form and on the goal itself)
 function ugSelects(from, aim, starts, actFrom, actAim, id = '') {
   const d = id ? ` data-id="${id}"` : '';
@@ -2915,6 +3005,7 @@ Views.plan = (w, ui, esc) => {
           <div style="flex:1;min-width:0"><b class="gt" style="font-size:var(--t-m)">${esc(Plan.label(g))}</b>${bg ? ' <span class="dim gt" style="font-size:var(--t-s)">· alongside</span>' : ''}</div>
         </div>
         <div class="${cls} st" style="margin:6px 0 0 30px">${dot} ${word}${L.why ? ' · ' + esc(L.why) : ''}${L.state === 'running' && L.line ? ' · ' + esc(L.line) : ''}</div>${L.state === 'running' && L.team && (L.team.win != null || L.team.how) ? `<div class="dim" style="margin:2px 0 0 30px;font-size:var(--t-s)">🛡️ ${L.team.win != null ? Math.round(L.team.win * 100) + '% · ' : ''}${esc(L.team.how || '')}</div>` : ''}
+        ${NeedCard.render(g, L, esc) ? `<div style="margin:6px 0 0 30px">${NeedCard.render(g, L, esc)}</div>` : ''}
         ${g.type === 'region' && g.rows?.length ? `<details style="margin:8px 0 0 30px" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="36" height="36" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
         <div class="tools">
           <button class="btn sm" data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move to the top">Top</button>
@@ -2996,7 +3087,7 @@ Views.planAdd = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:115', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:116', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3051,6 +3142,7 @@ Views.queue = (w, ui, esc) => {
     const detail = [bg ? 'runs alongside' : '', L.why, L.state === 'running' ? L.line : ''].filter(Boolean).join(' · ');
     h += `<li class="qjob${cc === 'run' ? ' on' : ''}"><div class="qjh"><span class="qpos">${i + 1}</span><strong>${esc(Plan.label(g))}</strong><span class="qst ${cc}">${word}</span></div>
       ${detail ? `<p class="qd">${esc(detail)}</p>` : ''}
+      ${NeedCard.render(g, L, esc)}
       ${g.type === 'region' && g.rows?.length ? `<details class="qd" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="32" height="32" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
       ${g.type === 'under' ? `<div class="qx">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div>${g.lastSend ? `<p class="qd">Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}, ${g.lastSend.cleared} floors cleared</p>` : ''}` : ''}
       ${g.type === 'discord' && ['xp', 'mix', 'axsiom'].includes(g.spot) ? `<div class="qx"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
@@ -3790,6 +3882,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
 .wrap .dready{margin-top:6px;padding:6px 10px;border-radius:10px;background:color-mix(in srgb,var(--gold) 18%,transparent);border:1px solid color-mix(in srgb,var(--gold) 55%,transparent);font-size:var(--t-s);cursor:pointer} .wrap .dcard.hot{border-color:color-mix(in srgb,var(--gold) 60%,transparent)}
 .wrap .dcard .row .k,.wrap .wrapk .row .k{white-space:normal;flex:1 1 60%;min-width:0;overflow-wrap:anywhere} .wrap .dcard .row .v,.wrap .wrapk .row .v{flex:0 0 auto}
 
+/* need card (3.0 alpha): who a waiting task needs, where, until when - and the choices */
+.needc{margin-top:8px;padding:8px 10px;border:1px solid color-mix(in srgb,var(--warn,#e0a83a) 55%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--warn,#e0a83a) 8%,var(--card))}
+.needc .nrow{margin-top:4px;overflow-wrap:anywhere}
+/* problems card (3.0 alpha) */
+.card.probc{border-color:color-mix(in srgb,var(--bad,#e05a5a) 60%,var(--line))}
+.probc .prow{margin-top:8px;padding-top:6px;border-top:1px solid var(--line)} .probc .prow:first-of-type{border-top:0;padding-top:0}
+
     .wrap{position:fixed;left:0;top:0;bottom:0;z-index:99998;font:var(--t-m)/1.5 var(--font);color:var(--ink);display:flex}
     .rail{width:64px;height:100%;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px;box-sizing:border-box;cursor:pointer;
       background:linear-gradient(180deg,var(--shell),var(--shell-lo));border-right:3px solid var(--seam)}
@@ -3931,7 +4030,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'fold-card' || act === 'toggle' || act === 'bigger' || act === 'smaller' || act === 'tab') return 'ok'; // just the PC's own layout
     // spending gems needs the phone's own confirmation sheet (Kinesis sends gem.rank); never a pop-up on the PC
     // (fuse / buy / new offer can come with the phone's own confirm as data-sure; trades and hatching use the phone's own sheets)
-    if (act === 'gem-rank' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch' || (['gem-fuse', 'gem-buy', 'gem-reroll', 'egg-fill'].includes(act) && !data.sure)) return 'confirm on the phone';
+    if (act === 'gem-rank' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch' || (['gem-fuse', 'gem-buy', 'gem-reroll', 'egg-fill', 'need-use', 'need-go', 'need-recall'].includes(act) && !data.sure)) return 'confirm on the phone';
     if (act === 'fights-reload' || (d.tab === 'fights' && /^f-?/.test(act || ''))) fightData = null;
     asPhone(() => { if (d.kind === 'change' && changeH) changeH({ target: t }); else if (d.kind === 'input' && inputH) inputH({ target: t }); else onClick({ target: { closest: () => t }, preventDefault() {}, stopPropagation() {} }); });
     await new Promise((r) => setTimeout(r, 400));
@@ -4159,6 +4258,22 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
       const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:403', __e); } renderBody(true); return;
     }
+    // need card (3.0 alpha): next-best team, go now, recall a bay - each from Jimmy's tap, each asks first
+    if (act === 'prob-seen') { Problems.seen(); renderBody(true); return; }
+    if (act === 'need-find') { NeedCard.find(t.dataset.id, () => renderBody(true)); renderBody(true); return; }
+    if (act === 'need-use') {
+      if (!t.dataset.sure && !window.confirm(`Use the next-best team from who's home (${t.dataset.ko}% in the game's engine)?\n\nMega stops waiting and goes with it now.`)) return;
+      Log.add('need: ' + NeedCard.use(t.dataset.id)); renderBody(true); return;
+    }
+    if (act === 'need-go') {
+      if (!t.dataset.sure && !window.confirm("Go now with who's home?\n\nMega stops waiting for the Underground teams and starts with the Pokémon you have here.")) return;
+      Log.add('need: ' + NeedCard.goNow(t.dataset.id)); renderBody(true); return;
+    }
+    if (act === 'need-recall') {
+      const f = t.dataset.floor, fs = t.dataset.floors;
+      if (!t.dataset.sure && !window.confirm(`Recall Underground bay ${t.dataset.bay} now?\n\n${f && fs ? `It's on floor ${f} of ${fs}: you keep the loot and XP of the ${f} floors it cleared, and give up the other ${fs - f}.` : 'You keep what it cleared so far and give up the rest of the run.'} This can't be undone.`)) return;
+      const r = NeedCard.recall(t.dataset.slot); if (r !== 'ok') Log.add('recall: ' + r); renderBody(true); return;
+    }
     if (act === 'egg-fill') {
       if (!t.dataset.sure && !window.confirm('Fill the incubator?\n\nMega feeds Oran Berries, then Pecha, then Sitrus, and gives Ditto a Belue Berry before each egg, until the incubator is full.')) return;
       t.disabled = true; t.textContent = 'Filling…';
@@ -4174,19 +4289,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:420', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:436', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:426', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:442', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:429', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:445', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:432', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:448', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -4227,8 +4342,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:473', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:474', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:489', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:490', __e); }
     renderBody(true, w);
   }
 
@@ -4245,12 +4360,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:491', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:507', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:495', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:496', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:511', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:512', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -4282,8 +4397,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:528', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:529', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:544', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:545', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -4298,13 +4413,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:544', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:545', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:560', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:561', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:550', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:566', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -4482,7 +4597,7 @@ const Trades = (() => {
       targets.sort((a, b) => rk[a.best] - rk[b.best] || (b.newGet + b.newTo) - (a.newGet + a.newTo) || name(a.id).localeCompare(name(b.id)));
       data = { at: Date.now(), boardAt: useGame ? gb.at : Date.now(), fromGame: !!useGame, state: data.state, mine: mine?.data || null, targets, boardSize: rows.length };
       alerts();
-    } catch (e) { err = e?.message || String(e); if (!data) data = { at: 0, targets: [], failed: true }; data.retryAt = Date.now() + 120_000; }
+    } catch (e) { err = e?.message || String(e); if (!data) data = { at: 0, targets: [], failed: true }; data.retryAt = Date.now() + 120_000; try { Problems.add({ key: 'trade-board', what: `The Trade Board didn't answer (${err})`, did: `tries again at ${DexInfo.clock(data.retryAt)}` }); } catch (__e) { __h('61-trades:176', __e); } }
     finally { busy = false; }
   }
 
@@ -4834,7 +4949,7 @@ Views.now = (w, esc, fmtIn) => {
     return p;
   };
   const goals = Plan.goals, open = goals.filter((g) => !g.done), live = (g) => Plan.live(g.id) || {};
-  let h = '';
+  let h = Problems.card(esc); // 3.0 alpha: what went wrong in the last 24 h, on top while unseen
   // team check: who's fighting and the simulated chance (when the goal has one)
   const teamLine = (T) => {
     if (!T || (!T.uids?.length && !T.how)) return '';
@@ -7128,26 +7243,35 @@ const GoalKit = (() => {
 
   // which Pokémon are away and where (2.20.32, Jimmy 2026-11-28): "waiting for Regigigas (Underground bay 3, back
   // 1:38 AM)". The wording keeps "are away (Underground or a trade)" - the plan engine reads it to let the next task run
-  function awayWhy(miss) {
-    const U = E.get('Underground'), um = E.read('Game.underMons', []) || [];
-    let bays = []; try { bays = U?.slots?.() || []; } catch (__e) { __h('70-plan-00-core:51', __e); }
-    const under = [], gone = [];
-    for (const u of miss) {
+  // ---- exactly who is away (3.0 alpha, Jimmy 2026-11-28: "we need all the exact info displayed to us") ----------
+  // one entry per missing Pokémon: name, which Underground bay, when it's back, the floor it's on now of how many
+  function awayInfo(miss) {
+    const um = E.read('Game.underMons', []) || [];
+    let bays = []; try { bays = U()?.slots?.() || []; } catch (__e) { __h('70-plan-00-core:53', __e); }
+    return miss.map((u) => {
       const b = bays.find((x) => (x.team || []).includes(u)), m = um.find((x) => x.uid === u) || b?.mons?.find((x) => x.uid === u);
-      if (b || m) under.push(`${m ? name(m.id) : 'a Pokémon'}${b ? ` (bay ${b.bay}${b.end ? `, back ${DexInfo.clock(+b.end)}` : ''})` : ''}`);
-      else gone.push('a Pokémon that is no longer in your PC (traded?)');
-    }
-    return [under.length ? `for ${under.join(', ')} to come back from the Underground` : '', gone.length ? `${gone.length > 1 ? `${gone.length} Pokémon are` : 'one Pokémon is'} away (Underground or a trade) - no longer in your PC` : ''].filter(Boolean).join(' · ');
+      let floor = null; if (b) { try { floor = +U().progress(b).floor; } catch (__e) { __h('70-plan-00-core:56', __e); } }
+      return { uid: u, id: m ? +m.id : null, name: m ? name(m.id) : null, bay: b ? +b.bay : null, slot: b ? b.id : null, back: b ? +b.end || null : null, floor, floors: b ? +(b.res?.floors) || null : null, gone: !b && !m };
+    });
+  }
+  // the last "away" a step ran into, for the plan engine to show as a card (read once with takeAway)
+  let lastAway = null;
+  const takeAway = () => { const a = lastAway; lastAway = null; return a; };
+  function awayWhy(miss, alt = null) {
+    const info = awayInfo(miss); lastAway = { away: info, alt };
+    const under = info.filter((x) => !x.gone).map((x) => `${x.name || 'a Pokémon'}${x.bay ? ` (bay ${x.bay}${x.back ? `, back ${DexInfo.clock(x.back)}` : ''})` : ''}`);
+    const gone = info.filter((x) => x.gone).length;
+    return [under.length ? `for ${under.join(', ')} to come back from the Underground` : '', gone ? `${gone > 1 ? `${gone} Pokémon are` : 'one Pokémon is'} away (Underground or a trade) - no longer in your PC` : ''].filter(Boolean).join(' · ');
   }
   function setTeam(id, uids) {
     const have = new Set((E.read('Game.allMons', []) || []).map((m) => m.uid));
     const team = uids.filter((u) => have.has(u)).slice(0, 6);
-    if (team.length < uids.length) return { ok: false, why: awayWhy(uids.filter((u) => !have.has(u))) };
+    if (team.length < uids.length) return { ok: false, why: awayWhy(uids.filter((u) => !have.has(u)), { kind: 'zone', foe: +id }) };
     const s = S();
     s.eventTeams = s.eventTeams || {};
     s.eventTeams['zone:' + id] = team;
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:67', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:68', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:76', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:77', __e); }
     const now = E.read('Game.zoneTeam', [], +id) || [];
     const ok = now.length === team.length && team.every((u, i) => now[i] === u);
     const dropped = team.filter((u) => !now.includes(u)).map((u) => name(E.read('Game.getMon', {}, u)?.id));
@@ -7187,6 +7311,7 @@ const GoalKit = (() => {
   function resimIfStale(id) {
     const why = simStale(id); if (!why) return false;
     Log.add(`${name(id)}: the saved team is out of date (${why}) - simulating again in the game's engine`);
+    try { Problems.add({ key: 'stale:' + id, what: `${name(id)}'s saved team was out of date: ${why}`, did: "threw it out and is simulating a new one in the game's engine" }); } catch (__e) { __h('70-plan-00-core:117', __e); }
     Legends.dropSim(+id); autoTeam(+id); return true;
   }
   // the saved team still has Pokémon below the level it was simulated at -> a level goal goes first
@@ -7216,7 +7341,7 @@ const GoalKit = (() => {
     const next = ((E.get('EVOLUTIONS') || {})[m.id] || []).filter((e) => e.level && !e.item).map((e) => +e.level);
     if (!next.length || m.level < Math.min(...next) - 3) return false;
     if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length > 1) return false;
-    try { if (Plan.goals.some((g) => !g.done && g.type === 'level' && g.forDex && (g.uids || []).includes(m.uid))) return false; } catch (__e) { __h('70-plan-00-core:137', __e); }
+    try { if (Plan.goals.some((g) => !g.done && g.type === 'level' && g.forDex && (g.uids || []).includes(m.uid))) return false; } catch (__e) { __h('70-plan-00-core:147', __e); }
     return true;
   }
   function fullTeam(uids) {
@@ -7232,8 +7357,8 @@ const GoalKit = (() => {
     uids = fullTeam(uids);
     s.team = uids.slice(0, 6);
     s.road = null; // the game rebuilds the road team from .team (same as its own team editor)
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:153', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:154', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:163', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:164', __e); }
     const now = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
     return uids.every((u) => now.includes(u));
   }
@@ -7255,13 +7380,14 @@ const GoalKit = (() => {
   const SAFE = 3 * 3600_000;
   // score(): { v (higher = better), uids (the team), text } · close(home, full): good enough to go now
   async function gate(g, key, score, close) {
-    const R = E.get('Raids'); let day = null, reset = 0; try { day = R.dateKey(); reset = +R.nextDay(); } catch (__e) { __h('70-plan-00-core:176', __e); }
-    if (key === 'tower') { try { day = 'w' + E.get('Tower').weekKey(); reset = +E.get('Tower').weekEnds(); } catch (__e) { __h('70-plan-00-core:177', __e); } }
+    const R = E.get('Raids'); let day = null, reset = 0; try { day = R.dateKey(); reset = +R.nextDay(); } catch (__e) { __h('70-plan-00-core:186', __e); }
+    if (key === 'tower') { try { day = 'w' + E.get('Tower').weekKey(); reset = +E.get('Tower').weekEnds(); } catch (__e) { __h('70-plan-00-core:187', __e); } }
     const G = (g.gate && g.gate.day === day) ? g.gate : null;
     if (G?.go) return null;
     const late = reset && Date.now() > reset - SAFE;
     if (G && !late) {
       const away = awayNow(), want = (G.want || []).filter((u) => away.has(u));
+      if (want.length) { lastAway = { away: awayInfo(want), alt: { kind: 'gate', key, home: G.home || null, full: G.full || null } }; }
       if (want.length) return `⏳ waiting for ${want.map((u) => name(E.read('Game.getMon', null, u)?.id ?? (E.read('Game.underMons', []) || []).find((m) => m.uid === u)?.id)).join(', ')} to come back from the Underground${G.back ? ` (${DexInfo.clock(G.back)})` : ''} - ${G.why}`;
       g.gate = { ...G, go: true }; Plan.save(); Log.add(`${key}: the Pokémon it waited for are back - starting`); return null;
     }
@@ -7273,7 +7399,8 @@ const GoalKit = (() => {
     const slots = (() => { try { return U().slots() || []; } catch { return []; } })();
     const back = Math.max(0, ...slots.filter((b) => b && (b.team || []).some((u) => wantU.includes(u))).map((b) => +b.end || 0));
     if (!wantU.length || (reset && back && back > reset - SAFE)) { g.gate = { day, go: true, why: 'they would be back too late' }; Plan.save(); Log.add(`${key}: going now with who's home (${home.text}) - the ones it wants are back too late`); return null; }
-    g.gate = { day, go: false, want: wantU, back, why: `${home.text} with who's home vs ${full.text} with them` }; Plan.save();
+    g.gate = { day, go: false, want: wantU, back, home: home.text, full: full.text, why: `${home.text} with who's home vs ${full.text} with them` }; Plan.save();
+    lastAway = { away: awayInfo(wantU), alt: { kind: 'gate', key, home: home.text, full: full.text } };
     Log.add(`${key}: waiting for ${wantU.length} Pokémon from the Underground (${home.text} now vs ${full.text} with them)`);
     return `⏳ waiting for the Underground teams - ${g.gate.why}`;
   }
@@ -7287,8 +7414,8 @@ const GoalKit = (() => {
   function hatchMissing() {
     for (const e of [...(S().pension?.eggs || [])]) {
       if (E.read('Game.inDex', false, +e.id) || !E.read('Game.eggReady', false, e)) continue;
-      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:208', __e); }
-      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:209', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:209', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
+      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:220', __e); }
+      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:221', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:221', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
     }
   }
   const LZ = () => E.get('LegendZones');
@@ -7301,7 +7428,7 @@ const GoalKit = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:222', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:234', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -7329,11 +7456,11 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:250', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:251', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:262', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:263', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch && fighting()) return 'waiting for this fight to end before moving…';
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:254', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:266', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -7346,7 +7473,7 @@ const GoalKit = (() => {
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
     if (fighting()) return false;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:267', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:279', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -7355,7 +7482,7 @@ const GoalKit = (() => {
   const putBack = (g) => GoalTypes.wild.finish(g);
 
 
-  return { wbZone, E, S, name, pending, holder, setTeam, simStale, resimIfStale, withAll, allOn, gate, fullTeam, dexHold, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
+  return { wbZone, E, S, name, pending, holder, setTeam, simStale, resimIfStale, awayInfo, takeAway, withAll, allOn, gate, fullTeam, dexHold, LEVEL_WORTH, autoTeam, levelFirst, safe, sideHas, sideOf, lvl, capOf, setChapterTeam, U, awayNow, here, power, poolAt, RD, bst, ownsShiny, want, hatchMissing, LZ, passTeam, bossBusy, bossTeam, goChapter, rebuild, putBack };
 })();
 Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, setTeam: GoalKit.setTeam, setChapterTeam: GoalKit.setChapterTeam, here: GoalKit.here, hatchMissing: GoalKit.hatchMissing });
 
@@ -9712,7 +9839,7 @@ const Plan = (() => {
         // parked (2.20.29, Jimmy 2026-11-27): a screen goal that is only waiting for its Pokémon to come back (Underground
         // or a trade) lets the goals below it use the screen meanwhile; it gets a fresh try every 90 s and takes over as
         // soon as they're home
-        { const pk = parked.get(g.id); if (pk && T.uses === 'screen' && Date.now() < pk.until) { live[g.id] = { state: 'wait', why: `${pk.why} - the next task runs meanwhile` }; continue; } }
+        { const pk = parked.get(g.id); if (pk && T.uses === 'screen' && Date.now() < pk.until) { live[g.id] = { state: 'wait', why: `${pk.why} - the next task runs meanwhile`, need: refreshNeed(pk.need) }; continue; } }
         if (T.uses === 'screen' && screenTaken) { live[g.id] = { state: 'queued', why: `after ${name(screenTaken)}` }; continue; }
         if (T.uses === 'screen') screenTaken = g;
         if (g.type === 'legend' && failsFor === g.foe && fails >= 3) { live[g.id] = { state: 'wait', why: 'could not enter the zone 3 times - see the log, then press ▶ to retry' }; continue; }
@@ -9738,8 +9865,8 @@ const Plan = (() => {
         if (ws && Date.now() - ws.at > 30 * 60_000) { Log.add(`started: ${name(g)} (was waiting: ${ws.why || 'its conditions'})`); Notify.send('daily', `Started: ${name(g)}`, `It was waiting ${Math.round((Date.now() - ws.at) / 3_600_000 * 10) / 10} h: ${ws.why || 'its conditions'}`); }
         waitSince.delete(g.id);
         try { Blackbox.mark('goal ' + g.type + ' ' + (g.foe || g.item || '')); live[g.id].line = await type(g).step(g, ctx); live[g.id].state = 'running'; Health.goalOk(g); live[g.id].team = teamInfo(g); fillTeam();
-          if (type(g).uses === 'screen' && AWAY.test(String(live[g.id].line || ''))) { if (!parked.has(g.id)) Log.add(`${name(g)}: its Pokémon are away - the next task uses the screen until they're back`); parked.set(g.id, { until: Date.now() + 90_000, why: String(live[g.id].line).replace(/^(⏳\s*)?waiting:?\s*/i, 'waiting: ') }); }
-          else parked.delete(g.id); }
+          if (type(g).uses === 'screen' && AWAY.test(String(live[g.id].line || ''))) { if (!parked.has(g.id)) Log.add(`${name(g)}: its Pokémon are away - the next task uses the screen until they're back`); const need = GoalKit.takeAway() || parked.get(g.id)?.need || null; live[g.id].need = need; parked.set(g.id, { until: Date.now() + 90_000, why: String(live[g.id].line).replace(/^(⏳\s*)?waiting:?\s*/i, 'waiting: '), need }); }
+          else { parked.delete(g.id); GoalKit.takeAway(); } }
         catch (e) { live[g.id] = { state: 'wait', why: 'error: ' + (e?.message || e) }; Log.add(`${name(g)}: error - ${e?.message || e}`); Health.goalErr(g, e, name(g)); }
       }
       // idle only after 2 min with no screen goal, so a goal that waits a moment between runs doesn't flip-flop
@@ -9775,6 +9902,9 @@ const Plan = (() => {
   let idleLine = '', freeSince = 0;
   const waitSince = new Map(); // goal id -> when it started waiting and why (for the "Started" alert)
   const parked = new Map(); // goal id -> { until, why }: waiting for its Pokémon to come back, the next task runs meanwhile
+  // the card's numbers move (floor reached, who's back): re-read them from the game each time it's shown
+  const refreshNeed = (n) => { if (!n?.away) return n; try { const left = n.away.filter((x) => (E.read('Game.underMons', []) || []).some((m) => m.uid === x.uid) || x.gone); return { ...n, away: GoalKit.awayInfo(left.map((x) => x.uid)) }; } catch { return n; } };
+  const unpark = (id) => { parked.delete(id); };
   const AWAY = /(is|are) away \(Underground or a trade\)|to come back from the Underground|waiting for the Underground teams/i;
   const idleOn = () => st.idleLevel !== false;
   async function idleStep() {
@@ -9800,14 +9930,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:250', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:253', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:257', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:260', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -9830,7 +9960,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:280', __e); }
+    } catch (__e) { __h('70-plan-20-engine:283', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -9845,7 +9975,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:295', __e); }
+    } catch (__e) { __h('70-plan-20-engine:298', __e); }
   }
   function formGoals() {
     try {
@@ -9855,7 +9985,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:305', __e); }
+    } catch (__e) { __h('70-plan-20-engine:308', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
@@ -9871,6 +10001,7 @@ const Plan = (() => {
     get idleOn() { return idleOn(); }, setIdle(v) { st.idleLevel = !!v; save(); if (!v && st.idle) idleStop('switched off'); },
     has: (foe) => st.goals.find((g) => g.type === 'legend' && g.foe === +foe && !g.done) || null,
     hasType: (t) => st.goals.find((g) => g.type === t && !g.done) || null,
+    unpark, goal: (id) => st.goals.find((g) => g.id === id) || null,
   };
 })();
 
@@ -10698,6 +10829,43 @@ const Dailies = (() => {
 })();
 
 /* ---------------------------------------------------------------------------------------------
+ * Problems (3.0 alpha, Jimmy 2026-11-28): everything that went wrong in the last 24 hours, in plain
+ * words - what happened, what Mega did about it, and whether it needs him. Shown as a card at the
+ * top of Now while there's something he hasn't seen ("Got it" hides them); one that needs him also
+ * sends a phone alert. The same problem again just counts up (no spam).
+ * ------------------------------------------------------------------------------------------- */
+const Problems = (() => {
+  const KEY = 'mega-problems', DAY = 86_400_000;
+  let list = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } })();
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (__e) { __h('76-problems:10', __e); } };
+  const fresh = () => { const cut = Date.now() - DAY; list = list.filter((p) => p.last > cut); return list; };
+  // add({ key, what, did, you }) - key groups repeats (defaults to what); you = needs Jimmy (phone alert once)
+  function add({ key, what, did = '', you = false }) {
+    if (!what) return;
+    fresh(); const k = String(key || what), now = Date.now();
+    let p = list.find((x) => x.key === k);
+    if (p) { p.n++; p.last = now; p.what = what; p.did = did; if (you && !p.you) p.you = true; p.seen = false; }
+    else { p = { key: k, what, did, you: !!you, n: 1, first: now, last: now, seen: false }; list.push(p); }
+    save();
+    if (you && !p.told) { p.told = true; save(); try { Notify.send('daily', 'Mega needs you', what); } catch (__e) { __h('76-problems:20', __e); } }
+    return p;
+  }
+  const unseen = () => fresh().filter((p) => !p.seen);
+  function seen() { for (const p of list) p.seen = true; save(); }
+  function card(esc) {
+    const U = unseen(); if (!U.length) return '';
+    const t = (x) => DexInfo.clock(x);
+    const rows = U.slice().sort((a, b) => (b.you - a.you) || (b.last - a.last)).slice(0, 8).map((p) => `<div class="prow">
+      <div><b>${esc(p.what)}</b>${p.n > 1 ? ` <span class="dim">· ${p.n} times, last ${t(p.last)}</span>` : ` <span class="dim">· ${t(p.last)}</span>`}</div>
+      ${p.did ? `<div class="dim" style="font-size:var(--t-s)">What Mega did: ${esc(p.did)}</div>` : ''}
+      ${p.you ? `<div class="warn" style="font-size:var(--t-s)">Needs you</div>` : ''}</div>`).join('');
+    return `<div class="card probc"><h3>Problems · ${U.length}</h3>${rows}${U.length > 8 ? `<div class="dim">+ ${U.length - 8} more</div>` : ''}
+      <button class="btn sm" data-act="prob-seen" style="width:auto;margin-top:8px">Got it</button></div>`;
+  }
+  return { add, unseen, seen, card, all: () => fresh().slice() };
+})();
+
+/* ---------------------------------------------------------------------------------------------
  * Upcoming (2.19.0, Jimmy 2026-11-25): Pokémon with a season / weather / time-of-day / moon window
  * that open today or tomorrow - to catch (not in your Pokédex yet) or to fight (Elite tiers left).
  * Shown on Now under Best Next Rewards; tap one to add it to the queue (after a confirm).
@@ -11383,7 +11551,7 @@ const Remote = (() => {
     // ---- actions from Kinesis ----
     // Mega's own screens on the phone (Settings, Fights): the HTML, and a button press on them
     'ui.html': async (a, rid) => { replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab)) } }; return 'ok'; },
-    'ui.act': async (a, rid) => { const r0 = await UI.mvAct(a); if (r0 === 'confirm on the phone') Log.add(`phone: "${a?.data?.act}" needs the phone's own confirm - an old Kinesis page? close and reopen Kinesis`); replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab || 'engine')) } }; return 'ok'; },
+    'ui.act': async (a, rid) => { const r0 = await UI.mvAct(a); if (r0 === 'confirm on the phone') { Log.add(`phone: "${a?.data?.act}" needs the phone's own confirm - an old Kinesis page? close and reopen Kinesis`); Problems.add({ key: 'kinesis-old', what: `A tap on your phone ("${a?.data?.act}") did nothing: it needs the phone's own confirm, and your Kinesis page didn't ask`, did: 'nothing was changed or spent', you: true }); } replies[rid] = { at: Date.now(), once: 1, data: { tab: a.tab, html: await UI.mvHtml(String(a.tab || 'engine')) } }; return 'ok'; },
     // rank up a Pokémon with a gem - only from your tap and a confirmation on the phone; the game's own
     // rank-up (Underground.rankUp): rank +1, back to Lv 5. Mega never spends gems by itself.
     'gem.rank': (a) => {
