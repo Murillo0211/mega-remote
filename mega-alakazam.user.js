@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.31
+// @version      2.20.32
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.31';
+const VERSION = '2.20.32';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -7122,15 +7122,28 @@ const GoalKit = (() => {
     return null;
   }
 
+  // which Pokémon are away and where (2.20.32, Jimmy 2026-11-28): "waiting for Regigigas (Underground bay 3, back
+  // 1:38 AM)". The wording keeps "are away (Underground or a trade)" - the plan engine reads it to let the next task run
+  function awayWhy(miss) {
+    const U = E.get('Underground'), um = E.read('Game.underMons', []) || [];
+    let bays = []; try { bays = U?.slots?.() || []; } catch (__e) { __h('70-plan-00-core:51', __e); }
+    const under = [], gone = [];
+    for (const u of miss) {
+      const b = bays.find((x) => (x.team || []).includes(u)), m = um.find((x) => x.uid === u) || b?.mons?.find((x) => x.uid === u);
+      if (b || m) under.push(`${m ? name(m.id) : 'a Pokémon'}${b ? ` (bay ${b.bay}${b.end ? `, back ${DexInfo.clock(+b.end)}` : ''})` : ''}`);
+      else gone.push('a Pokémon that is no longer in your PC (traded?)');
+    }
+    return [under.length ? `for ${under.join(', ')} to come back from the Underground` : '', gone.length ? `${gone.length > 1 ? `${gone.length} Pokémon are` : 'one Pokémon is'} away (Underground or a trade) - no longer in your PC` : ''].filter(Boolean).join(' · ');
+  }
   function setTeam(id, uids) {
     const have = new Set((E.read('Game.allMons', []) || []).map((m) => m.uid));
     const team = uids.filter((u) => have.has(u)).slice(0, 6);
-    if (team.length < uids.length) return { ok: false, why: 'some of those Pokémon are away (Underground or a trade)' };
+    if (team.length < uids.length) return { ok: false, why: awayWhy(uids.filter((u) => !have.has(u))) };
     const s = S();
     s.eventTeams = s.eventTeams || {};
     s.eventTeams['zone:' + id] = team;
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:54', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:55', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:67', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:68', __e); }
     const now = E.read('Game.zoneTeam', [], +id) || [];
     const ok = now.length === team.length && team.every((u, i) => now[i] === u);
     const dropped = team.filter((u) => !now.includes(u)).map((u) => name(E.read('Game.getMon', {}, u)?.id));
@@ -7180,7 +7193,7 @@ const GoalKit = (() => {
     const next = ((E.get('EVOLUTIONS') || {})[m.id] || []).filter((e) => e.level && !e.item).map((e) => +e.level);
     if (!next.length || m.level < Math.min(...next) - 3) return false;
     if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length > 1) return false;
-    try { if (Plan.goals.some((g) => !g.done && g.type === 'level' && g.forDex && (g.uids || []).includes(m.uid))) return false; } catch (__e) { __h('70-plan-00-core:105', __e); }
+    try { if (Plan.goals.some((g) => !g.done && g.type === 'level' && g.forDex && (g.uids || []).includes(m.uid))) return false; } catch (__e) { __h('70-plan-00-core:118', __e); }
     return true;
   }
   function fullTeam(uids) {
@@ -7196,8 +7209,8 @@ const GoalKit = (() => {
     uids = fullTeam(uids);
     s.team = uids.slice(0, 6);
     s.road = null; // the game rebuilds the road team from .team (same as its own team editor)
-    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:121', __e); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:122', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:134', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:135', __e); }
     const now = (E.read('Game.teamMons', []) || []).map((m) => m.uid);
     return uids.every((u) => now.includes(u));
   }
@@ -7219,8 +7232,8 @@ const GoalKit = (() => {
   const SAFE = 3 * 3600_000;
   // score(): { v (higher = better), uids (the team), text } · close(home, full): good enough to go now
   async function gate(g, key, score, close) {
-    const R = E.get('Raids'); let day = null, reset = 0; try { day = R.dateKey(); reset = +R.nextDay(); } catch (__e) { __h('70-plan-00-core:144', __e); }
-    if (key === 'tower') { try { day = 'w' + E.get('Tower').weekKey(); reset = +E.get('Tower').weekEnds(); } catch (__e) { __h('70-plan-00-core:145', __e); } }
+    const R = E.get('Raids'); let day = null, reset = 0; try { day = R.dateKey(); reset = +R.nextDay(); } catch (__e) { __h('70-plan-00-core:157', __e); }
+    if (key === 'tower') { try { day = 'w' + E.get('Tower').weekKey(); reset = +E.get('Tower').weekEnds(); } catch (__e) { __h('70-plan-00-core:158', __e); } }
     const G = (g.gate && g.gate.day === day) ? g.gate : null;
     if (G?.go) return null;
     const late = reset && Date.now() > reset - SAFE;
@@ -7251,8 +7264,8 @@ const GoalKit = (() => {
   function hatchMissing() {
     for (const e of [...(S().pension?.eggs || [])]) {
       if (E.read('Game.inDex', false, +e.id) || !E.read('Game.eggReady', false, e)) continue;
-      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:176', __e); }
-      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:177', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:177', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
+      let r = null; try { r = E.call('Game.hatchEgg', e.uid); } catch (__e) { __h('70-plan-00-core:189', __e); }
+      if (r) { try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:190', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-00-core:190', __e); } Log.add(`hatched a ${name(e.id)} egg from the Day Care`); }
     }
   }
   const LZ = () => E.get('LegendZones');
@@ -7265,7 +7278,7 @@ const GoalKit = (() => {
   // you had comes back when the goal is done. Pokémon in the Underground or on a raid stay put.
   function passTeam(g, ch) {
     if (g.teamSet === ch) return;
-    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:190', __e); }
+    let picks = []; try { picks = Sim.carriers(+ch, { n: 6, minLevel: 1 }).picks; } catch (__e) { __h('70-plan-00-core:203', __e); }
     const uids = picks.map((p) => p.m.uid);
     if (!g.restore.team) g.restore.team = (S().team || []).slice();
     if (uids.length >= Math.min(6, (S().team || []).length || 1) && uids.join() !== (S().team || []).slice(0, 6).join()) { if (setChapterTeam(uids)) Log.add(`team for ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}: ${picks.map((p) => `${name(p.m.id)} Lv ${p.m.level}`).join(', ')}`); }
@@ -7293,11 +7306,11 @@ const GoalKit = (() => {
   function goChapter(g, ch, label) {
     const a = S().adv || {};
     if (!g.restore) { g.restore = { chapter: a.chapter, loopAdded: null }; Plan.save(); Log.add(`${label}: going to ${E.get('STORY')?.CHAPTERS?.[ch]?.name || 'chapter ' + ch}. Your chapter comes back when it's done.`); }
-    if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:218', __e); } return 'leaving the legendary zone…'; }
-    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:219', __e); } Log.add('turned auto-catch on ("new")'); }
+    if (a.zone) { if (fighting()) return 'waiting for this fight to end before leaving the zone…'; try { E.call('Adventure.leaveZone'); } catch (__e) { __h('70-plan-00-core:231', __e); } return 'leaving the legendary zone…'; }
+    if (a.capture && (!a.capture.on || !/new|missing/.test(a.capture.target || ''))) { a.capture.on = true; a.capture.target = 'new'; try { E.call('Game.save'); } catch (__e) { __h('70-plan-00-core:232', __e); } Log.add('turned auto-catch on ("new")'); }
     if (+a.chapter !== +ch && fighting()) return 'waiting for this fight to end before moving…';
     if (+a.chapter !== +ch) { if (E.call('Adventure.setChapter', +ch) === false) return 'waiting: the game would not open that chapter'; return 'moving to the chapter…'; }
-    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:222', __e); } }
+    if (!E.read('Adventure.isLooping', false, +ch)) { try { E.call('Adventure.toggleLoop', +ch); g.restore.loopAdded = +ch; Plan.save(); } catch (__e) { __h('70-plan-00-core:235', __e); } }
     passTeam(g, ch);
     return null;
   }
@@ -7310,7 +7323,7 @@ const GoalKit = (() => {
   function rebuild(ch) {
     const a = S().adv || {}, scr = E.get('Screens')?.adventure;
     if (fighting()) return false;
-    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:235', __e); } }
+    if (+a.chapter === +ch && typeof scr?.restartChapter === 'function') { try { scr.restartChapter(+ch); return true; } catch (__e) { __h('70-plan-00-core:248', __e); } }
     const unlocked = +(a.unlocked ?? 0), other = +ch > 0 ? +ch - 1 : Math.min(unlocked, +ch + 1);
     if (other === +ch || E.call('Adventure.setChapter', other) === false) return false;
     E.call('Adventure.setChapter', +ch);
@@ -9737,7 +9750,7 @@ const Plan = (() => {
   let idleLine = '', freeSince = 0;
   const waitSince = new Map(); // goal id -> when it started waiting and why (for the "Started" alert)
   const parked = new Map(); // goal id -> { until, why }: waiting for its Pokémon to come back, the next task runs meanwhile
-  const AWAY = /are away \(Underground or a trade\)|to come back from the Underground|waiting for the Underground teams/i;
+  const AWAY = /(is|are) away \(Underground or a trade\)|to come back from the Underground|waiting for the Underground teams/i;
   const idleOn = () => st.idleLevel !== false;
   async function idleStep() {
     const L = GoalTypes.level;
