@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kinesis">
-<meta name="kbuild" content="1795853447">
+<meta name="kbuild" content="1795855444">
 <meta name="theme-color" content="#120f24">
 <title>Kinesis</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jersey+15&display=swap" rel="stylesheet">
@@ -241,6 +241,13 @@ html .btn.dimb{opacity:.55}
 html .csec{border-top:1px solid var(--line);margin-top:12px;padding-top:12px} html .csec:first-child{border-top:0;margin-top:0;padding-top:0} html .csec h3{font-size:var(--t-m);margin-bottom:4px}
 html .dready{margin-top:6px;padding:6px 10px;border-radius:10px;background:color-mix(in srgb,var(--gold) 18%,transparent);border:1px solid color-mix(in srgb,var(--gold) 55%,transparent);font-size:var(--t-s);cursor:pointer} html .dcard.hot{border-color:color-mix(in srgb,var(--gold) 60%,transparent)}
 html .dcard .row .k,html .wrapk .row .k{white-space:normal;flex:1 1 60%;min-width:0;overflow-wrap:anywhere} html .dcard .row .v,html .wrapk .row .v{flex:0 0 auto}
+
+/* need card (3.0 alpha): who a waiting task needs, where, until when - and the choices */
+.needc{margin-top:8px;padding:8px 10px;border:1px solid color-mix(in srgb,var(--warn,#e0a83a) 55%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--warn,#e0a83a) 8%,var(--card))}
+.needc .nrow{margin-top:4px;overflow-wrap:anywhere}
+/* problems card (3.0 alpha) */
+.card.probc{border-color:color-mix(in srgb,var(--bad,#e05a5a) 60%,var(--line))}
+.probc .prow{margin-top:8px;padding-top:6px;border-top:1px solid var(--line)} .probc .prow:first-of-type{border-top:0;padding-top:0}
 
 /* FIELD:END */
   /* ---- Kinesis's own frame: the phone shell, tabs, toast, sheets; everything else is the shared design ---- */
@@ -1042,7 +1049,7 @@ function mvSend(el, kind) {
   if (data.act === 'fold-card') { el.closest('.card')?.classList.toggle('folded'); return; }
   if (data.act === 'tab' && data.tab) { goTab(data.tab); window.scrollTo(0, 0); render(); return; } // a link to another of Mega's screens
   if (data.act === 'task-open') setTimeout(() => { goTab('tasks'); window.scrollTo(0, 0); render(); }, 0); // a daily / Coming Up row: Mega picks the task, the phone goes to Tasks
-  if (['gem-fuse', 'gem-buy', 'gem-reroll', 'egg-fill'].includes(data.act) && !data.sure) { askConfirm((el.textContent || '').trim() + '?').then((ok) => { if (ok) { el.dataset.sure = '1'; mvSend(el, kind); delete el.dataset.sure; } }); return; }
+  if (['gem-fuse', 'gem-buy', 'gem-reroll', 'egg-fill', 'need-use', 'need-go', 'need-recall'].includes(data.act) && !data.sure) { askConfirm(data.ask || ((el.textContent || '').trim() + '?')).then((ok) => { if (ok) { el.dataset.sure = '1'; mvSend(el, kind); delete el.dataset.sure; } }); return; }
   // the phone's own sheets for what must be confirmed here (Mega never does these from a phone tap by itself)
   if (data.act === 'tr-open' && data.id) { openTrades(+data.id, !!data.shiny); window.scrollTo(0, 0); return; }
   if (data.act === 'm-egg-hatch') { askConfirm(data.uid ? 'Hatch this egg?' : 'Hatch every ready egg?').then((ok) => { if (ok) cmd('egg.hatch', { uid: data.uid || null }, 'Hatch', () => { MV.at.care = 0; MV.at.now = 0; render(); }); }); return; }
