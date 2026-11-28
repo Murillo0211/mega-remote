@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      2.20.29
+// @version      2.20.30
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.20.29';
+const VERSION = '2.20.30';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -2626,7 +2626,49 @@ const DayCare = (() => {
     try { E.call('Game.save'); } catch (__e) { __h('57-daycare:56', __e); } try { E.call('App.refresh'); } catch (__e) { __h('57-daycare:56', __e); }
     return got.length ? `hatched ${got.join(', ')}` : 'the game didn\'t hatch it - open the Day Care';
   }
-  return { info, boot, left, name, hatch, autoOn, setAuto };
+  // ---- Fill the incubator (2.20.30, Jimmy 2026-11-28 - only from his tap) ---------------------------------------
+  // The game's own calls, as its Day Care buttons: Game.usePensionBerry(berry) adds the berry's minutes to the next egg
+  // (Oran 5, Pecha 15, Sitrus 30 - an egg takes 240) and lays it when it's due; Game.feedDittoBerry() gives Ditto a
+  // Belue Berry for the next egg (×2 shiny odds). Order: Oran until gone, then Pecha, then Sitrus; one Belue before
+  // each egg (only when Ditto has none waiting, so none are wasted). Stops when the incubator is full, or out of
+  // Belue (Jimmy: a Belue before each egg), or out of berries. A berry is never fed into a full incubator (the game
+  // would take it for nothing).
+  const ORDER = ['berry-oran', 'berry-pecha', 'berry-sitrus'], BELUE = 'belue-berry';
+  let filling = false;
+  async function fill() {
+    if (filling) return { ok: false, why: 'already filling' };
+    filling = true;
+    const items = () => E.get('Game.S')?.items || {}, used = {}, laid = [];
+    let why = '';
+    try {
+      if (!E.read('Game.pensionHasDitto', false)) return { ok: false, why: 'no Ditto in the Day Care' };
+      for (let n = 0; n < 3000; n++) {
+        const p = P(), cap = +(p.open?.eggs ?? 0) || +(E.get('CONFIG')?.PENSION?.INCUBATOR) || 4;
+        if ((p.eggs || []).length >= cap) { why = 'the incubator is full'; break; }
+        if (!(+p.bx > 0)) {
+          if (!(+items()[BELUE] > 0)) { why = 'out of Belue Berries'; break; }
+          if (!E.call('Game.feedDittoBerry')) { why = 'the game would not take a Belue Berry'; break; }
+          used[BELUE] = (used[BELUE] || 0) + 1;
+        }
+        const key = ORDER.find((k) => +items()[k] > 0);
+        if (!key) { why = 'out of Oran, Pecha and Sitrus Berries'; break; }
+        const r = E.call('Game.usePensionBerry', key);
+        if (!r) { why = 'the game would not take the berry'; break; }
+        used[key] = (used[key] || 0) + 1;
+        for (const e of r.eggs || []) laid.push(name(+e.id));
+        if (r.full) { why = 'the incubator is full'; break; }
+        if (n % 20 === 19) await new Promise((res) => setTimeout(res, 30)); // let the game breathe
+      }
+    } finally {
+      filling = false;
+      try { E.call('Game.save'); } catch (__e) { __h('57-daycare:94', __e); } try { E.call('App.refresh'); } catch (__e) { __h('57-daycare:94', __e); }
+    }
+    const B = { 'berry-oran': 'Oran', 'berry-pecha': 'Pecha', 'berry-sitrus': 'Sitrus', 'belue-berry': 'Belue' };
+    const txt = Object.entries(used).map(([k, v]) => `${v} ${B[k] || k}`).join(', ') || 'no berries';
+    Log.add(`Day Care: filled the incubator - ${laid.length} egg${laid.length === 1 ? '' : 's'}${laid.length ? ` (${laid.join(', ')})` : ''}, used ${txt}; stopped: ${why}`);
+    return { ok: true, laid, used, why };
+  }
+  return { info, boot, left, name, hatch, autoOn, setAuto, fill, filling: () => filling };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -2653,6 +2695,10 @@ Views.daycare = (w, esc) => {
   let h = `<div class="dcbox"><div class="dch"><h2>Incubator</h2><span class="dcok">Exact · the game's own egg math</span></div>
     <div class="dim dcs">Taken ${dc.used}/${dc.max || +C.INCUBATOR || 4}${dc.full ? ' · full - hatch one to make room' : ''}</div>
     <div class="mets dcm"><div><b>${shinyHeld}</b><span>Shiny eggs held</span></div><div><b>${ready}</b><span>Ready to claim</span></div><div><b>${hatched.toLocaleString()}</b><span>Total hatched</span></div></div>`;
+  // Fill the incubator (2.20.30): Jimmy's tap only - Oran, then Pecha, then Sitrus, a Belue for Ditto before each egg
+  { const it = S.items || {}, cnt = (k) => +it[k] || 0, cap = dc.max || +C.INCUBATOR || 4, room = Math.max(0, cap - dc.used);
+    h += `<div style="margin:8px 0"><button class="btn gold" data-act="egg-fill" ${room && !DayCare.filling() ? '' : 'disabled'} style="width:100%;margin:0">${DayCare.filling() ? 'Filling…' : room ? `Fill the incubator (${room} egg${room === 1 ? '' : 's'})` : 'Incubator full'}</button>
+      <div class="dim" style="font-size:var(--t-s);margin-top:4px">Feeds Oran ${cnt('berry-oran')} → Pecha ${cnt('berry-pecha')} → Sitrus ${cnt('berry-sitrus')}, and Ditto a Belue Berry (${cnt('belue-berry')}) before each egg. Stops when it's full.</div></div>`; }
   if (!dc.eggs.length) h += `<div class="dcs">No eggs in the incubator.</div>`;
   for (const e of dc.eggs) {
     const sh = mine.find((x) => x.uid === e.uid)?.shiny, pct = e.ready ? 1 : 1 - e.left / Math.max(1, e.hatchAt - e.laidAt);
@@ -2676,7 +2722,7 @@ Views.daycare = (w, esc) => {
   }
 
   // ---- forecast ----
-  let U = null; try { U = EggPredict.upcoming(400); } catch (__e) { __h('57-dcview:48', __e); }
+  let U = null; try { U = EggPredict.upcoming(400); } catch (__e) { __h('57-dcview:52', __e); }
   h += `<div class="dch" style="margin-top:14px"><h3>Shiny egg forecast</h3>${U ? '<span class="dcok">Exact for these parents</span>' : ''}</div>`;
   if (!U || !U.layers.length) { h += `<div class="dcs dim">Nobody in the Day Care can lay an egg right now.</div></div>`; return h; }
   const when = (a) => (dc.nextEgg != null ? at(Date.now() + dc.nextEgg + a * per) : '');
@@ -3881,7 +3927,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'fold-card' || act === 'toggle' || act === 'bigger' || act === 'smaller' || act === 'tab') return 'ok'; // just the PC's own layout
     // spending gems needs the phone's own confirmation sheet (Kinesis sends gem.rank); never a pop-up on the PC
     // (fuse / buy / new offer can come with the phone's own confirm as data-sure; trades and hatching use the phone's own sheets)
-    if (act === 'gem-rank' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch' || (['gem-fuse', 'gem-buy', 'gem-reroll'].includes(act) && !data.sure)) return 'confirm on the phone';
+    if (act === 'gem-rank' || act === 'gem-open' || act === 'tr-open' || act === 'm-egg-hatch' || (['gem-fuse', 'gem-buy', 'gem-reroll', 'egg-fill'].includes(act) && !data.sure)) return 'confirm on the phone';
     if (act === 'fights-reload' || (d.tab === 'fights' && /^f-?/.test(act || ''))) fightData = null;
     asPhone(() => { if (d.kind === 'change' && changeH) changeH({ target: t }); else if (d.kind === 'input' && inputH) inputH({ target: t }); else onClick({ target: { closest: () => t }, preventDefault() {}, stopPropagation() {} }); });
     await new Promise((r) => setTimeout(r, 400));
@@ -4109,6 +4155,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       if (!t.dataset.sure && !window.confirm(`Get a new gem shop offer for ₽${(+o.cost).toLocaleString()}? (the next one costs double)`)) return;
       const r = GemFocus.reroll(); Log.add(r?.error ? `gem shop: ${r.error}` : `gem shop: new offer for ₽${(+o.cost).toLocaleString()} - ${(r?.ids || []).map((k) => GemFocus.label(k)).join(', ')}`); try { GemFocus.watchShop(); } catch (__e) { __h('60-ui:403', __e); } renderBody(true); return;
     }
+    if (act === 'egg-fill') {
+      if (!t.dataset.sure && !window.confirm('Fill the incubator?\n\nMega feeds Oran Berries, then Pecha, then Sitrus, and gives Ditto a Belue Berry before each egg, until the incubator is full.')) return;
+      t.disabled = true; t.textContent = 'Filling…';
+      DayCare.fill().then((r) => { if (!r.ok) Log.add('Day Care: ' + r.why); renderBody(true); });
+      return;
+    }
     if (act === 'gem-rank') {
       // your click + the game's own confirm text; the game's rank-up (rank +1, back to Lv 5). Mega never does this by itself.
       const m = Engine.read('Game.getMon', null, t.dataset.uid), U = Engine.get('Underground'); if (!m || !U) return;
@@ -4118,19 +4170,19 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const r = U.rankUp(m.uid, t.dataset.key); if (r) Log.add(`ranked up ${nm} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`);
       renderBody(true); return;
     }
-    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:414', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
+    if (act === 'gymplan-run') { let r = null; try { r = GymPlan.run(+t.dataset.ch, { force: true }); } catch (__e) { __h('60-ui:420', __e); } setTimeout(() => renderBody(true), 300); Promise.resolve(r).catch(() => {}).finally(() => renderBody(true)); return; }
     if (act === 'gym-go' || act === 'gym-train') {
       const g = (Plan.goals || []).find((x) => !x.done && x.type === 'story'); if (!g) return;
       try { if (act === 'gym-go') GoalTypes.story.goFight(g); else GoalTypes.story.trainThese(g); } catch (e) { Log.add('story button: ' + e.message); }
       renderBody(true); return;
     }
-    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:420', __e); } return; }
+    if (act === 'theme') { prefs.theme = themeNow() === 'day' ? 'night' : 'day'; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:426', __e); } return; }
     if (act === 'update') { Updater.install(); return; }
     if (act === 'update-continue') { Updater.setContinue(t.checked); renderBody(true); return; }
-    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:423', __e); } return; }
+    if (act === 'update-tm') { try { window.open('https://raw.githubusercontent.com/Murillo0211/mega-remote/main/mega-alakazam.user.js?t=' + Date.now(), '_blank'); } catch (__e) { __h('60-ui:429', __e); } return; }
     if (act === 'update-auto') { Updater.setAuto(t.checked); renderBody(true); return; }
     if (act === 'update-check') { Updater.check().then(() => renderBody(true)); return; }
-    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:426', __e); } return; }
+    if (act === 'tabs-reset') { delete prefs.tabOrder; savePrefs(); render(); try { Remote.soon(); } catch (__e) { __h('60-ui:432', __e); } return; }
     if (act === 'plan-clear') { Plan.clearDone(); renderBody(true); }
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
@@ -4171,8 +4223,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:467', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:468', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:473', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:474', __e); }
     renderBody(true, w);
   }
 
@@ -4189,12 +4241,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:485', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:491', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:489', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:490', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:495', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:496', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -4226,8 +4278,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:522', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:523', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:528', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:529', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -4242,13 +4294,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:538', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:539', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:544', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:545', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:544', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:550', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
