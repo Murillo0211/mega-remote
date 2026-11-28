@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-beta.3
+// @version      3.0.0-beta.4
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-beta.3';
+const VERSION = '3.0.0-beta.4';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -126,7 +126,22 @@ const Health = (() => {
     await run('same decisions as the version before', () => { const d = Decisions.compare(); if (!d) return true; const c = d.changed.filter((x) => !x.expected); return c.length ? `${c.length} changed since ${d.from}: ` + c.slice(0, 3).map((x) => `${x.k}: ${x.was} → ${x.now}`).join('; ') : true; }, true);
     await run('game guard', () => { const h = GameGuard.held(); return h ? 'plan paused since ' + new Date(h.at).toLocaleString() + ': ' + h.why : true; }, true);
     await run('phone update builds', () => { const r = Remote.testSnapshot?.(); return r === undefined || r === true ? true : r; });
+    // 3.0 beta: the phone screens (what Kinesis shows) checked for this week's kinds of mistakes - a doubled rank badge,
+    // a vague wait, French left in, a broken value
+    await run('phone screens: no doubled ranks, vague waits or French', async () => {
+      const bad = [];
+      for (const t of ['now', 'queue', 'tasks', 'care', 'gems', 'box', 'blocs', 'legends', 'trades']) {
+        let h = ''; try { h = await UI.mvHtml(t); } catch (e) { bad.push(`${t}: does not draw (${msgOf(e)})`); continue; }
+        const d = document.createElement('div'); d.innerHTML = h; const tx = d.textContent || '';
+        if (/class="rkn"[^>]*>[^<]*<\/span>\s*(<span class="rkn")/.test(h)) bad.push(`${t}: a rank badge twice`);
+        if (/some of those Pokémon|some Pokémon are away/i.test(tx)) bad.push(`${t}: a vague "some Pokémon" wait`);
+        if (/\bBaie\b|Grotte|Forêt|Colonnes/.test(tx)) bad.push(`${t}: French left in (${(tx.match(/\bBaie\b[^·,\n]{0,20}|Grotte[^·,\n]{0,20}|Forêt[^·,\n]{0,20}|Colonnes[^·,\n]{0,20}/) || [''])[0].trim()})`);
+        if (/\b(undefined|NaN)\b|\[object Object\]/.test(tx)) bad.push(`${t}: a broken value`);
+      }
+      return bad.length ? bad.slice(0, 6).join('; ') : true;
+    }, true);
     const failed = out.filter((x) => !x.ok && !x.warn);
+    try { for (const x of out.filter((y) => !y.ok)) Problems.add({ key: 'selftest:' + x.name, what: `Self-check "${x.name}" ${x.warn ? 'found something' : 'failed'}: ${x.detail}`, did: x.warn ? 'kept going; tell Claude' : 'kept going - this needs a fix from Claude' }); } catch (x) {}
     test = { at: Date.now(), v: VERSION, why, n: out.length, failed: failed.length, warns: out.filter((x) => !x.ok && x.warn).length, results: out.filter((x) => !x.ok), names: out.length };
     try { localStorage.setItem('mega-selftest', JSON.stringify(test)); } catch (x) {}
     try { Log.add(failed.length ? `self-test (${why}): ${failed.length} of ${out.length} checks failed - ${failed.slice(0, 3).map((x) => x.name + ': ' + x.detail).join(' | ')}` : `self-test (${why}): all ${out.length} checks passed`); } catch (x) {}
@@ -7023,21 +7038,40 @@ const MoveTune = (() => {
   const nm = (k) => { try { return E.get('Game').MOVES?.[k]?.name || Casing.title(k.replace(/-/g, ' ')); } catch { return k; } };
 
   // what to turn off for this fight: [{ uid, off: [...] }] and the simulated gain
+  // 3.0 beta (Jimmy 2026-11-28: "the game engine decides everything"): each option is played in the game's own engine -
+  // a copy of the save with those moves turned off, the zone (or Elite tier) fought 30 times; scored like the team
+  // search (wins first, then boss HP left, then speed). Mega's own model only if the engine can't play that fight.
   async function tune(foe, mons, zone) {
-    const ev = (t) => { try { return Sim.evaluate(t, +foe, 120, 7, null, zone).score; } catch { return -1; } };
+    const tier = +(zone?.elite || 0), uids = mons.map((m) => m.uid);
+    const RUNS = 30, rest = () => new Promise((ok) => setTimeout(ok, 20));
+    const engine = typeof GameSim !== 'undefined' && !zone?.raid && !zone?.roam && !zone?.wild;
+    const evE = async (t) => {
+      const base = structuredClone(E.get('Game').S); const byUid = new Map(t.map((m) => [m.uid, m.ban || []]));
+      for (const m of base.mons || []) if (byUid.has(m.uid)) { const b = byUid.get(m.uid); if (b.length) m.ban = b.slice(); else delete m.ban; }
+      let w = 0, left = 0, st = 0, t0 = performance.now();
+      for (let i = 0; i < RUNS; i++) {
+        const r = tier > 0 ? GameSim.eliteOnce(+foe, tier, uids, base) : GameSim.zoneOnce(+foe, uids, base);
+        if (r.win) { w++; st += r.steps || 0; } else left += r.left;
+        if (performance.now() - t0 > 30) { await rest(); t0 = performance.now(); }
+      }
+      const ko = w / RUNS; return ko - 0.25 * (left / Math.max(1, RUNS - w)) - (w ? 0.0004 * (st / w) : 0);
+    };
+    const evM = async (t) => { try { return Sim.evaluate(t, +foe, 120, 7, null, zone).score; } catch { return -1; } };
+    let useEngine = engine;
+    const ev = async (t) => { if (useEngine) { try { return await evE(t); } catch { useEngine = false; } } return evM(t); };
     const pause = () => new Promise((ok) => setTimeout(ok, 0));
-    let team = mons.map((m) => withOff(m, [])), base = ev(team), best = base;
+    let team = mons.map((m) => withOff(m, [])), base = await ev(team), best = base;
     const pick = Object.fromEntries(mons.map((m) => [m.uid, []]));
     for (let i = 0; i < mons.length; i++) {
       const opts = options(mons[i]); if (!opts.length) continue;
       for (const off of opts.slice(1)) {
         await pause();
         const trial = team.slice(); trial[i] = withOff(mons[i], off);
-        const v = ev(trial);
-        if (v > best + 0.015) { best = v; team = trial; pick[mons[i].uid] = off; } // a clear gain only (about 1.5 KO points)
+        const v = await ev(trial);
+        if (v > best + 0.03) { best = v; team = trial; pick[mons[i].uid] = off; } // a clear gain only (about 1.5 KO points)
       }
     }
-    return { base, best, pick };
+    return { base, best, pick, engine: useEngine };
   }
   // the card tap, as the game does it
   function setOff(uid, off) {
@@ -7050,8 +7084,8 @@ const MoveTune = (() => {
     m.ban = want.length ? want : undefined;
     if (off.length) mine[uid] = off; else delete mine[uid];
     save();
-    try { E.call('Game.save'); } catch (__e) { __h('69-movetune:70', __e); }
-    try { E.ns().dispatchEvent(new CustomEvent('mon-moves', { detail: uid })); } catch (__e) { __h('69-movetune:71', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('69-movetune:89', __e); }
+    try { E.ns().dispatchEvent(new CustomEvent('mon-moves', { detail: uid })); } catch (__e) { __h('69-movetune:90', __e); }
     return true;
   }
   // before a boss fight: returns '' when the moves are set (or there's nothing to do), or a status while it works
@@ -7072,13 +7106,13 @@ const MoveTune = (() => {
         if (setOff(m.uid, off)) changed.push(off.length ? `${Casing.names(E.get('Game.DEX')[m.id].name)} stops using ${off.map(nm).join(' and ')}` : `${Casing.names(E.get('Game.DEX')[m.id].name)} gets ${before.map(nm).join(' and ')} back`);
       }
       done[sig] = { at: Date.now(), ...r };
-      if (changed.length) Log.add(`moves for ${who || 'the fight'}: ${changed.join('; ')} - simulated ${Math.round(r.base * 100)} → ${Math.round(r.best * 100)} points`);
+      if (changed.length) Log.add(`moves for ${who || 'the fight'}: ${changed.join('; ')} - ${r.engine ? "in the game's engine" : "Mega's estimate"} ${Math.round(r.base * 100)} → ${Math.round(r.best * 100)} points`);
       return '';
     } catch (e) { done[sig] = { at: Date.now(), error: String(e) }; return ''; } finally { busy = false; }
   }
   // Settings: turn it off / give every move back
   function giveBack() { let n = 0; for (const u of Object.keys(mine)) if (setOff(u, [])) n++; else delete mine[u]; save(); return n; }
-  function set(v) { on = !!v; try { localStorage.setItem(PKEY, JSON.stringify(on)); } catch (__e) { __h('69-movetune:98', __e); } if (!on) giveBack(); }
+  function set(v) { on = !!v; try { localStorage.setItem(PKEY, JSON.stringify(on)); } catch (__e) { __h('69-movetune:117', __e); } if (!on) giveBack(); }
   const list = () => Object.entries(mine).map(([uid, off]) => ({ uid, id: live(uid)?.id, off: off.map(nm) })).filter((x) => x.id);
   return { ensure, tune, options, statusMoves, setOff, giveBack, set, list, get on() { return on; }, get mine() { return mine; } };
 })();
