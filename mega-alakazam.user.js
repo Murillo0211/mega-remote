@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-beta.1
+// @version      3.0.0-beta.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-beta.1';
+const VERSION = '3.0.0-beta.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -1389,7 +1389,37 @@ const GameSim = (() => {
     L.sort((a, b) => a - b);
     return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
   }
-  return { eliteOnce, elite, zoneOnce, zone, play, refine, raidOnce, raid, leagueOnce, league, feteOnce, fete };
+  // ---- chapter gyms (3.0 beta, Jimmy 2026-11-28: "the game engine decides everything"): one run at chapter `ch`'s
+  // gym in the game's own engine - from the Pokémon Center before it (the trainers in between wear the team down,
+  // as in the real run) to the leader. A win is the chapter ending ('chapterEnd'), a loss the game's 'defeat'.
+  function gymOnce(ch, uids, base) {
+    const G = E.get('Game'), A = E.get('Adventure');
+    const x = structuredClone(base || G.S);
+    x.team = uids.slice(0, 6); x.road = null;
+    let win = false, ok = false, steps = 0;
+    G.sandbox(x, () => {
+      const ad = A.ensure();
+      Object.assign(ad, { event: null, tower: null, league: null, zone: null, battle: null, pending: null });
+      if (A.setChapter(+ch) === false) return;
+      const gi = (ad.nodes || []).findIndex((n) => n.type === 'gym'); if (gi < 0) return;
+      let from = 0; for (let i = gi - 1; i >= 0; i--) if (ad.nodes[i].type === 'heal') { from = i + 1; break; }
+      ad.node = from; ok = true;
+      for (let s = 0; s < 8000; s++) {
+        const ev = A.step() || [];
+        if (ev.some((e) => e.type === 'chapterEnd')) { win = true; steps = s + 1; return; }
+        if (ev.some((e) => e.type === 'defeat')) return;
+      }
+    });
+    if (!ok) throw new Error('the game would not set up that chapter\'s gym in the simulator');
+    return { win, steps };
+  }
+  async function gym(ch, uids, n = 40) {
+    const base = snapshot();
+    let w = 0, st = 0, t0 = performance.now();
+    for (let i = 0; i < n; i++) { const r = gymOnce(ch, uids, base); if (r.win) { w++; st += r.steps; } if (performance.now() - t0 > 30) { await rest(); t0 = performance.now(); } }
+    return { ko: w / n, n, steps: w ? st / w : 0 };
+  }
+  return { eliteOnce, elite, zoneOnce, zone, play, refine, raidOnce, raid, leagueOnce, league, feteOnce, fete, gymOnce, gym };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -6316,7 +6346,7 @@ const GymPlan = (() => {
   }
   // 0..1: the win chance at full gym power counts most; 70% and 40% of the gym's extra power count less
   const LEVELS = [[1, 1], [0.7, 0.35], [0.4, 0.15]];
-  const PLAN_V = 16; // bump when the scoring changes: saved plans from before are redone
+  const PLAN_V = 17; // bump when the scoring changes: saved plans from before are redone
   // fast: only the Auto Switch lineup (what really happens), used while searching
   const winA = (team, foes, power) => (team.length > 1 && foes.length ? winRaw(autoOrder(team, foes), foes, power) : winRaw(team, foes, power));
   const grade = (team, foes, P, wf = win) => {
@@ -6474,6 +6504,12 @@ const GymPlan = (() => {
       const curMons = (E.get('Game.S')?.team || []).map((u) => E.read('Game.getMon', null, u)).filter(Boolean);
       if (curMons.length && !banned(ch, curMons.map((m) => m.uid))) { const cur = curMons.map((m) => nowPool.find((x) => x.uid === m.uid)).filter(Boolean); const cw = simWin(cur.map((x) => x.mon), G); if (cw >= now.win - 0.02) Object.assign(now, { team: cur, win: Math.max(cw, now.win), soft: Math.max(cw, now.win), current: true }); /* a tie keeps the team you have (no swapping back and forth) */ }
       let plan = await search(pool, G, 1600, (n) => { b.done = 700 + n; });
+      // 3.0 beta: the teams Mega's model picked are now played in the game's own engine (from the Pokémon Center to the
+      // leader); its numbers replace the model's. A planned team that still needs catches can't be played yet - its
+      // number stays Mega's estimate and says so.
+      const engineOf = async (team) => { const own = team.filter((x) => x.kind === 'own' && x.uid); if (!own.length || own.length < team.length) return null; try { return await GameSim.gym(ch, own.map((x) => x.uid), 40); } catch (e) { return null; } };
+      { const en = await engineOf(now.team); if (en) Object.assign(now, { win: en.ko, engine: true, steps: en.steps }); }
+      { const en = plan.team === now.team ? null : await engineOf(plan.team); if (en) Object.assign(plan, { win: en.ko, engine: true, steps: en.steps }); }
       // always the one that needs less training: if what's ready right now wins about as well, that's the plan
       if (now.team.length && now.win >= plan.win - 0.03) plan = { ...now, ready: true };
       const r = {
@@ -6481,13 +6517,13 @@ const GymPlan = (() => {
         trainers: G.trainers || 0,
         // the suggested team as it is today (your Pokémon at their real levels, not evolved yet, catches missing)
         today: (() => { const ms = plan.team.filter((x) => x.kind === 'own').map((x) => E.read('Game.getMon', null, x.uid)).filter(Boolean).map(fresh); return ms.length ? simWin(ms, G) : 0; })(),
-        now: { uids: now.team.map((x) => x.uid), win: now.win, soft: now.soft, run: now.team.length ? simRun(now.team.map((x) => x.mon), G) : null },
+        now: { uids: now.team.map((x) => x.uid), win: now.win, engine: !!now.engine, soft: now.soft, run: now.team.length ? simRun(now.team.map((x) => x.mon), G) : null },
         bans: (bans[ch] || []).length,
-        plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
+        plan: { win: plan.win, engine: !!plan.engine, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name} (Mega's own estimate - gyms aren't in the game's engine sim yet): your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:284', __e); }
-      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:285', __e); }
+      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}% (${now.engine ? "game's engine" : "Mega's estimate"}), best possible ${Math.round(plan.win * 100)}% (${plan.engine ? "game's engine" : "Mega's estimate - needs catches first"}) (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:290', __e); }
+      try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:291', __e); }
       return r;
     } finally { busy = null; }
   }
@@ -6501,9 +6537,9 @@ const GymPlan = (() => {
       // never your only copy of a species: evolving it would take that entry out of your Pokédex ('lost')
       if ((E.read('Game.ownedMons', []) || []).filter((x) => +x.id === +m.id).length <= 1) continue;
       const to = +ev[0].to; const before = m.id;
-      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:299', __e); }
+      try { E.call('Game.evolveMon', m.uid, to); } catch (__e) { __h('66-gymplan:305', __e); }
       const now = E.read('Game.getMon', null, m.uid);
-      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:301', __e); } }
+      if (now && now.id !== before) { out.push([before, now.id]); try { Log.add(`${D()[before]?.name} evolved into ${D()[now.id]?.name} (it was waiting at the level cap)`); } catch (__e) { __h('66-gymplan:307', __e); } }
     }
     return out;
   }
@@ -6514,7 +6550,7 @@ const GymPlan = (() => {
     return null;
   }
   // on a region's side, a Pokémon stuck at the level cap with an evolution waiting is evolved every 5 min
-  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:312', __e); } }, 5 * 60_000);
+  setInterval(() => { try { if (E.get('Game.S')?.link?.side === 'to' && Plan.running && E.ready()) evolveStuck(); } catch (__e) { __h('66-gymplan:318', __e); } }, 5 * 60_000);
   return { gymOf, get, run, ban, banned, clearBans, teamKey, sigOf: (ch) => sig(ch), simRun: (team, G) => simRun(team, G), evolveStuck, evolveTo, nextGym, estimate, learn, calib, autoOrder, get busy() { return busy; }, get saved() { return saved; } };
 })();
 
@@ -9900,7 +9936,7 @@ const Plan = (() => {
       const zoneInfo = (foe) => { const zt = E.read('Game.zoneTeam', [], foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[foe], ko = sim ? (sim.ko ?? sim.final?.ko) : null; if (ko != null && sim.uids?.join() === zt.join()) { win = ko; how = `${sim.engine ? "the game's engine" : "Mega's own estimate"}, simulated ${DexInfo.clock(+sim.at || Date.now())}${sim.steps ? ` · wins in about ${Math.round(sim.steps * (+E.get('CONFIG')?.STEP_MS || 650) / 1000)} s` : ''}`; } else how = zt.length ? 'the zone team (no simulation for it yet)' : how; };
       if (g.type === 'legend' || g.type === 'elite') zoneInfo(g.foe);
       else if (g.type === 'raid' && g.pick) { uids = g.pick.mine || uids; win = g.pick.ko ?? null; how = 'simulated with ally trainers'; }
-      else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; how = "Mega's own gym estimate - gyms aren't in the game's engine sim yet"; } // (3.0 beta: it said "the game's win estimate", but GymPlan is Mega's model)
+      else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; const P = (() => { try { return GymPlan.get(+S0.adv?.chapter); } catch { return null; } })(); how = P ? ((g.planWin != null ? P.plan?.engine : P.now?.engine) ? "the game's engine, Pokémon Center to the leader" : "Mega's own gym estimate") : "Mega's own gym estimate"; } // (3.0 beta: it said "the game's win estimate", but GymPlan is Mega's model)
       else if (g.type === 'special' && g.boss) { win = g.boss.win; how = 'simulated for this encounter'; }
       else if (g.type === 'wboss') { const st = (() => { try { return E.get('WorldBoss').state() || {}; } catch { return {}; } })(); if (st.phase === 'capture') { const z = GoalKit.wbZone(); if (z) zoneInfo(z.id); } else how = "the game's pick - the most damage possible (damage grows with total power)"; }
       else if (g.type === 'under') how = "the game's own expedition simulation";
