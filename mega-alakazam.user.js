@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-alpha.5
+// @version      3.0.0-beta.1
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-alpha.5';
+const VERSION = '3.0.0-beta.1';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -875,7 +875,7 @@ const Sim = (() => {
       try {
         const g = await GameSim.refine(foeId, tier, [...(cur.length === 6 && dupFree(cur) && legOk(cur) ? [cur] : []), ...tops], byV.map((x) => x.m), { legOk, species, onProgress });
         if (g) {
-          const final = { ko: g.final.ko, left: g.final.left, rounds: g.final.n, engine: true };
+          const final = { ko: g.final.ko, left: g.final.left, rounds: g.final.n, steps: g.final.steps || null, engine: true };
           const curE = cur.length === 6 && legOk(cur) ? await GameSim.play(foeId, tier, cur.map((m) => m.uid), 60) : null;
           onProgress?.(1);
           return { foeId, tier, team: g.team, final, today: final, toLevel: [], asMax, current: curE ? { ko: curE.ko, engine: true } : null, at: Date.now(), engine: true };
@@ -1228,7 +1228,7 @@ const GameSim = (() => {
     const x = structuredClone(base || G.S);
     if (x.dex) delete x.dex[foe];
     x.eventTeams = x.eventTeams || {}; x.eventTeams['zone:' + foe] = uids.slice(); x.road = null;
-    let win = false, left = 1, ok = false;
+    let win = false, left = 1, ok = false, steps = 0;
     G.sandbox(x, () => {
       const ad = A.ensure();
       Object.assign(ad, { event: null, tower: null, league: null, zone: null, battle: null, pending: null });
@@ -1238,23 +1238,26 @@ const GameSim = (() => {
         const en = ad.battle?.enemies?.[0];
         if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:75', __e); } }
         const ev = A.step() || [];
-        if (ev.some((e) => e.type === 'capture')) { win = true; left = 0; return; }
+        if (ev.some((e) => e.type === 'capture')) { win = true; left = 0; steps = s + 1; return; }
         if (ev.some((e) => e.type === 'zoneLoop' || e.type === 'defeat' || e.type === 'zoneShut')) return;
       }
     });
     if (!ok) throw new Error('the game would not open that zone in the simulator');
-    return { win, left };
+    return { win, left, steps };
   }
   async function zone(foe, uids, n = 40) {
     const base = snapshot();
     let w = 0, t0 = performance.now(); const L = [];
-    for (let i = 0; i < n; i++) { const r = zoneOnce(foe, uids, base); if (r.win) w++; else L.push(r.left); if (performance.now() - t0 > 30) { await rest(); t0 = performance.now(); } }
+    let st = 0;
+    for (let i = 0; i < n; i++) { const r = zoneOnce(foe, uids, base); if (r.win) { w++; st += r.steps; } else L.push(r.left); if (performance.now() - t0 > 30) { await rest(); t0 = performance.now(); } }
     L.sort((a, b) => a - b);
-    return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n };
+    return { ko: w / n, left: L.length ? L[L.length >> 1] : 0, n, steps: w ? st / w : 0 }; // steps: game ticks to a win (how fast it wins)
   }
   // the right fight for a tier: Elite tiers 1-5, or the zone itself (0)
   const play = (foe, tier, uids, n) => (tier > 0 ? elite(foe, tier, uids, n) : zone(foe, uids, n));
-  const score = (r) => r.ko - 0.25 * r.left; // wins first; among equals, the team that hurts the boss most
+  // wins first; among equals, the team that hurts the boss most. A catch zone (3.0 beta, Jimmy 2026-11-28): every win is
+  // one more capture try, so among teams that win about as often the faster one is better (0.04 per 100 game ticks)
+  const score = (r) => r.ko - 0.25 * r.left - (r.steps ? 0.0004 * r.steps : 0);
   // Refine Mega's heuristic pick with the real engine: score its candidates, then try swapping each slot
   // for the strongest few alternatives (the game's 1-Legendary cap kept). cands: arrays of mons.
   async function refine(foe, tier, cands, pool, { legOk = () => true, species = (m) => m.id, onProgress } = {}) {
@@ -1301,7 +1304,7 @@ const GameSim = (() => {
       if (!ok) return;
       for (let s = 0; s < 20000; s++) {
         const en = ad.battle?.enemies?.[0];
-        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:140', __e); } }
+        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:143', __e); } }
         const ev = A.step() || [];
         if (ev.some((e) => e.type === 'capture')) { ko = true; left = 0; return; }
         if (ev.some((e) => e.type === 'defeat')) return;
@@ -1370,7 +1373,7 @@ const GameSim = (() => {
       if (!ok) return;
       for (let s = 0; s < 20000; s++) {
         const en = ad.battle?.enemies?.[0];
-        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:209', __e); } }
+        if (en) { try { left = G.curHp(en) / G.maxHp(en); } catch (__e) { __h('36-gamesim:212', __e); } }
         const ev = A.step() || [];
         if (ev.some((e) => e.type === 'capture')) { ko = true; left = 0; return; }
         if (ev.some((e) => e.type === 'defeat')) return;
@@ -2236,7 +2239,7 @@ const Legends = (() => {
     // lv: each member's level and rank when simulated - a team member ranked up since (back to Lv 5) makes the team stale
     // (2.20.33, Jimmy 2026-11-28: Arceus's saved team still had Golurk, simulated at Lv 100, now Lv 54 after a rank-up)
     const lv = {}; for (const m of r.team) { const g = Engine.read('Game.getMon', null, m.uid) || m; lv[m.uid] = [+g.level || 0, +g.rank || 0]; }
-    all[id] = { uids: r.team.map((m) => m.uid), ko: r.final.ko, today: r.today ? r.today.ko : r.final.ko, toLevel: r.toLevel || [], asMax: !!r.asMax, rounds: r.final.rounds, current: r.current ? r.current.ko : null, at: r.at, engine: !!(r.engine || r.final?.engine), lv };
+    all[id] = { uids: r.team.map((m) => m.uid), ko: r.final.ko, today: r.today ? r.today.ko : r.final.ko, toLevel: r.toLevel || [], asMax: !!r.asMax, rounds: r.final.rounds, current: r.current ? r.current.ko : null, at: r.at, engine: !!(r.engine || r.final?.engine), steps: r.final?.steps || null, lv };
     try { localStorage.setItem(SIM_KEY, JSON.stringify(all)); } catch (__e) { __h('55-legends:69', __e); }
     return all[id];
   }
@@ -6483,7 +6486,7 @@ const GymPlan = (() => {
         plan: { win: plan.win, soft: plan.soft, run: plan.run, ready: !!plan.ready, team: plan.team.map((x) => x.kind === 'own' ? { kind: 'own', uid: x.uid, id: x.id, from: x.from.id, level: x.from.level } : { kind: 'catch', id: x.id, base: x.base, ch: x.ch, where: x.where, mins: Math.round(x.mins || 0) }) },
       };
       saved[ch] = r; for (const k of Object.keys(saved).sort((a, b) => saved[b].at - saved[a].at).slice(3)) delete saved[k]; keep();
-      try { Log.add(`gym plan for ${G.name}: your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:284', __e); }
+      try { Log.add(`gym plan for ${G.name} (Mega's own estimate - gyms aren't in the game's engine sim yet): your team now ${Math.round(now.win * 100)}%, best possible ${Math.round(plan.win * 100)}% (${r.plan.team.map((t) => D()[t.id]?.name).join(', ')})${G.trainers ? ` - ranked on the ${G.trainers} trainers after the last Pokémon Center too` : ''}`); } catch (__e) { __h('66-gymplan:284', __e); }
       try { UI.refresh?.(); } catch (__e) { __h('66-gymplan:285', __e); }
       return r;
     } finally { busy = null; }
@@ -9167,10 +9170,10 @@ Object.assign(GoalTypes, { dexHold: GoalKit.dexHold, holder: GoalKit.holder, set
       const s0 = S(); s0.eventTeams = s0.eventTeams || {}; s0.eventTeams[r.teamKey(reg)] = pick.mine;
       pick.allies.slice(0, +C.ALLIES || 2).forEach((k, i) => { try { r.setPick(reg, i, k); } catch (__e) { __h('70-plan-13-raid:107', __e); } });
       try { E.call('Game.save'); } catch (__e) { __h('70-plan-13-raid:108', __e); } try { E.call('App.refresh'); } catch (__e) { __h('70-plan-13-raid:108', __e); }
-      Log.add(`Shiny Raid: re-picked ${by} - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the simulator)`);
-      return `now ${names} + ${pick.allyNames.join(' & ')} (sim ${Math.round(pick.ko * 100)}%)`;
+      Log.add(`Shiny Raid: re-picked ${by} - ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the game's engine)`);
+      return `now ${names} + ${pick.allyNames.join(' & ')} (${Math.round(pick.ko * 100)}% in the game's engine)`;
     }
-    return `picked ${names} + ${pick.allyNames.join(' & ')} for when the raid starts (sim ${Math.round(pick.ko * 100)}%)`;
+    return `picked ${names} + ${pick.allyNames.join(' & ')} for when the raid starts (${Math.round(pick.ko * 100)}% in the game's engine)`;
   }
   const raid = {
     uses: 'screen', daily: true,
@@ -9894,10 +9897,10 @@ const Plan = (() => {
       let uids = (S0.team || []).slice(0, 6), win = null, how = '';
       // a zone (legend / Elite / the World Boss's catch): the zone's own team, and its saved sim with where it came from
       // (3.0 alpha: the saved sims keep .ko, not .final - the odds never showed; the World Boss catch showed the road team)
-      const zoneInfo = (foe) => { const zt = E.read('Game.zoneTeam', [], foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[foe], ko = sim ? (sim.ko ?? sim.final?.ko) : null; if (ko != null && sim.uids?.join() === zt.join()) { win = ko; how = `${sim.engine ? "the game's engine" : "Mega's own estimate"}, simulated ${DexInfo.clock(+sim.at || Date.now())}`; } else how = zt.length ? 'the zone team (no simulation for it yet)' : how; };
+      const zoneInfo = (foe) => { const zt = E.read('Game.zoneTeam', [], foe) || []; if (zt.length) uids = zt; const sim = Legends.sims()[foe], ko = sim ? (sim.ko ?? sim.final?.ko) : null; if (ko != null && sim.uids?.join() === zt.join()) { win = ko; how = `${sim.engine ? "the game's engine" : "Mega's own estimate"}, simulated ${DexInfo.clock(+sim.at || Date.now())}${sim.steps ? ` · wins in about ${Math.round(sim.steps * (+E.get('CONFIG')?.STEP_MS || 650) / 1000)} s` : ''}`; } else how = zt.length ? 'the zone team (no simulation for it yet)' : how; };
       if (g.type === 'legend' || g.type === 'elite') zoneInfo(g.foe);
       else if (g.type === 'raid' && g.pick) { uids = g.pick.mine || uids; win = g.pick.ko ?? null; how = 'simulated with ally trainers'; }
-      else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; how = "the game's win estimate"; }
+      else if (g.type === 'story') { win = g.planWin ?? g.nowWin ?? null; how = "Mega's own gym estimate - gyms aren't in the game's engine sim yet"; } // (3.0 beta: it said "the game's win estimate", but GymPlan is Mega's model)
       else if (g.type === 'special' && g.boss) { win = g.boss.win; how = 'simulated for this encounter'; }
       else if (g.type === 'wboss') { const st = (() => { try { return E.get('WorldBoss').state() || {}; } catch { return {}; } })(); if (st.phase === 'capture') { const z = GoalKit.wbZone(); if (z) zoneInfo(z.id); } else how = "the game's pick - the most damage possible (damage grows with total power)"; }
       else if (g.type === 'under') how = "the game's own expedition simulation";
