@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-alpha.1
+// @version      3.0.0-alpha.2
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-alpha.1';
+const VERSION = '3.0.0-alpha.2';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -30,8 +30,10 @@ function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health no
 if ((() => {
   try {
     if (window.__MEGA_HOT) return false; // this IS the downloaded copy
-    const v = localStorage.getItem('mega-next-ver'), P = (x) => String(x).split('.').map((n) => +n || 0);
-    const newer = (a, b) => { const x = P(a), y = P(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+    const v = localStorage.getItem('mega-next-ver');
+    // 3.0.0-alpha.2 style versions: numbers, then alpha < beta < rc < the release
+    const P = (x) => { const [main, pre = ''] = String(x).split('-'); const n = main.split('.').map((k) => +k || 0); const m = /^(alpha|beta|rc)\.?(\d+)?$/.exec(pre); return [n[0] || 0, n[1] || 0, n[2] || 0, pre ? (m ? { alpha: 1, beta: 2, rc: 3 }[m[1]] : 0) : 9, m ? +m[2] || 0 : 0]; };
+    const newer = (a, b) => { const x = P(a), y = P(b); for (let i = 0; i < 5; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
     if (!v || !newer(v, VERSION)) { if (v) { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } return false; }
     if (localStorage.getItem('mega-next-bad') === v) return false;
     const tries = +(localStorage.getItem('mega-next-try') || 0);
@@ -11181,12 +11183,13 @@ const Updater = (() => {
       got = v; return true;
     } catch (e) { try { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); } catch (__e) { __h('79-update:41', __e); } err = 'could not keep the update: ' + (e?.message || e); return false; }
   }
-  const parts = (v) => String(v).split('.').map((x) => +x || 0);
-  const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+  // versions like 3.0.0, 3.0.0-alpha.2, 3.0.0-beta.1: numbers first, then alpha < beta < the release itself
+  const parts = (v) => { const [main, pre = ''] = String(v).split('-'); const n = main.split('.').map((x) => +x || 0); const m = /^(alpha|beta|rc)\.?(\d+)?$/.exec(pre); return [n[0] || 0, n[1] || 0, n[2] || 0, pre ? (m ? { alpha: 1, beta: 2, rc: 3 }[m[1]] : 0) : 9, m ? +m[2] || 0 : 0]; };
+  const newer = (a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 5; i++) { if (x[i] !== y[i]) return x[i] > y[i]; } return false; };
   async function check() {
     try {
       const m = (await getFile('mega-alakazam.meta.js', META)).match(/@version\s+(\S+)/);
-      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:48', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:48', __e); } } } }
+      if (m) { const was = latest; latest = m[1]; err = null; if (newer(latest, VERSION)) { await download(latest); if (latest !== was) { try { Log.add(`New Update ${latest} is ready${got === latest ? ' - it runs on the next reload' : ''}`); } catch (__e) { __h('79-update:49', __e); } try { UI.refresh?.(); } catch (__e) { __h('79-update:49', __e); } } } }
     } catch (e) { err = e?.message || String(e); }
     checkedAt = Date.now();
   }
@@ -11196,7 +11199,7 @@ const Updater = (() => {
   // at most; after that it just shows the gold button. After a reload that worked, the log says so.
   const KEY = 'mega-upd-reload';
   const memo = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
-  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:58', __e); } };
+  const keep = (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (__e) { __h('79-update:59', __e); } };
   function safe() {
     try {
       const a = E.get('Game.S')?.adv || {};
@@ -11211,16 +11214,16 @@ const Updater = (() => {
     const m = memo(), r = m[v] || { tries: 0, at: 0 };
     if (r.tries >= 4 || Date.now() - r.at < 30 * 60_000 || !safe()) return;
     m[v] = { tries: r.tries + 1, at: Date.now() }; keep(m);
-    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:73', __e); }
-    try { E.call('Game.save'); } catch (__e) { __h('79-update:74', __e); }
-    try { Decisions.save(); } catch (__e) { __h('79-update:75', __e); }
+    try { Log.add(`reloading the game to pick up Mega ${v} (try ${r.tries + 1} of 4)`); } catch (__e) { __h('79-update:74', __e); }
+    try { E.call('Game.save'); } catch (__e) { __h('79-update:75', __e); }
+    try { Decisions.save(); } catch (__e) { __h('79-update:76', __e); }
     setTimeout(() => location.reload(), 1500);
   }
   const autoOn = () => { try { return JSON.parse(localStorage.getItem('mega-upd-auto') ?? 'true'); } catch { return true; } };
-  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:79', __e); } }
+  function setAuto(on) { try { localStorage.setItem('mega-upd-auto', JSON.stringify(!!on)); } catch (__e) { __h('79-update:80', __e); } }
   function afterLoad() {
     const m = memo(), mine = m[VERSION];
-    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:82', __e); } }
+    if (mine && !mine.done) { m[VERSION] = { ...mine, done: true }; keep(m); try { Log.add(`updated to Mega ${VERSION}`); } catch (__e) { __h('79-update:83', __e); } }
     // first run of this version: self-test once the game is up; a failure rolls back to the version before
     if (localStorage.getItem('mega-tested-ver') !== VERSION) setTimeout(firstTest, 90_000);
   }
@@ -11230,22 +11233,22 @@ const Updater = (() => {
     if (!r.failed) { localStorage.setItem('mega-tested-ver', VERSION); return; }
     const why = (r.results || []).filter((x) => !x.warn).slice(0, 2).map((x) => `${x.name}: ${x.detail}`).join(' | ');
     if (window.__MEGA_HOT !== VERSION) { // installed through Tampermonkey: nothing to go back to here - just tell you
-      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:92', __e); }
+      try { Notify.send('problem', `Mega ${VERSION} failed its self-test`, `${r.failed} check(s) failed: ${why}. It keeps running; tell Claude.`); } catch (__e) { __h('79-update:93', __e); }
       localStorage.setItem('mega-tested-ver', VERSION); return;
     }
     const pv = localStorage.getItem('mega-prev-ver'), pc = localStorage.getItem('mega-prev-code');
     localStorage.setItem('mega-next-bad', VERSION);
     if (pv && pc && pv !== VERSION) { localStorage.setItem('mega-next-code', pc); localStorage.setItem('mega-next-ver', pv); localStorage.setItem('mega-next-try', '0'); }
     else { localStorage.removeItem('mega-next-code'); localStorage.removeItem('mega-next-ver'); }
-    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:99', __e); }
-    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:100', __e); }
+    try { Log.add(`rolling back: Mega ${VERSION} failed its self-test (${why}) - going back to ${pv || 'the Tampermonkey copy'}`); } catch (__e) { __h('79-update:100', __e); }
+    try { Notify.send('problem', `Mega ${VERSION} rolled back`, `It failed its self-test (${why}), so Mega went back to ${pv || 'the Tampermonkey copy'} by itself. Tell Claude.`); } catch (__e) { __h('79-update:101', __e); }
     reloadNow('reloading into the version before');
   }
   const E = Engine;
   // After a reload the game waits on its title screen: press its own Continue button (only that one,
   // only on the title screen). "Two saves found" is never touched - it sends a Needs You alert instead.
   const contOn = () => { try { return JSON.parse(localStorage.getItem('mega-auto-continue') ?? 'true'); } catch { return true; } };
-  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:107', __e); } }
+  function setContinue(on) { try { localStorage.setItem('mega-auto-continue', JSON.stringify(!!on)); } catch (__e) { __h('79-update:108', __e); } }
   function autoContinue() {
     const t0 = Date.now(); let pressed = false, warned = false;
     const tick = () => {
@@ -11253,15 +11256,15 @@ const Updater = (() => {
       try {
         const txt = document.body?.innerText || '';
         if (/two saves|deux sauvegardes/i.test(txt)) {
-          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:115', __e); } }
+          if (!warned) { warned = true; try { Log.add('the game is asking which save to keep - Mega leaves that to you'); Notify.send('problem', 'Poke\'Catch needs you', 'The game is asking which save to keep (Two saves found). Mega won\'t choose - open the game and pick.'); } catch (__e) { __h('79-update:116', __e); } }
           return setTimeout(tick, 2000);
         }
         if (!pressed && contOn() && document.body?.classList.contains('titled')) {
           const b = [...document.querySelectorAll('.title-fx .ti-go')].find((x) => /^\s*(continue|continuer)\s*$/i.test(x.textContent || ''));
-          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:120', __e); } }
+          if (b && !document.querySelector('.modal:not([hidden])')) { pressed = true; b.click(); try { Log.add('pressed Continue on the title screen'); } catch (__e) { __h('79-update:121', __e); } }
         }
         if (pressed && !document.body?.classList.contains('titled')) return;
-      } catch (__e) { __h('79-update:123', __e); }
+      } catch (__e) { __h('79-update:124', __e); }
       setTimeout(tick, 700);
     };
     setTimeout(tick, 1500);
@@ -11272,11 +11275,11 @@ const Updater = (() => {
   // (you pressed Update there), Mega reloads the game so the new version runs
   function install() {
     if (got && got === latest) { reloadNow(`reloading the game to run Mega ${latest}`); return; }
-    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:134', __e); }
+    try { window.open(SCRIPT + '?v=' + encodeURIComponent(latest || ''), '_blank'); } catch (__e) { __h('79-update:135', __e); }
     const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back); reloadNow(`reloading the game to run Mega ${latest}`); };
     setTimeout(() => { document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); }, 800);
   }
-  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:138', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:138', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:138', __e); } setTimeout(() => location.reload(), 1500); }
+  function reloadNow(why) { try { Decisions.save(); } catch (__e) { __h('79-update:139', __e); } try { Log.add(why || 'reloading the game'); } catch (__e) { __h('79-update:139', __e); } try { E.call('Game.save'); } catch (__e) { __h('79-update:139', __e); } setTimeout(() => location.reload(), 1500); }
   return { boot, check, install, reloadNow, setAuto, setContinue, get autoContinue() { return contOn() !== false; }, get downloaded() { return got; }, get auto() { return autoOn() !== false; }, get available() { return latest && newer(latest, VERSION) ? latest : null; }, get info() { return { latest, checkedAt, err }; } };
 })();
 
