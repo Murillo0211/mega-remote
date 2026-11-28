@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mega Alakazam
 // @namespace    jimmy.pokecatch.mega
-// @version      3.0.0-beta.4
+// @version      3.0.0-beta.5
 // @description  The Poke'Catch helper, rebuilt on the game's own engine. Every number comes from the game itself.
 // @match        https://pokecatch-online.app/*
 // @match        https://www.pokecatch-online.app/*
@@ -20,7 +20,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '3.0.0-beta.4';
+const VERSION = '3.0.0-beta.5';
 // every "catch (__e) { __h('00-header:24', __e); }" in Mega is built into a call to this (build.mjs): see Health in 01-health.js
 function __h(site, e) { try { Health.record(site, e); } catch (x) { /* Health not up yet */ } }
 // ---- self-update: a newer Mega that Mega downloaded from GitHub (Updater) runs instead of this copy ----
@@ -3061,6 +3061,7 @@ Views.plan = (w, ui, esc) => {
           <button class="btn sm" data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move to the top">Top</button>
           <button class="btn sm" data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''} title="Move up">Up</button>
           <button class="btn sm" data-act="g-down" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''} title="Move down">Down</button>
+          <button class="btn sm" data-act="g-bottom" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''} title="Move to the bottom">Bottom</button>
           <button class="btn sm" data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>
           <button class="btn sm danger" data-act="g-del" data-id="${g.id}" title="Remove from the plan">Remove</button>
         </div>
@@ -3137,7 +3138,7 @@ Views.planAdd = (w, ui, esc) => {
   } else if (ui.addType === 'story') {
     // regions you've unlocked whose League isn't beaten yet (new regions show up here as the game adds them)
     const ST = Engine.get('STORY'), un = +(Engine.get('Game.S')?.adv?.unlocked ?? 0), NM = { unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea' };
-    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:116', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
+    const regs = (ST?.REGIONS || []).filter((r) => r && r.key).map((r) => { let chs = []; try { chs = ST.chaptersOf(r.key) || []; } catch (__e) { __h('58-planview:117', __e); } return { key: r.key, name: NM[r.key] || r.name, chs }; })
       .filter((r) => r.chs.length && un >= r.chs[0] && !Engine.read('Game.regionCleared', false, r.key));
     h += regs.length ? `<select class="sel" data-act="add-story"><option value="">Choose a region…</option>${regs.map((r) => `<option value="${r.key}" ${ui.addStory === r.key ? 'selected' : ''} ${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? 'disabled' : ''}>${esc(r.name)} League${Plan.goals.some((g) => !g.done && g.type === 'story' && g.region === r.key) ? ' (in your plan)' : ''}</option>`).join('')}</select>
     <button class="btn" data-act="plan-add-story" ${ui.addStory ? '' : 'disabled'}>Add to plan</button>` : `<div class="note">Every League you've unlocked is beaten.</div>`;
@@ -3211,7 +3212,7 @@ Views.queue = (w, ui, esc) => {
       ${g.type === 'region' && g.rows?.length ? `<details class="qd" ${ui.openRows?.[g.id] ? 'open' : ''}><summary data-act="rows" data-id="${g.id}" style="cursor:pointer;color:var(--acc)">Show the ${g.rows.length} missing</summary>${g.rows.map((r) => `<div class="row" style="justify-content:flex-start;align-items:center;gap:8px"><img src="${Engine.sprite(r.id)}" width="32" height="32" style="image-rendering:pixelated;flex:none"><span style="flex:1"><b>${esc(World.dex.name(r.id))}</b><br><span class="${r.job ? 'ok' : 'dim'}">${esc(r.text)}</span></span></div>`).join('')}</details>` : ''}
       ${g.type === 'under' ? `<div class="qx">${ugSelects(g.from ?? 1, g.aim || 'deep', (() => { try { return Engine.get('Underground').starts() || [1]; } catch { return [1]; } })(), 'ug-from', 'ug-aim', g.id)}</div>${g.lastSend ? `<p class="qd">Last sent from floor ${g.lastSend.from}: about floor ${g.lastSend.floors}, ${g.lastSend.cleared} floors cleared</p>` : ''}` : ''}
       ${g.type === 'discord' && ['xp', 'mix', 'axsiom'].includes(g.spot) ? `<div class="qx"><select class="sel" data-act="disc-carrier" data-id="${g.id}"><option value="">Carrier: the fastest (Mega picks)</option>${(GoalTypes.carrierChoices?.() || []).map((c) => `<option value="${c.uid}" ${g.carrier === c.uid ? 'selected' : ''}>Carrier: ${esc(c.name)}</option>`).join('')}</select></div>` : ''}
-      <div class="qact"><button data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''}>Top</button><button data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''}>Up</button><button data-act="g-down" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''}>Down</button><button data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>${g.type === 'under' ? `<button data-act="ug-preview" data-id="${g.id}">Preview pick</button>` : ''}${g.type === 'raid' ? '<button data-act="m-raid-repick">Re-pick team</button>' : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try anyway' : 'Try again'}</button>` : ''}<button class="rm" data-act="g-del" data-id="${g.id}">Remove</button></div>
+      <div class="qact"><button data-act="g-top" data-id="${g.id}" ${i === 0 ? 'disabled' : ''}>Top</button><button data-act="g-up" data-id="${g.id}" ${i === 0 ? 'disabled' : ''}>Up</button><button data-act="g-down" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''}>Down</button><button data-act="g-bottom" data-id="${g.id}" ${i === open.length - 1 ? 'disabled' : ''}>Bottom</button><button data-act="g-pause" data-id="${g.id}">${g.paused ? 'Resume' : 'Pause'}</button>${g.type === 'under' ? `<button data-act="ug-preview" data-id="${g.id}">Preview pick</button>` : ''}${g.type === 'raid' ? '<button data-act="m-raid-repick">Re-pick team</button>' : ''}${/zone 3 times|try anyway/.test(L.why || '') ? `<button data-act="g-retry" data-id="${g.id}">${/try anyway/.test(L.why || '') ? 'Try anyway' : 'Try again'}</button>` : ''}<button class="rm" data-act="g-del" data-id="${g.id}">Remove</button></div>
       ${g.type === 'under' && g.preview && !g.preview.busy ? `<p class="qd ${g.preview.error ? 'warn' : ''}">${g.preview.error ? esc(g.preview.error) : `Would send ${esc(g.preview.team.join(', '))} from floor ${g.preview.from}: about floor ${g.preview.floors}, ₽${(g.preview.value || 0).toLocaleString()} of loot`}</p>` : ''}</li>`;
   });
   for (const g of done.slice(0, 10)) h += `<li class="qjob"><div class="qjh"><span class="qpos">✔</span><strong>${esc(Plan.label(g))}</strong><span class="qst run">Done</span></div><p class="qd">${new Date(g.done).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p></li>`;
@@ -4371,6 +4372,7 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     if (act === 'g-top') { Plan.toTop(gid); renderBody(true); }
     if (act === 'g-up') { Plan.move(gid, -1); renderBody(true); }
     if (act === 'g-down') { Plan.move(gid, 1); renderBody(true); }
+    if (act === 'g-bottom') { Plan.toBottom(gid); renderBody(true); }
     if (act === 'g-pause') { Plan.pause(gid); renderBody(true); }
     if (act === 'g-del') { Plan.remove(gid); renderBody(true); }
     if (act === 'g-retry') { Plan.retry(gid); renderBody(true); }
@@ -4407,8 +4409,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
       const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); savePrefs(); };
       grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
     };
-    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:489', __e); }
-    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:490', __e); }
+    try { Casing.apply(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:490', __e); }
+    try { tabDrag(root.querySelector('.tabs')); } catch (__e) { __h('60-ui:491', __e); }
     renderBody(true, w);
   }
 
@@ -4425,12 +4427,12 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const also = act.filter((g) => g !== cur).length;
     const word = !w.ok ? 'WAITING · game engine' : Plan.running ? 'RUNNING · Mega is working' : 'PAUSED · Mega is stopped';
     const net = Number.isFinite(money) && session.money != null ? money - session.money : null;
-    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:507', __e); }
+    let dex = '—'; try { const d = S?.dex || {}, all = Object.keys(Engine.get('Game.DEX') || {}).filter((k) => +k > 0 && +k < 10000).length; const c = Object.entries(d).filter(([k, x]) => +k > 0 && +k < 10000 && x?.caught).length; if (all) dex = `${c}/${all}`; } catch (__e) { __h('60-ui:508', __e); }
     // how long the task on the screen has been running (2.13.10 - kept across reloads; starts over when the task changes)
     let since = null;
     if (cur && Plan.running) {
-      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:511', __e); }
-      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:512', __e); } }
+      let r = null; try { r = JSON.parse(localStorage.getItem('mega-cur-task') || 'null'); } catch (__e) { __h('60-ui:512', __e); }
+      if (!r || r.id !== cur.id) { r = { id: cur.id, at: Date.now() }; try { localStorage.setItem('mega-cur-task', JSON.stringify(r)); } catch (__e) { __h('60-ui:513', __e); } }
       since = r.at;
     }
     const t = since ? Math.floor((Date.now() - since) / 60000) : null, tm = t == null ? '—' : t < 60 ? `${t}m` : `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`;
@@ -4462,8 +4464,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
     const st = body.scrollTop;
     body.innerHTML = top + Icons.swap(vt === 'now' ? Sub.apply('now', html, prefs, esc, { pick: 'main' }) : Sub.apply(vt, html, prefs, esc)); body.dataset.html = key; body.scrollTop = st;
     if (vt === 'engine') foldCards(body);
-    try { footer(w); } catch (__e) { __h('60-ui:544', __e); }
-    try { Casing.apply(body); } catch (__e) { __h('60-ui:545', __e); }
+    try { footer(w); } catch (__e) { __h('60-ui:545', __e); }
+    try { Casing.apply(body); } catch (__e) { __h('60-ui:546', __e); }
     if (focused) { const q = root?.querySelector('input.q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
 
@@ -4478,13 +4480,13 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-s)} td,th{padding:4p
   // self-test: French names left on Mega's screen (text and hover text) or in what the phone gets
   async function frenchLeft() {
     const out = new Set();
-    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:560', __e); }
-    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:561', __e); } }
+    try { const b = root && root?.querySelector('.body'); if (b) for (const k of Casing.leftover(b.textContent + ' ' + [...b.querySelectorAll('[title]')].map((e) => e.title).join(' '))) out.add('Mega: ' + k); } catch (__e) { __h('60-ui:561', __e); }
+    for (const t of Object.keys(MV)) { try { for (const k of Casing.leftover((await mvHtml(t)).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'"))) out.add('Kinesis ' + t + ': ' + k); } catch (__e) { __h('60-ui:562', __e); } }
     return [...out];
   }
   // the top-bar status line opens Mega on a tab
   function openTab(tab) { prefs.open = true; goTab(tab); savePrefs(); render(); }
-  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:566', __e); } } };
+  return { mount, openTab, mvHtml, mvAct, statusFor: () => { try { return statusHtml(World.build()); } catch { return ''; } }, renderTest, frenchLeft, get pcState() { return { dex: { ...dexUi }, leg: pickKeys(legUi, LEG_KEYS), q: prefs.q }; }, refresh: () => { try { render(); } catch (__e) { __h('60-ui:567', __e); } } };
 })();
 
 /* ---------------------------------------------------------------------------------------------
@@ -9877,6 +9879,12 @@ const Plan = (() => {
     const [g] = open.splice(i, 1); open.unshift(g);
     st.goals = [...open, ...st.goals.filter((x) => x.done)]; save();
   }
+  function toBottom(id) { // 3.0 beta (Jimmy 2026-11-28): the Bottom button next to Down
+    const open = st.goals.filter((g) => !g.done), i = open.findIndex((g) => g.id === id);
+    if (i < 0 || i === open.length - 1) return;
+    const [g] = open.splice(i, 1); open.push(g);
+    st.goals = [...open, ...st.goals.filter((x) => x.done)]; save();
+  }
   function pause(id) { const g = st.goals.find((x) => x.id === id); if (g) { g.paused = !g.paused; if (g.paused && type(g)?.finishOnPause) finish(g); save(); Log.add(`${g.paused ? 'paused' : 'resumed'}: ${name(g)}`); } }
   function clearDone() { st.goals = st.goals.filter((g) => !g.done); save(); }
   function setRunning(on) { st.running = !!on; save(); Log.add(on ? 'plan started' : 'plan paused'); top = on ? 'starting…' : 'paused'; tick(); }
@@ -9899,7 +9907,7 @@ const Plan = (() => {
     let ok = false;
     { const why = Guard.team(E.read('Game.zoneTeam', [], +id) || [], { need: 1, minLevel: 1 }); if (why) { Guard.stop(`${E.get('Game.DEX')?.[id]?.name}'s zone`, why); return false; } }
     try { ok = E.call('Adventure.startZone', +id) !== false; } catch (e) { Log.add(`${E.get('Game.DEX')?.[id]?.name}: the game refused to enter (${e.message})`); }
-    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:126', __e); }
+    try { E.call('App.refresh'); } catch (__e) { __h('70-plan-20-engine:132', __e); }
     await new Promise((r) => setTimeout(r, 800));
     if (ok && +(E.get('Game.S')?.adv?.zone?.id) === +id) { fails = 0; Log.add(`entered ${E.get('Game.DEX')?.[id]?.name}'s zone`); return true; }
     if (failsFor !== id) { failsFor = id; fails = 0; }
@@ -9927,7 +9935,7 @@ const Plan = (() => {
         const T = type(g);
         if (!T) { live[g.id] = { state: 'wait', why: 'unknown goal type' }; continue; }
         const c = (() => { try { return T.check(g); } catch (e) { Health.goalErr(g, e, name(g)); return { state: 'wait', why: 'error: ' + (e?.message || e) }; } })();
-        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:154', __e); } finish(g);
+        if (c.state === 'done') { g.done = Date.now(); save(); Log.add(`done: ${name(g)}`); try { const k = 'mega-week-done', l = JSON.parse(localStorage.getItem(k) || '[]'); l.push(name(g)); localStorage.setItem(k, JSON.stringify(l.slice(-40))); } catch (__e) { __h('70-plan-20-engine:160', __e); } finish(g);
           if (['region', 'loot', 'souls', 'level'].includes(g.type)) Notify.send('win', `Done: ${name(g)}`, g.type === 'region' ? 'Every Pokémon of that region is in your Pokédex!' : c.why || 'goal finished'); live[g.id] = { state: 'done', why: c.why }; continue; }
         if (g.paused) { live[g.id] = { state: 'paused', why: null }; continue; }
         if (c.state !== 'ready') { live[g.id] = { state: 'wait', why: c.why }; if (!waitSince.has(g.id)) waitSince.set(g.id, { at: Date.now(), why: c.why }); else waitSince.get(g.id).why = c.why; continue; }
@@ -10029,14 +10037,14 @@ const Plan = (() => {
   }
   async function idleStop(why) {
     const g = st.idle; if (!g) return;
-    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:256', __e); }
+    try { GoalTypes.level.finish(g); } catch (__e) { __h('70-plan-20-engine:262', __e); }
     st.idle = null; delete live.idle; save();
     Log.add(`idle leveling stopped: ${why}`);
   }
   // nothing to level: keep the current chapter looping so the game can't move on to new story chapters
   function idlePark() {
     const ch = +(E.get('Game.S')?.adv?.chapter);
-    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:263', __e); } }
+    if (Number.isFinite(ch) && !E.read('Adventure.isLooping', false, ch)) { try { E.call('Adventure.toggleLoop', ch); Log.add('plan idle: looping the current chapter so the story doesn\'t move on'); } catch (__e) { __h('70-plan-20-engine:269', __e); } }
     live.idle = { state: 'running', line: idleLine };
   }
 
@@ -10059,7 +10067,7 @@ const Plan = (() => {
         Log.add(`added "Beat the ${nm} League" right after your dailies - they take the screen when they're due, Unova gets it the rest of the time`);
       }
       localStorage.setItem(key, '1');
-    } catch (__e) { __h('70-plan-20-engine:286', __e); }
+    } catch (__e) { __h('70-plan-20-engine:292', __e); }
     storyPlace();
   }
   // the story goal sits right after the daily screen jobs (Shiny Raid, Candy Factory, Battle Tower, World
@@ -10074,7 +10082,7 @@ const Plan = (() => {
       const want = last;
       const id = open[si].id;
       for (let n = 0; n < 60; n++) { const cur = Plan.goals.filter((g) => !g.done).findIndex((g) => g.id === id); if (cur === want) break; Plan.move(id, cur < want ? 1 : -1); }
-    } catch (__e) { __h('70-plan-20-engine:301', __e); }
+    } catch (__e) { __h('70-plan-20-engine:307', __e); }
   }
   function formGoals() {
     try {
@@ -10084,7 +10092,7 @@ const Plan = (() => {
         if (!Plan.goals.some((g) => g.type === 'legend' && g.foe === z.id && !g.done)) { Plan.add('legend', { foe: z.id, forms: true }); Log.add(`added "Catch every ${z.name} form" - a new form appears each week until you have all ${z.forms.length}`); }
         localStorage.setItem(key, '1');
       }
-    } catch (__e) { __h('70-plan-20-engine:311', __e); }
+    } catch (__e) { __h('70-plan-20-engine:317', __e); }
   }
   function boot() {
     setTimeout(formGoals, 20_000); setInterval(storyGoal, 60_000); setTimeout(storyGoal, 25_000);
@@ -10093,7 +10101,7 @@ const Plan = (() => {
     Recorder.onFight((f) => { if (st.goals.some((g) => g.type === 'legend' && g.foe === f.foeId && !g.done)) Log.add(`${E.get('Game.DEX')?.[f.foeId]?.name} fight: ${f.outcome === 'ko' ? 'KO' : f.outcome}`); });
   }
   return {
-    boot, add, insertBefore, insertAfter, save, remove, move, toTop, pause, retry, clearDone, setRunning, oldOn, turnOldOff,
+    boot, add, insertBefore, insertAfter, save, remove, move, toTop, toBottom, pause, retry, clearDone, setRunning, oldOn, turnOldOff,
     get goals() { return st.goals; }, get running() { return st.running; }, get top() { return cap(top); },
     live: (id) => { const L = live[id]; return L ? { ...L, why: cap(L.why), line: cap(L.line) } : null; }, label: name,
     get idle() { return st.idle ? { goal: st.idle, line: live.idle?.line || idleLine } : (live.idle ? { goal: null, line: live.idle.line } : null); },
@@ -11520,6 +11528,7 @@ const Remote = (() => {
     'goal.up': (a) => { Plan.move(a.id, -1); return 'ok'; },
     'goal.down': (a) => { Plan.move(a.id, 1); return 'ok'; },
     'goal.top': (a) => { Plan.toTop(a.id); return 'ok'; },
+    'goal.bottom': (a) => { Plan.toBottom(a.id); return 'ok'; },
     'goal.retry': (a) => { Plan.retry(a.id); return 'ok'; },
     'goal.ugpreview': (a) => { const g = Plan.goals.find((x) => x.id === a.id && x.type === 'under'); if (!g) throw new Error('no Underground goal'); const p = GoalTypes.ugPreview(g); if (p && !p.then && p.error) return p.error; Promise.resolve(p).finally(() => push(true)); return 'trying start floors - the pick shows on the goal in a minute or two'; },
     'goal.carrier': (a) => {
@@ -11593,7 +11602,7 @@ const Remote = (() => {
       const h = DexInfo.howTo(id), ways = DexInfo.routes(id).map((r) => [r.kind, Casing.names(r.text)]);
       const inPlan = Plan.goals.find((g) => !g.done && (g.foe === id || g.forDex === id || g.item === 'egg:' + id));
       const wild = DexInfo.wild(id).map((c) => [c.ch, Casing.names(c.chapter), c.best, c.open ? 1 : 0, c.now ? 1 : 0, Casing.names(c.spots.map((x) => `${x.place} (${DexInfo.pct(x.pct)}${x.when?.length ? `, ${DexInfo.whenText(x.when)} only` : ''}${x.fights ? `, ${x.fights} fights per run` : ''})`).join(' · '))]);
-      let sw = { owned: false, ways: [] }; try { sw = GoalTypes.shinyWays(id); } catch (__e) { __h('80-remote:214', __e); }
+      let sw = { owned: false, ways: [] }; try { sw = GoalTypes.shinyWays(id); } catch (__e) { __h('80-remote:215', __e); }
       const hunt = Plan.goals.find((g) => !g.done && ['shinyWild', 'shinyBreed'].includes(g.type) && +(g.target || g.foe) === id);
       replies[rid] = { at: Date.now(), data: { id, name: h.name, types: h.types, reg: h.registered ? 1 : 0, owned: h.owned || 0, now: Casing.names(DexInfo.availableNow(id) || ''), ways, wild, plan: inPlan ? Casing.names(Plan.label(inPlan)) : null,
         shiny: { owned: sw.owned ? 1 : 0, hunt: hunt ? Casing.names(Plan.label(hunt)) : null, ways: sw.ways.map((w) => [w.way, Casing.names(w.text), Math.round(w.hours * 10) / 10]) } } };
@@ -11659,11 +11668,11 @@ const Remote = (() => {
       const ro = U.rankOf(m, String(a.key)); if (!ro || ro.key !== String(a.key)) throw new Error('that gem doesn\'t fit it'); if (ro.why) throw new Error(ro.why);
       if (+a.rank !== (+m.rank || 0)) throw new Error('its rank changed - refresh and try again');
       const r = U.rankUp(m.uid, String(a.key)); if (!r) throw new Error('the game said no');
-      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch (__e) { __h('80-remote:280', __e); }
+      Log.add(`phone: ranked up ${D()[m.id]?.name} to rank ${r.rank} with ${r.spent} gem${r.spent === 1 ? '' : 's'} (back to Lv 5)`); try { push(true); } catch (__e) { __h('80-remote:281', __e); }
       return `${D()[m.id]?.name} is rank ${r.rank} now (back to Lv 5)`;
     },
     'update.check': async () => {
-      await Updater.check(); try { push(true); } catch (__e) { __h('80-remote:284', __e); }
+      await Updater.check(); try { push(true); } catch (__e) { __h('80-remote:285', __e); }
       const v = Updater.available, I = Updater.info;
       if (I.err && !I.latest) return 'could not reach GitHub: ' + I.err;
       return v ? `New Update ${v} is ready${Updater.downloaded === v ? ' - downloaded, tap Reload Game to run it' : ''}` : `you're up to date (${VERSION})`;
@@ -11738,16 +11747,16 @@ const Remote = (() => {
   let lastPair = 0;
   let es = null, seen = new Set(), parts = new Map(), lastSig = '', lastSent = 0, pushing = false, lastErr = null, watchedAt = 0;
   function listen() {
-    try { es?.close(); } catch (__e) { __h('80-remote:359', __e); }
+    try { es?.close(); } catch (__e) { __h('80-remote:360', __e); }
     es = null;
     if (!cfg.on || !cfg.cmd) return;
     if (relay()) {
       es = new EventSource(`${RELAY}/sub/${encodeURIComponent(cfg.cmd)}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:364', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); onMsg({ id: 'r' + m.t + Math.random(), message: m.d }); } catch (__e) { __h('80-remote:365', __e); } };
       pairRelay();
     } else {
       es = new EventSource(`https://ntfy.sh/${cfg.cmd}/sse?since=${cfg.lastCmd || '10m'}`);
-      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:368', __e); } };
+      es.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m.event === 'message') onMsg(m); } catch (__e) { __h('80-remote:369', __e); } };
     }
     es.onerror = () => { lastErr = 'phone link reconnecting…'; };
     es.onopen = () => { lastErr = null; };
@@ -11814,7 +11823,7 @@ const Remote = (() => {
     if (ev?.raid) { kind = 'raid'; foe = +ev.id; reg = ev.reg; }
     else if (a.zone) { foe = +(a.zone.foe ?? a.zone.id); kind = a.zone.wb ? 'wboss' : a.zone.tier ? 'elite' : 'legend'; }
     if (!kind || !foe) return null;
-    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:435', __e); }
+    let fights = []; try { fights = await Recorder.all(foe); } catch (__e) { __h('80-remote:436', __e); }
     const day = Date.now() - 86_400_000;
     // boss fights today against this foe (raid: the raid's static boss; zone: zone fights)
     // (a Legendary like Cresselia is also a 'static' encounter, so 'static' can't mean raid - only the raid flag does)
@@ -11829,11 +11838,11 @@ const Remote = (() => {
     const per = gaps.length ? gaps[Math.floor(gaps.length / 2)] : kind === 'raid' ? +ev.loopMs || null : boss[0]?.ms || null;
     let chance = null;
     if (kind === 'raid') chance = +(C.RAID?.CATCH) || 0.01;
-    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:450', __e); } }
+    else { try { const e = b?.enemies?.[0] || { id: foe, level: 100 }; chance = +A.catchProb(A.catchCtx(e)); } catch (__e) { __h('80-remote:451', __e); } }
     if (!(chance > 0)) chance = fightCache?.foe === foe ? fightCache.chance : null;
     let tries = 0, pity = null;
     if (kind === 'raid') { tries = RaidCount.gauge(ev); pity = +(C.RAID?.PITY) || null; }
-    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:454', __e); } }
+    else if (kind === 'wboss') { try { tries = +E.get('WorldBoss').tries() || 0; } catch (__e) { __h('80-remote:455', __e); } }
     else tries = +(S.legTries?.[foe] ?? 0);
     const koRate = kos + wipes ? kos / (kos + wipes) : null;
     // expected: KOs for a 50% / 90% chance, and the time that takes at today's KO rate
@@ -11851,7 +11860,7 @@ const Remote = (() => {
     const S = E.get('Game.S') || {}, Dx = E.get('Game.DEX') || {}, a = S.adv || {}, g = E.get('Game');
     const hp = (m) => { try { return [Math.max(0, Math.round(g.curHp(m))), Math.round(g.maxHp(m))]; } catch { return [0, 0]; } };
     const goals = Plan.goals.filter((x) => !x.done && ['running', 'ready'].includes(Plan.live(x.id)?.state)).map((x) => {
-      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:472', __e); }
+      let p = null; try { const q = GoalTypes[x.type]?.progress?.(x); if (q) p = [q.have, q.need, q.unit || '', q.money ? 1 : 0]; } catch (__e) { __h('80-remote:473', __e); }
       return [x.id, Casing.names(Plan.live(x.id)?.line || ''), p];
     });
     const foes = (a.battle?.enemies || []).filter((e) => e && e.id != null).map((e) => [e.id, e.level || 0, ...hp(e)]);
